@@ -1,0 +1,15 @@
+[submodule "core/third-party/Catch2"]
+	path = core/third-party/Catch2
+	url = https://github.com/catchorg/Catch2.git
+[submodule "core/third-party/fmt"]
+	path = core/third-party/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "core/third-party/range-v3"]
+	path = core/third-party/range-v3
+	url = https://github.com/ericniebler/range-v3.git
+[submodule "core/third-party/variant"]
+	path = core/third-party/variant
+	url = https://github.com/mpark/variant.git
+[submodule "grid/third-party/eigen-git-mirror"]
+	path = grid/third-party/eigen-git-mirror
+	url = https://github.com/eigenteam/eigen-git-mirror.git

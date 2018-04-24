@@ -5,13 +5,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(CGNS)
 
-if (NOT TARGET ReactiveEulerSolver_core)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/core/.git)
-    execute_process(COMMAND git submodule update --init --depth=1 -- third-party/core
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/core)
-endif()
 
 if (NOT TARGET Boost::container)
   find_package(Boost 1.65 REQUIRED COMPONENTS container)

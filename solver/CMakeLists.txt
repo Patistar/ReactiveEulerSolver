@@ -2,22 +2,6 @@ cmake_minimum_required (VERSION 3.10)
 
 project(ReactiveEulerSolver_solver CXX Fortran)
 
-if (NOT TARGET ReactiveEulerSolver_core)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/core/.git)
-    execute_process(COMMAND git submodule update --init -- third-party/core
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/core)
-endif()
-
-if (NOT TARGET ReactiveEulerSolver.grid)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/grid/.git)
-    execute_process(COMMAND git submodule update --init -- third-party/grid
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/grid)
-endif()
-
 add_library(FortranRadauSolver
   source/fub/ode_solver/radau.f
   source/fub/ode_solver/dc_decsol.f

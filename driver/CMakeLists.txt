@@ -2,30 +2,6 @@ cmake_minimum_required (VERSION 3.10)
 
 project(ReactiveEulerSolver_driver CXX Fortran)
 
-if (NOT TARGET ReactiveEulerSolver_core)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/core/.git)
-    execute_process(COMMAND git submodule update --init -- third-party/core
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/core)
-endif()
-
-if (NOT TARGET ReactiveEulerSolver.grid)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/grid/.git)
-    execute_process(COMMAND git submodule update --init -- third-party/grid
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/grid)
-endif()
-
-if (NOT TARGET ReactiveEulerSolver.solver)
-  if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/solver/.git)
-    execute_process(COMMAND git submodule update --init -- third-party/solver
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-  add_subdirectory(third-party/solver)
-endif()
-
 if (NOT TARGET Boost::program_options)
   find_package(Boost 1.65 REQUIRED COMPONENTS program_options)
 endif()

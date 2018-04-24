@@ -32,8 +32,9 @@
 
 namespace fub {
 namespace hpx {
+namespace kinetic {
 
-struct burke_2012_kinetic_1d {
+struct burke_2012_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
@@ -43,6 +44,8 @@ struct burke_2012_kinetic_1d {
   using grid_type = hpx::grid<equation_type, patch_extents_type>;
   using partition_type = grid_type::partition_type;
   using patch_type = grid_type::patch_type;
+  using patch_view_type =
+      decltype(make_view(std::declval<grid_type::patch_type &>()));
   using equation_state_t = complete_state_t<equation_type>;
 
   struct state_type {
@@ -55,19 +58,26 @@ struct burke_2012_kinetic_1d {
   };
 
   using initial_condition_function =
-      std::function<equation_state_t(const std::array<double, rank>&)>;
+      std::function<equation_state_t(const std::array<double, rank> &)>;
 
-  using feedback_function = std::function<bool(const state_type&)>;
+  using feedback_function = std::function<bool(const state_type &)>;
+
+  using boundary_condition = std::function<void(
+      patch_view_type, const uniform_cartesian_coordinates<rank> &,
+      std::chrono::duration<double>)>;
 
   static state_type initialise(initial_condition_function,
-                               const uniform_cartesian_coordinates<rank>&,
+                               const uniform_cartesian_coordinates<rank> &,
                                int depth);
 
-  static state_type advance(const state_type& state,
+  static state_type advance(const state_type &state,
                             std::chrono::duration<double> dt,
+                            boundary_condition boundary_left,
+                            boundary_condition boundary_right,
                             feedback_function feedback);
 };
 
+} // namespace kinetic
 } // namespace hpx
 } // namespace fub
 

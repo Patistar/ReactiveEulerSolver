@@ -32,20 +32,14 @@ namespace serial {
 
 template <typename Solver, typename State, typename BoundaryCondition,
           typename Feedback>
-State advance(const Solver& solver, State state,
+State advance(const Solver &solver, State state,
               std::chrono::duration<double> goal,
               BoundaryCondition boundary_condition, Feedback feedback) {
   while (state.time < goal) {
     std::chrono::duration<double> dt = goal - state.time;
     decltype(state.grid) grid;
-    try {
-      std::tie(grid, dt) = solver.get_next_time_step(
-          state.grid, state.cfl, dt, state.coordinates, boundary_condition);
-    } catch (ode_solver::radau_error::StepSizeBecomesTooSmall& e) {
-      dt = dt / 2;
-      std::tie(grid, dt) = solver.get_next_time_step(
-          state.grid, state.cfl, dt, state.coordinates, boundary_condition);
-    }
+    std::tie(grid, dt) = solver.get_next_time_step(
+        state.grid, state.cfl, dt, state.coordinates, boundary_condition);
     state.grid = std::move(grid);
     state.time = state.time + dt;
     state.dt = dt;

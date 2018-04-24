@@ -3,13 +3,18 @@ cmake_minimum_required (VERSION 3.10)
 project(ReactiveEulerSolver_apps_burke_2012 CXX Fortran)
 
 add_executable(serial.burke_2012.sod serial.burke_2012.sod.cpp)
-target_link_libraries(serial.burke_2012.sod ReactiveEulerSolver.driver.serial.burke_2012.1d)
+target_link_libraries(serial.burke_2012.sod 
+  ReactiveEulerSolver.driver.serial.burke_2012.1d)
 
 add_executable(serial.kinetic.burke_2012.sod serial.kinetic.burke_2012.sod.cpp)
-target_link_libraries(serial.kinetic.burke_2012.sod ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d FortranRadauSolver)
+target_link_libraries(serial.kinetic.burke_2012.sod
+  ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d
+  FortranRadauSolver)
 
 add_executable(serial.kinetic.burke_2012.detonation serial.kinetic.burke_2012.detonation.cpp)
-target_link_libraries(serial.kinetic.burke_2012.detonation ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d FortranRadauSolver)
+target_link_libraries(serial.kinetic.burke_2012.detonation
+  ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d
+  FortranRadauSolver)
 
 find_package(HPX)
 

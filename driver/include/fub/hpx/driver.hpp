@@ -38,28 +38,28 @@
 namespace fub {
 namespace hpx {
 
-template <typename Solver, typename Output>
-void main_driver(boost::program_options::variables_map& vm,
-                 const Solver& solver, typename Solver::state_type state,
-                 const Output& output) noexcept {
+template <typename Solver, typename Feedback>
+void main_driver(boost::program_options::variables_map &vm,
+                 const Solver &solver, typename Solver::state_type state,
+                 const Feedback &feedback) noexcept {
   try {
     using state_type = typename Solver::state_type;
     // fetch program options
     const int cycles = vm["cycles"].as<int>();
     const int depth = vm["depth"].as<int>();
     const double time = vm["time"].as<double>();
-    const double output_interval = vm["output_interval"].as<double>();
+    const double feedback_interval = vm["feedback_interval"].as<double>();
     ::hpx::future<void> write_job = ::hpx::make_ready_future();
     fmt::print("Program Options:\n\tdepth: {}\n\tcycles: {}\n\ttime: "
-               "{}s\n\toutput_interval: {}s\n",
-               depth, cycles, time, output_interval);
+               "{}s\n\tfeedback_interval: {}s\n",
+               depth, cycles, time, feedback_interval);
     const auto wall_start = std::chrono::steady_clock::now();
     while (state.time.count() < time && state.cycle < cycles) {
       std::chrono::duration<double> dt(
-          std::min(output_interval, time - state.time.count()));
+          std::min(feedback_interval, time - state.time.count()));
       std::chrono::duration<double> sub_goal = state.time + dt;
       auto start = std::chrono::steady_clock::now();
-      auto feedback = [&](const state_type& s) -> bool {
+      auto feedback = [&](const state_type &s) -> bool {
         auto end = std::chrono::steady_clock::now();
         auto wall_time =
             std::chrono::duration_cast<std::chrono::duration<double>>(
@@ -71,17 +71,16 @@ void main_driver(boost::program_options::variables_map& vm,
                    "  (wall-time: {:.6f}s,  time-step duration: {:.2e}s)\n",
                    100 * s.time.count() / time, s.time.count(), s.dt.count(),
                    s.cycle, wall_time.count(), diff.count());
+        write_job = write_job.then(
+            [=](::hpx::future<void>) { fub::invoke(feedback, state); });
         start = std::chrono::steady_clock::now();
         return s.time < sub_goal && s.cycle < cycles;
       };
       state = solver.advance(state, state.time + dt, feedback);
-      fmt::print("[Output] Adding an output task into the output queue.\n");
-      write_job = write_job.then(
-          [=](::hpx::future<void>) { fub::invoke(output, state); });
     }
     fmt::print("Wait for write jobs to finish...\n");
     write_job.get();
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     fmt::print(e.what());
   }
 }

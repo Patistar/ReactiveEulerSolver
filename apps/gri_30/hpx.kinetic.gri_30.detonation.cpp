@@ -36,8 +36,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::gri_30;
   moles[as_index(O2())] = 1.0;
-  moles[as_index(H2())] = 2.0;
-  auto left = Equation().set_TPX(1050, 7E5, moles);
+  auto left = Equation().set_TPX(900, 7E5, moles);
   auto right = Equation().set_TPX(300, 1E5, moles);
   return {{left, right}};
 }
@@ -45,7 +44,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 Equation::complete_state
 initial_value_function(const std::array<double, 1> &xs) {
   static auto states = get_initial_states();
-  if (0.2 < xs[0] && xs[0] < 0.3) {
+  if (xs[0] < 0.8) {
     return states[0];
   } else {
     return states[1];
@@ -84,7 +83,7 @@ int main(int argc, char **argv) {
 int hpx_main(boost::program_options::variables_map &vm) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
-  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
+  fub::uniform_cartesian_coordinates<1> coordinates({0}, {2.0}, extents);
   auto state = fub::hpx::kinetic::gri_30_1d::initialise(&initial_value_function,
                                                         coordinates, depth);
   feedback(state);

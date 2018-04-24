@@ -268,7 +268,7 @@ basic_octant<Integral, Rank>::parent() const noexcept {
   const int shift = Rank * (max_depth - depth);
   assert(shift < total_bits);
   const Integral mask = ~((Integral(1) << shift) - 1);
-  basic_octant o;
+  basic_octant o{};
   o.m_morton_index = m_morton_index & mask;
   o.m_depth = depth;
   return o;
@@ -287,7 +287,7 @@ basic_octant<Integral, Rank>::child(int child_id) const {
   const int depth = m_depth + 1;
   const int shift = Rank * (max_depth - depth);
   const Integral mask = static_cast<Integral>(child_id) << shift;
-  basic_octant o;
+  basic_octant o{};
   o.m_morton_index = m_morton_index | mask;
   o.m_depth = depth;
   return o;
@@ -301,7 +301,7 @@ basic_octant<Integral, Rank>::lower_descendant(int depth) const {
     throw std::out_of_range(
         "basic_octant::lower_descendant: depth is out of range.");
   }
-  basic_octant o;
+  basic_octant o{};
   o.m_morton_index = m_morton_index;
   o.m_depth = depth;
   return o;
@@ -317,7 +317,7 @@ basic_octant<Integral, Rank>::upper_descendant(int depth) const {
     throw std::out_of_range(
         "basic_octant::upper_descendant: depth is out of range.");
   }
-  basic_octant o;
+  basic_octant o{};
   constexpr int shift = total_bits % Rank;
   const Integral mask_upper = ~Integral{0} >> (Rank * m_depth + shift);
   const Integral mask_lower = ~(~Integral{0} >> (Rank * depth + shift));

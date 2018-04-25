@@ -40,7 +40,9 @@ using fub::dynamic_storage_descriptor;
 using fub::extents;
 using fub::mdspan;
 using fub::patch;
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
 using fub::pmr_storage_descriptor;
+#endif
 
 TEST_CASE("2D patch with simple variables") {
   patch<std::tuple<Density, Velocity, Pressure>, extents<16, 16>> block{};

@@ -18,12 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_DRIVER_BURKE_2012_1D_SERIAL_HPP
-#define FUB_DRIVER_BURKE_2012_1D_SERIAL_HPP
+#ifndef FUB_DRIVER_SERIAL_KINETIC_BURKE_2012_1D_HPP
+#define FUB_DRIVER_SERIAL_KINETIC_BURKE_2012_1D_HPP
 
 #include "fub/grid.hpp"
 
 #include "fub/euler/mechanism/burke_2012.hpp"
+#include "fub/polymorphic_boundary_condition.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <chrono>
@@ -32,6 +33,7 @@
 
 namespace fub {
 namespace serial {
+namespace kinetic {
 
 struct burke_2012_1d {
   static constexpr int rank = 1;
@@ -59,15 +61,20 @@ struct burke_2012_1d {
 
   using feedback_function = std::function<bool(const state_type&)>;
 
+  using boundary_condition =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::x>;
+
   static state_type initialise(initial_condition_function,
                                const uniform_cartesian_coordinates<rank>&,
                                int depth);
 
   static state_type advance(const state_type& state,
                             std::chrono::duration<double> dt,
+                            const boundary_condition& boundary,
                             feedback_function feedback);
 };
 
+} // namespace kinetic
 } // namespace serial
 } // namespace fub
 

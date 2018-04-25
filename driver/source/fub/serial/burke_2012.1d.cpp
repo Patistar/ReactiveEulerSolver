@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/serial/burke_2012_1d.hpp"
+#include "fub/serial/burke_2012.1d.hpp"
 #include "fub/serial/advance.hpp"
 #include "fub/serial/initialise.hpp"
 
@@ -42,8 +42,6 @@ const fub::time_integrator::forward_euler time_integrator;
 const fub::hyperbolic_system_solver<decltype(equation), decltype(flux_method),
                                     decltype(time_integrator)>
     advective_solver{equation, flux_method, time_integrator};
-
-const fub::euler::boundary_condition::reflective boundary_condition;
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(
@@ -52,11 +50,10 @@ burke_2012_1d::state_type burke_2012_1d::initialise(
   return serial::initialise<state_type>(std::move(f), coordinates, depth);
 }
 
-burke_2012_1d::state_type
-burke_2012_1d::advance(const state_type& state,
-                       std::chrono::duration<double> goal,
-                       feedback_function feedback) {
-  return serial::advance(advective_solver, state, goal, boundary_condition,
+burke_2012_1d::state_type burke_2012_1d::advance(
+    const state_type& state, std::chrono::duration<double> goal,
+    const boundary_condition& boundary, feedback_function feedback) {
+  return serial::advance(advective_solver, state, goal, boundary,
                          std::move(feedback));
 }
 

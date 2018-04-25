@@ -45,7 +45,6 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
     godunov_splitting(), advective_solver, kinetic_source_term);
-const euler::boundary_condition::reflective boundary_condition;
 } // namespace
 
 gri_30_1d::state_type
@@ -57,9 +56,9 @@ gri_30_1d::initialise(initial_condition_function f,
 
 gri_30_1d::state_type gri_30_1d::advance(const state_type& state,
                                          std::chrono::duration<double> goal,
+                                         const boundary_condition& boundary,
                                          feedback_function feedback) {
-  return serial::advance(solver, state, goal, boundary_condition,
-                         std::move(feedback));
+  return serial::advance(solver, state, goal, boundary, std::move(feedback));
 }
 } // namespace kinetic
 } // namespace serial

@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/hpx/kinetic.burke_2012_1d.hpp"
-#include "fub/hpx/advance.hpp"
-#include "fub/hpx/initialise.hpp"
-#include "fub/patch_view.hpp"
+#include "fub/serial/advance.hpp"
+#include "fub/serial/initialise.hpp"
+#include "fub/serial/kinetic.burke_2012.1d.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
@@ -34,9 +33,10 @@
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
-namespace hpx {
+namespace serial {
+namespace kinetic {
 namespace {
-const burke_2012_kinetic_1d::equation_type equation{};
+const burke_2012_1d::equation_type equation{};
 const euler::muscl_hancock_method<euler::hlle_riemann_solver> flux_method;
 const time_integrator::forward_euler time_integrator;
 const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
@@ -45,22 +45,19 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
     godunov_splitting(), advective_solver, kinetic_source_term);
-const euler::boundary_condition::reflective boundary_condition;
 } // namespace
 
-burke_2012_kinetic_1d::state_type burke_2012_kinetic_1d::initialise(
+burke_2012_1d::state_type burke_2012_1d::initialise(
     initial_condition_function f,
     const uniform_cartesian_coordinates<rank>& coordinates, int depth) {
-  return ::fub::hpx::initialise<state_type>(std::move(f), coordinates, depth, 0.5);
+  return serial::initialise<state_type>(std::move(f), coordinates, depth, 0.5);
 }
 
-burke_2012_kinetic_1d::state_type
-burke_2012_kinetic_1d::advance(const state_type& state,
-                               std::chrono::duration<double> goal,
-                               feedback_function feedback) {
-  return ::fub::hpx::advance(solver, state, goal, boundary_condition,
-                             std::move(feedback));
+burke_2012_1d::state_type burke_2012_1d::advance(
+    const state_type& state, std::chrono::duration<double> goal,
+    const boundary_condition& boundary, feedback_function feedback) {
+  return serial::advance(solver, state, goal, boundary, std::move(feedback));
 }
-
-} // namespace hpx
+}
+} // namespace serial
 } // namespace fub

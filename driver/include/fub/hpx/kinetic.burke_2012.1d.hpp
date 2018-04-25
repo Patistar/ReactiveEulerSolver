@@ -24,6 +24,8 @@
 #include "fub/hpx/grid.hpp"
 
 #include "fub/euler/mechanism/burke_2012.hpp"
+#include "fub/patch_view.hpp"
+#include "fub/polymorphic_boundary_condition.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <chrono>
@@ -45,7 +47,7 @@ struct burke_2012_1d {
   using partition_type = grid_type::partition_type;
   using patch_type = grid_type::patch_type;
   using patch_view_type =
-      decltype(make_view(std::declval<grid_type::patch_type &>()));
+      decltype(make_view(std::declval<grid_type::patch_type&>()));
   using equation_state_t = complete_state_t<equation_type>;
 
   struct state_type {
@@ -58,22 +60,20 @@ struct burke_2012_1d {
   };
 
   using initial_condition_function =
-      std::function<equation_state_t(const std::array<double, rank> &)>;
+      std::function<equation_state_t(const std::array<double, rank>&)>;
 
-  using feedback_function = std::function<bool(const state_type &)>;
+  using feedback_function = std::function<bool(const state_type&)>;
 
-  using boundary_condition = std::function<void(
-      patch_view_type, const uniform_cartesian_coordinates<rank> &,
-      std::chrono::duration<double>)>;
+  using boundary_condition =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::x>;
 
   static state_type initialise(initial_condition_function,
-                               const uniform_cartesian_coordinates<rank> &,
+                               const uniform_cartesian_coordinates<rank>&,
                                int depth);
 
-  static state_type advance(const state_type &state,
+  static state_type advance(const state_type& state,
                             std::chrono::duration<double> dt,
-                            boundary_condition boundary_left,
-                            boundary_condition boundary_right,
+                            const boundary_condition& boundary,
                             feedback_function feedback);
 };
 

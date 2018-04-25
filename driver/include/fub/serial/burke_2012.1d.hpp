@@ -24,6 +24,7 @@
 #include "fub/grid.hpp"
 
 #include "fub/euler/mechanism/burke_2012.hpp"
+#include "fub/polymorphic_boundary_condition.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <chrono>
@@ -33,7 +34,7 @@
 namespace fub {
 namespace serial {
 
-struct burke_2012_kinetic_1d {
+struct burke_2012_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
@@ -57,18 +58,22 @@ struct burke_2012_kinetic_1d {
   using initial_condition_function =
       std::function<equation_state_t(const std::array<double, rank>&)>;
 
-  using feedback_function =
-      std::function<bool(const state_type&)>;
+  using feedback_function = std::function<bool(const state_type&)>;
 
   static state_type initialise(initial_condition_function,
-                               const uniform_cartesian_coordinates<rank>&, int depth);
+                               const uniform_cartesian_coordinates<rank>&,
+                               int depth);
+
+  using boundary_condition =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::x>;
 
   static state_type advance(const state_type& state,
                             std::chrono::duration<double> dt,
+                            const boundary_condition& boundary,
                             feedback_function feedback);
 };
 
-}
+} // namespace serial
 } // namespace fub
 
 #endif

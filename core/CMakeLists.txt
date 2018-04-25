@@ -7,7 +7,7 @@ if (NOT DEFINED FUB_CORE_CXX_STANDARD)
   set(FUB_CORE_CXX_STANDARD 17)
 endif()
 
-find_package(Boost 1.65 REQUIRED)
+find_package(Boost REQUIRED)
 
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt/.git)
   execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/fmt

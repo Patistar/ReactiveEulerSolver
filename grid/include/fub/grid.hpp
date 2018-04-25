@@ -24,6 +24,7 @@
 #include "fub/equation.hpp"
 #include "fub/octree.hpp"
 #include "fub/patch.hpp"
+#include "fub/patch_view.hpp"
 
 #include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <memory>
@@ -33,9 +34,11 @@ namespace fub {
 template <typename G> struct grid_traits {
   using grid_type = G;
   using partition_type = typename G::partition_type;
+  using extents_type = typename G::extents_type;
   using octant_type = typename G::octant_type;
   using mapped_type = typename G::mapped_type;
   using patch_type = typename G::patch_type;
+  using patch_view_type = decltype(make_view(std::declval<patch_type&>()));
   using node_type = typename G::node_type;
 
   static constexpr int rank = G::rank;

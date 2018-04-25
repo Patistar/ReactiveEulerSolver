@@ -7,7 +7,7 @@ find_package(CGNS)
 
 
 if (NOT TARGET Boost::container)
-  find_package(Boost 1.65 REQUIRED COMPONENTS container)
+  find_package(Boost REQUIRED COMPONENTS container)
 endif()
 
 if (NOT TARGET eigen)

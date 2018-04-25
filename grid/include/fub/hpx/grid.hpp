@@ -174,10 +174,12 @@ template <typename T> decltype(auto) filter_patch(T&& obj) {
 
 template <typename Eq, typename Ex> struct grid_traits<hpx::grid<Eq, Ex>> {
   using grid_type = hpx::grid<Eq, Ex>;
+  using extents_type = typename grid_type::extents_type;
   using partition_type = typename grid_type::partition_type;
   using octant_type = typename grid_type::octant_type;
   using mapped_type = typename grid_type::mapped_type;
   using patch_type = typename grid_type::patch_type;
+  using patch_view_type = decltype(make_view(std::declval<patch_type&>()));
   using node_type = typename grid_type::node_type;
 
   static constexpr int rank = grid_type::rank;

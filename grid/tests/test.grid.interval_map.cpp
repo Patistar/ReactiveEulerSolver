@@ -25,7 +25,9 @@
 
 template <typename Map>
 void print(std::ostream& out, const Map& map) {
-  for (auto&& [key, mapped] : map) {
+  for (auto&& pair : map) {
+    auto&& key = pair.first;
+    auto&& mapped = pair.second;
     out << '{' << key << ", " << mapped << "}\n";
   }
   out << '\n';

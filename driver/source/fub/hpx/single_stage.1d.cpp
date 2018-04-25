@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/hpx/single_stage_1d.hpp"
+#include "fub/hpx/single_stage.1d.hpp"
 #include "fub/hpx/advance.hpp"
 #include "fub/hpx/initialise.hpp"
 #include "fub/patch_view.hpp"
@@ -42,8 +42,6 @@ const fub::time_integrator::forward_euler time_integrator;
 const fub::hyperbolic_system_solver<decltype(equation), decltype(flux_method),
                                     decltype(time_integrator)>
     advective_solver{equation, flux_method, time_integrator};
-
-const fub::euler::boundary_condition::reflective boundary_condition;
 } // namespace
 
 single_stage_1d::state_type single_stage_1d::initialise(
@@ -55,8 +53,9 @@ single_stage_1d::state_type single_stage_1d::initialise(
 single_stage_1d::state_type
 single_stage_1d::advance(const state_type& state,
                          std::chrono::duration<double> goal,
+                            const boundary_condition& boundary,
                          feedback_function feedback) {
-  return ::fub::hpx::advance(advective_solver, state, goal, boundary_condition,
+  return ::fub::hpx::advance(advective_solver, state, goal, boundary,
                              std::move(feedback));
 }
 

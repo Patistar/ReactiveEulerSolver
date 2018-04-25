@@ -24,6 +24,7 @@
 #include "fub/hpx/grid.hpp"
 
 #include "fub/euler/mechanism/gri_30.hpp"
+#include "fub/polymorphic_boundary_condition.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <chrono>
@@ -60,12 +61,16 @@ struct gri_30_1d {
 
   using feedback_function = std::function<bool(const state_type&)>;
 
+  using boundary_condition =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::x>;
+
   static state_type initialise(initial_condition_function,
                                const uniform_cartesian_coordinates<rank>&,
                                int depth);
 
   static state_type advance(const state_type& state,
                             std::chrono::duration<double> dt,
+                            const boundary_condition& boundary,
                             feedback_function feedback);
 };
 

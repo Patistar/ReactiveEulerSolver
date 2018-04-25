@@ -36,7 +36,7 @@ double GetLindRateCoeff(double temp, double pressure, double k0, double kInf,
 
   int iTroe = 1;
 
-  if (isinf(conc)) {
+  if (std::isinf(conc)) {
     conc = pressure / (R * temp);
   }
   Ntmp = 0.75 - 1.27 * (fc < 1e-200 ? -200 : log10(fc));

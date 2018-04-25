@@ -21,7 +21,6 @@
 #ifndef FUB_GRID_HPP
 #define FUB_GRID_HPP
 
-#include "fub/config.hpp"
 #include "fub/equation.hpp"
 #include "fub/grid/config.hpp"
 #include "fub/octree.hpp"

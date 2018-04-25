@@ -55,7 +55,7 @@ public:
     array<double, Rank> coordinates{};
     array<index, Rank> is{{static_cast<index>(indices)...}};
     check_index_range(is);
-    array<double, Rank> lambda;
+    array<double, Rank> lambda{};
     std::transform(m_extents.begin(), m_extents.end(), is.begin(),
                    lambda.begin(), [](index e, index i) {
                      assert(0 <= i && i <= e);

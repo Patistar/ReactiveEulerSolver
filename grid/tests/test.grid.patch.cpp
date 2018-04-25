@@ -38,9 +38,9 @@ struct Pressure {
 using fub::automatic_storage_descriptor;
 using fub::dynamic_storage_descriptor;
 using fub::extents;
+using fub::mdspan;
 using fub::patch;
 using fub::pmr_storage_descriptor;
-using fub::mdspan;
 
 TEST_CASE("2D patch with simple variables") {
   patch<std::tuple<Density, Velocity, Pressure>, extents<16, 16>> block{};
@@ -75,6 +75,7 @@ TEST_CASE("Using the dynamic allocator") {
   REQUIRE(density.size() == 16 * 16);
 }
 
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
 struct MyMemoryResource : boost::container::pmr::memory_resource {
   int num_allocates{0};
   int num_deallocates{0};
@@ -109,10 +110,11 @@ TEST_CASE("Using the pmr allocator") {
     REQUIRE(resource.num_allocates == 3);
     REQUIRE(resource.num_deallocates == 0);
     auto density = block.get<Density>();
-    REQUIRE(
-        std::is_same<mdspan<double, extents<16, 16>>, decltype(density)>::value);
+    REQUIRE(std::is_same<mdspan<double, extents<16, 16>>,
+                         decltype(density)>::value);
     REQUIRE(density.size() == 16 * 16);
   }
   REQUIRE(resource.num_allocates == 3);
   REQUIRE(resource.num_deallocates == 3);
 }
+#endif

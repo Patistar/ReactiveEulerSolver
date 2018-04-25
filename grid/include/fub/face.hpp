@@ -28,14 +28,11 @@ enum class direction { left = -1, right = +1 };
 enum class axis { x, y, z };
 
 struct face {
-  axis axis;
+  axis dimension;
   direction side;
 };
 
-constexpr int as_dimension(axis a) noexcept {
-  return static_cast<int>(a);
-}
-constexpr int as_int(axis a) noexcept { return static_cast<int>(a); }
+constexpr int as_int(axis dim) noexcept { return static_cast<int>(dim); }
 constexpr int sign(direction side) noexcept { return static_cast<int>(side); }
 
 } // namespace fub

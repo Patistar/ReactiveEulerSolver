@@ -346,7 +346,7 @@ constexpr optional<basic_octant<Integral, Rank>>
 face_neighbor(const basic_octant<Integral, Rank> &octant,
               const face &face) noexcept {
   array<Integral, Rank> xs = coordinates(octant);
-  const int dim = as_dimension(face.axis);
+  const int dim = as_int(face.dimension);
   const Integral max = (1 << octant.depth()) - 1;
   if ((xs[dim] == 0 && face.side == direction::left) ||
       (xs[dim] == max && face.side == direction::right)) {

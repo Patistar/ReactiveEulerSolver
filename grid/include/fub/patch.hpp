@@ -187,7 +187,11 @@ using pmr_storage_descriptor = dynamic_storage_descriptor<
 //                                                                 [class.patch]
 // {{{
 template <typename Variables, typename Extents,
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
           typename Descriptor = pmr_storage_descriptor>
+#else
+          typename Descriptor = dynamic_storage_descriptor<>>
+#endif
 class patch {
   using Traits = descriptor_traits<Descriptor>;
 

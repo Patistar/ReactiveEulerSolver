@@ -6,7 +6,11 @@ try_compile(_has_std_variant
   ${CMAKE_BINARY_DIR}
   ${_mod_dir}/CheckStdVariant.cpp
   CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-message(STATUS "Checking for std::variant... done.")
+if (_has_std_variant)
+  message(STATUS "Checking for std::variant... Success.")
+else()
+  message(STATUS "Checking for std::variant... Failure.")
+endif()
 
 set(FUB_CORE_USE_STD_VARIANT OFF)
 set(FUB_CORE_USE_STD_EXPERIMENTAL_VARIANT OFF)

@@ -22,6 +22,7 @@
 #define FUB_GRID_PATCH_HPP
 
 #include "fub/face.hpp"
+#include "fub/grid/config.hpp"
 #include "fub/mdspan.hpp"
 #include "fub/tuple.hpp"
 #include "fub/type_traits.hpp"
@@ -29,7 +30,9 @@
 
 #include <range/v3/iterator_range.hpp>
 
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
 #include <boost/container/pmr/polymorphic_allocator.hpp>
+#endif
 
 #include <cassert>
 
@@ -128,7 +131,8 @@ struct automatic_storage_descriptor {
         [&](auto... vs) {
           auto make_vector = [](auto v, const Extents& extents) {
             const auto size = variable_traits<decltype(v)>::size(extents);
-            return std::vector<typename variable_traits<decltype(v)>::value_type>(size);
+            return std::vector<
+                typename variable_traits<decltype(v)>::value_type>(size);
           };
           return std::make_tuple(make_vector(vs, extents)...);
         },
@@ -139,7 +143,9 @@ struct automatic_storage_descriptor {
   static auto make_storage(
       const Extents& extents,
       const std::tuple<Vars...>& vars) noexcept(Extents::rank_dynamic == 0) {
-    return make_storage(extents, vars, bool_c<Extents::rank_dynamic == 0 && (sizeof...(Vars) < 20)>);
+    return make_storage(extents, vars,
+                        bool_c < Extents::rank_dynamic == 0 &&
+                            (sizeof...(Vars) < 20) >);
   }
 };
 
@@ -170,8 +176,10 @@ struct dynamic_storage_descriptor {
   }
 };
 
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
 using pmr_storage_descriptor = dynamic_storage_descriptor<
     boost::container::pmr::polymorphic_allocator<void>>;
+#endif
 
 // }}}
 

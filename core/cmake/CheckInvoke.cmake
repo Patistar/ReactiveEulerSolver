@@ -7,7 +7,11 @@ try_compile(_has_std_invoke
   ${CMAKE_BINARY_DIR}
   ${_mod_dir}/CheckStdInvoke.cpp
   CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-message(STATUS "Checking for std::invoke... done.")
+if (_has_std_invoke)
+  message(STATUS "Checking for std::invoke... Success.")
+else()
+  message(STATUS "Checking for std::invoke... Failure.")
+endif()
 
 if (_has_std_invoke)
   set(FUB_CORE_USE_STD_INVOKE ON)

@@ -6,7 +6,11 @@ try_compile(_has_std_optional
   ${CMAKE_BINARY_DIR}
   ${_mod_dir}/CheckStdOptional.cpp
   CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-message(STATUS "Checking for std::optional... done.")
+if (_has_std_optional) 
+  message(STATUS "Checking for std::optional... Success.")
+else()
+  message(STATUS "Checking for std::optional... Failure.")
+endif()
 
 set(FUB_CORE_USE_STD_OPTIONAL OFF)
 set(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL OFF)
@@ -21,7 +25,11 @@ else()
     ${CMAKE_BINARY_DIR}
     ${_mod_dir}/CheckStdExperimentalOptional.cpp
     CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-  message(STATUS "Checking for std::experimental::optional... done.")
+  if (_has_std_experimental_optional)
+    message(STATUS "Checking for std::experimental::optional... Success.")
+  else()
+    message(STATUS "Checking for std::experimental::optional... Failure.")
+  endif()
   if (_has_std_experimental_optional)
     set(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL ON)
     add_library(ReactiveEulerSolver_core_optional INTERFACE)

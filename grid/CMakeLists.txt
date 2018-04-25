@@ -5,10 +5,12 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(CGNS)
 
-
 if (NOT TARGET Boost::container)
-  find_package(Boost REQUIRED COMPONENTS container)
+  find_package(Boost COMPONENTS container)
+  set(FUB_WITH_POLYMORPHIC_ALLOCATOR Boost_FOUND)
 endif()
+
+configure_file(include/fub/config.hpp.in ${CMAKE_BINARY_DIR}/fub/grid/config.hpp)
 
 if (NOT TARGET eigen)
   if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/eigen-git-mirror/.git)

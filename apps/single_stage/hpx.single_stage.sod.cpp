@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/hpx/driver.hpp"
 #include "fub/hpx/single_stage_1d.hpp"
 #include "fub/output/cgns.hpp"
@@ -42,7 +43,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1> &xs) {
+initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
   if (xs[0] < 0.5) {
     return states[0];
@@ -57,15 +58,15 @@ void feedback(state_type state) {
   std::string file_name = fmt::format("out_{}.cgns", state.cycle);
   auto file = fub::output::cgns::open(file_name.c_str(), 2);
   fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
-  for (const Partition &partition : state.grid) {
-    const auto &octant = fub::grid_traits<Grid>::octant(partition);
+  for (const Partition& partition : state.grid) {
+    const auto& octant = fub::grid_traits<Grid>::octant(partition);
     auto node = partition.second.get();
     fub::output::cgns::write(file, octant, fub::make_view(node.patch),
                              state.coordinates, Equation());
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
   desc.add_options()("cycles", po::value<int>()->default_value(100),
@@ -74,7 +75,7 @@ int main(int argc, char **argv) {
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1),
                      "The final time level which we are interested in.");
-  desc.add_options()("output_interval", po::value<double>()->default_value(0.1),
+  desc.add_options()("feedback_interval", po::value<double>()->default_value(0.1),
                      "The time interval in which we write output files.");
 
   return hpx::init(desc, argc, argv);
@@ -90,7 +91,9 @@ int hpx_main(boost::program_options::variables_map& vm) {
                                                      coordinates, depth);
   feedback(state);
 
-  fub::hpx::main_driver(vm, fub::hpx::single_stage_1d(), state, &feedback);
+  fub::euler::boundary_condition::reflective boundary{};
+  fub::hpx::main_driver(vm, fub::hpx::single_stage_1d(), state, boundary,
+                        &feedback);
 
   return hpx::finalize();
 }

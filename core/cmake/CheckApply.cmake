@@ -7,7 +7,11 @@ try_compile(_has_std_apply
   ${CMAKE_BINARY_DIR}
   ${_mod_dir}/CheckStdApply.cpp
   CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-message(STATUS "Checking for std::apply... done.")
+if (_has_std_apply)
+  message(STATUS "Checking for std::apply... Success")
+else()
+  message(STATUS "Checking for std::apply... Failure")
+endif()
 
 if (_has_std_apply)
   set(FUB_CORE_USE_STD_APPLY ON)

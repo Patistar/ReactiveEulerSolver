@@ -21,12 +21,17 @@
 #ifndef FUB_GRID_HPP
 #define FUB_GRID_HPP
 
+#include "fub/config.hpp"
 #include "fub/equation.hpp"
+#include "fub/grid/config.hpp"
 #include "fub/octree.hpp"
 #include "fub/patch.hpp"
 #include "fub/patch_view.hpp"
 
+#if defined(FUB_WITH_POLYMORPHIC_ALLOCATOR)
 #include <boost/container/pmr/polymorphic_allocator.hpp>
+#endif
+
 #include <memory>
 
 namespace fub {
@@ -149,8 +154,12 @@ public:
   using extents_type = Extents;
   using patch_type = patch<as_tuple_t<complete_state_t<Equation>>, Extents>;
   using node_type = standard_grid_node<Equation, Extents>;
+#if defined(FUB_WITH_POLYMORPHIC_ALLOCATOR)
   using allocator_type =
       boost::container::pmr::polymorphic_allocator<node_type>;
+#else
+  using allocator_type = std::allocator<node_type>;
+#endif
   using octant_type = fub::octant<rank>;
   using mapped_type = std::shared_ptr<node_type>;
   using octree_type = fub::octree<mapped_type, rank>;

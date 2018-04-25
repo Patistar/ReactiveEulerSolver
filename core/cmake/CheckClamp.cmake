@@ -7,7 +7,11 @@ try_compile(_has_std_clamp
   ${CMAKE_BINARY_DIR}
   ${_mod_dir}/CheckStdClamp.cpp
   CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-message(STATUS "Checking for std::clamp... done")
+if (_has_std_clamp)
+  message(STATUS "Checking for std::clamp... Success")
+else()
+  message(STATUS "Checking for std::clamp... Failure")
+endif()
 
 if (_has_std_clamp)
   set(FUB_CORE_USE_STD_CLAMP ON)

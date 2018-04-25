@@ -12,8 +12,8 @@ find_package(Boost REQUIRED)
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt/.git)
   execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/fmt
                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt)
 endif()
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt)
 
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/range-v3/.git)
   execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/range-v3

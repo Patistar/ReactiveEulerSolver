@@ -37,8 +37,10 @@ using Partition = Grid::partition_type;
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::gri_30;
-  moles[as_index(N2())] = 1.0;
-  auto left = Equation().set_TPX(300, 10E5, moles);
+  moles[as_index(CH2())] = 1.0;
+  moles[as_index(O2())] = 1.0;
+  moles[as_index(C2H6())] = 1.0;
+  auto left = Equation().set_TPX(600, 10E5, moles);
   std::swap(moles[as_index(N2())], moles[as_index(AR())]);
   auto right = Equation().set_TPX(345, 1E5, moles);
   return {{left, right}};
@@ -77,7 +79,7 @@ int main(int argc, char** argv) {
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
-  desc.add_options()("output_interval",
+  desc.add_options()("feedback_interval",
                      po::value<double>()->default_value(5e-6),
                      "The time interval in which we write output files.");
 

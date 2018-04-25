@@ -22,7 +22,6 @@
 #include "fub/serial/advance.hpp"
 #include "fub/serial/initialise.hpp"
 
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
 #include "fub/hyperbolic_system_solver.hpp"

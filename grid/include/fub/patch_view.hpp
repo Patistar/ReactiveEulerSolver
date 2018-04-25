@@ -154,11 +154,20 @@ public:
 template <typename... Vars>
 using patch_view_iterator = ranges::basic_iterator<view_cursor<Vars...>>;
 
+template <typename Extents> class base_patch_view : public Extents {
+public:
+  base_patch_view() = default;
+  base_patch_view(const Extents& e) : Extents(e) {}
+
+  const Extents& extents() const noexcept { return *this; }
+};
+
 } // namespace detail
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
-template <typename Extents, typename... Vars> class patch_view {
-  Extents m_extents{};
+template <typename Extents, typename... Vars>
+class patch_view : public detail::base_patch_view<Extents> {
+  using base_type = detail::base_patch_view<Extents>;
   std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
 
   friend class detail::row_cursor<Extents, Vars...>;
@@ -170,16 +179,15 @@ public:
 
   patch_view() = default;
 
-  patch_view(Extents e, typename variable_traits<Vars>::pointer... pointers)
-      : m_extents{e}, m_pointers{pointers...} {}
+  patch_view(const Extents& e,
+             typename variable_traits<Vars>::pointer... pointers)
+      : base_type(e), m_pointers{pointers...} {}
 
   template <typename Patch,
             typename = std::enable_if_t<is_patch<std::decay_t<Patch>>::value>>
   patch_view(Patch&& block)
-      : m_extents(block.extents()),
+      : base_type(block.extents()),
         m_pointers{block.template get<std::remove_const_t<Vars>>().data()...} {}
-
-  const Extents& extents() const noexcept { return m_extents; }
 
   template <typename Var> auto get() const noexcept {
     using Index = variable_find_index<std::remove_cv_t<Var>,
@@ -191,10 +199,10 @@ public:
     using ElementT = std::conditional_t<std::is_const<VarInPack>::value,
                                         const ValueT, ValueT>;
     return mdspan<ElementT, Extents>{std::get<Index::value>(m_pointers),
-                                     m_extents};
+                                     this->extents()};
   }
 
-  std::ptrdiff_t size() const noexcept { return m_extents.size(); }
+  std::ptrdiff_t size() const noexcept { return this->extents().size(); }
 
   template <typename Var> auto operator[](Var) const noexcept {
     return get<Var>();
@@ -215,14 +223,15 @@ public:
   auto rows() const noexcept {
     detail::row_iterator<Extents, Vars...> first{*this};
     detail::row_iterator<Extents, Vars...> last{*this,
-                                                detail::covolume(extents())};
+                                                detail::covolume(this->extents())};
     return ranges::make_iterator_range(first, last);
   }
 };
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
-template <int Size, typename... Vars> class patch_view<::fub::extents<Size>, Vars...> {
-  ::fub::extents<Size> m_extents{};
+template <int Size, typename... Vars>
+class patch_view<extents<Size>, Vars...> : public detail::base_patch_view<extents<Size>> {
+  using base_type = detail::base_patch_view<extents<Size>>;
   std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
 
   friend class detail::row_cursor<extents<Size>, Vars...>;
@@ -236,15 +245,13 @@ public:
 
   patch_view(const extents_type& e,
              typename variable_traits<Vars>::pointer... pointers)
-      : m_extents{e}, m_pointers{pointers...} {}
+      : base_type(e), m_pointers{pointers...} {}
 
   template <typename Patch,
             typename = std::enable_if_t<is_patch<std::decay_t<Patch>>::value>>
   patch_view(Patch&& block)
-      : m_extents(block.extents()),
+      : base_type(block.extents()),
         m_pointers{block.template get<std::remove_const_t<Vars>>().data()...} {}
-
-  const extents_type& extents() const noexcept { return m_extents; }
 
   template <typename Var> auto get() const noexcept {
     using Index = variable_find_index<std::remove_cv_t<Var>,
@@ -258,7 +265,7 @@ public:
     return span<ElementT, Size>{std::get<Index::value>(m_pointers), Size};
   }
 
-  std::ptrdiff_t size() const noexcept { return m_extents.size(); }
+  std::ptrdiff_t size() const noexcept { return this->extents().size(); }
 
   template <typename Var> auto operator[](Var) const noexcept {
     return get<Var>();
@@ -293,7 +300,7 @@ public:
   auto rows() const noexcept {
     detail::row_iterator<extents_type, Vars...> first{*this};
     detail::row_iterator<extents_type, Vars...> last{
-        *this, detail::covolume(extents())};
+        *this, detail::covolume(this->extents())};
     return ranges::make_iterator_range(first, last);
   }
 };

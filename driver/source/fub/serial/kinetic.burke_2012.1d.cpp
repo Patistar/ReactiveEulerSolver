@@ -18,18 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/serial/kinetic.burke_2012.1d.hpp"
 #include "fub/serial/advance.hpp"
 #include "fub/serial/initialise.hpp"
-#include "fub/serial/kinetic.burke_2012.1d.hpp"
 
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
-#include "fub/godunov_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/strang_splitting.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
@@ -44,7 +43,7 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
     advective_solver{equation, flux_method, time_integrator};
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
-    godunov_splitting(), advective_solver, kinetic_source_term);
+    strang_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(
@@ -58,6 +57,6 @@ burke_2012_1d::state_type burke_2012_1d::advance(
     const boundary_condition& boundary, feedback_function feedback) {
   return serial::advance(solver, state, goal, boundary, std::move(feedback));
 }
-}
+} // namespace kinetic
 } // namespace serial
 } // namespace fub

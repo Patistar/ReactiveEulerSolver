@@ -26,10 +26,10 @@
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
-#include "fub/godunov_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/strang_splitting.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
@@ -45,7 +45,7 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
     advective_solver{equation, flux_method, time_integrator};
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
-    godunov_splitting(), advective_solver, kinetic_source_term);
+    strang_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(
@@ -55,13 +55,10 @@ burke_2012_1d::state_type burke_2012_1d::initialise(
                                             0.5);
 }
 
-burke_2012_1d::state_type
-burke_2012_1d::advance(const state_type& state,
-                       std::chrono::duration<double> dt,
-                       const boundary_condition& condition,
-                       feedback_function feedback) {
-  return ::fub::hpx::advance(solver, state, dt, condition,
-                             std::move(feedback));
+burke_2012_1d::state_type burke_2012_1d::advance(
+    const state_type& state, std::chrono::duration<double> dt,
+    const boundary_condition& condition, feedback_function feedback) {
+  return ::fub::hpx::advance(solver, state, dt, condition, std::move(feedback));
 }
 
 } // namespace kinetic

@@ -22,7 +22,6 @@
 #include "fub/serial/advance.hpp"
 #include "fub/serial/initialise.hpp"
 
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
@@ -44,7 +43,7 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
     advective_solver{equation, flux_method, time_integrator};
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
-    godunov_splitting(), advective_solver, kinetic_source_term);
+    strang_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 gri_30_1d::state_type

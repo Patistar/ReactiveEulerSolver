@@ -21,16 +21,17 @@
 #include "fub/grid.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/serial/driver.hpp"
-#include "fub/serial/kinetic.burke_2012_1d.hpp"
+#include "fub/serial/kinetic.burke_2012.1d.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <boost/program_options.hpp>
 
 #include <array>
 
-using Equation = fub::serial::burke_2012_kinetic_1d::equation_type;
-using Grid = fub::serial::burke_2012_kinetic_1d::grid_type;
+using Equation = fub::serial::kinetic::burke_2012_1d::equation_type;
+using Grid = fub::serial::kinetic::burke_2012_1d::grid_type;
 using Partition = Grid::partition_type;
 
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
@@ -53,7 +54,7 @@ initial_value_function(const std::array<double, 1> &xs) {
   }
 }
 
-using state_type = fub::serial::burke_2012_kinetic_1d::state_type;
+using state_type = fub::serial::kinetic::burke_2012_1d::state_type;
 
 void feedback(state_type state) {
   std::string file_name = fmt::format("out_{}.cgns", state.cycle);
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
-  desc.add_options()("output_interval",
+  desc.add_options()("feedback_interval",
                      po::value<double>()->default_value(5e-6),
                      "The time interval in which we write output files.");
 
@@ -89,10 +90,11 @@ int main(int argc, char **argv) {
 
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {0.2}, extents);
 
-  auto state = fub::serial::burke_2012_kinetic_1d::initialise(
+  auto state = fub::serial::kinetic::burke_2012_1d::initialise(
       &initial_value_function, coordinates, depth);
   feedback(state);
 
-  fub::serial::main_driver(vm, fub::serial::burke_2012_kinetic_1d(), state,
+  fub::euler::boundary_condition::reflective boundary{};
+  fub::serial::main_driver(vm, fub::serial::kinetic::burke_2012_1d(), state, boundary,
                            &feedback);
 }

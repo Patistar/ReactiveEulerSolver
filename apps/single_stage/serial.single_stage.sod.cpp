@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1),
                      "The final time level which we are interested in.");
-  desc.add_options()("output_interval", po::value<double>()->default_value(0.1),
+  desc.add_options()("feedback_interval", po::value<double>()->default_value(0.1),
                      "The time interval in which we write output files.");
 
   po::variables_map vm;

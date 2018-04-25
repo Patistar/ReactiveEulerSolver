@@ -33,10 +33,10 @@
 namespace fub {
 namespace serial {
 
-template <typename Solver, typename Feedback>
+template <typename Solver, typename Boundary, typename Feedback>
 void main_driver(boost::program_options::variables_map& vm,
                  const Solver& solver, typename Solver::state_type state,
-                 const Feedback& feedback) noexcept {
+                 const Boundary& boundary, const Feedback& feedback) noexcept {
   try {
     using state_type = typename Solver::state_type;
     // fetch program options
@@ -55,7 +55,9 @@ void main_driver(boost::program_options::variables_map& vm,
       auto start = std::chrono::steady_clock::now();
       auto feedback_wrapper = [&](const state_type& s) -> bool {
         auto end = std::chrono::steady_clock::now();
-        auto wall_time = std::chrono::duration_cast<std::chrono::duration<double>>(end - wall_start);
+        auto wall_time =
+            std::chrono::duration_cast<std::chrono::duration<double>>(
+                end - wall_start);
         auto diff = std::chrono::duration_cast<std::chrono::duration<double>>(
             end - start);
         fmt::print("[{:.2f}%] T = {:.10f}s, dt = {:.4e}s, cycle = {:10}   "
@@ -65,9 +67,10 @@ void main_driver(boost::program_options::variables_map& vm,
                    s.cycle, wall_time.count(), diff.count());
         fub::invoke(feedback, state);
         start = std::chrono::steady_clock::now();
-        return !abort && s.time < sub_goal && s.cycle < cycles;
+        return s.time < sub_goal && s.cycle < cycles;
       };
-      state = solver.advance(state, state.time + dt, feedback_wrapper);
+      state =
+          solver.advance(state, state.time + dt, boundary, feedback_wrapper);
       fmt::print("[Feedback] Writing feedback file...\n");
     }
     fmt::print("Wait for write jobs to finish...\n");

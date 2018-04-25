@@ -22,7 +22,7 @@
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/serial/driver.hpp"
-#include "fub/serial/kinetic.burke_2012_1d.hpp"
+#include "fub/serial/kinetic.burke_2012.1d.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <boost/program_options.hpp>
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
   auto state = fub::serial::burke_2012_kinetic_1d::initialise(
       &initial_value_function, coordinates, depth);
   feedback(state);
-
-  fub::serial::main_driver(vm, fub::serial::burke_2012_kinetic_1d(), state,
+  fub::euler::boundary_condition::reflective boundary{};
+  fub::serial::main_driver(vm, fub::serial::burke_2012_kinetic_1d(), boundary, state,
                            &feedback);
 }

@@ -53,9 +53,10 @@ serial::single_stage_1d::state_type serial::single_stage_1d::initialise(
 serial::single_stage_1d::state_type
 serial::single_stage_1d::advance(const state_type& state,
                                  std::chrono::duration<double> goal,
+                                 const boundary_condition& condition,
                                  feedback_function feedback) {
   return ::fub::serial::advance(advective_solver, state, goal,
-                                boundary_condition, std::move(feedback));
+                                condition, std::move(feedback));
 }
 
 } // namespace fub

@@ -221,15 +221,15 @@ public:
 };
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
-template <int Size, typename... Vars> class patch_view<extents<Size>, Vars...> {
-  extents<Size> m_extents{};
+template <int Size, typename... Vars> class patch_view<::fub::extents<Size>, Vars...> {
+  ::fub::extents<Size> m_extents{};
   std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
 
   friend class detail::row_cursor<extents<Size>, Vars...>;
   friend class detail::view_cursor<Vars...>;
 
 public:
-  using extents_type = extents<Size>;
+  using extents_type = ::fub::extents<Size>;
   using variables = std::tuple<Vars...>;
 
   patch_view() = default;

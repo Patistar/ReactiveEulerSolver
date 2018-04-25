@@ -38,10 +38,11 @@
 namespace fub {
 namespace hpx {
 
-template <typename Solver, typename Feedback>
-void main_driver(boost::program_options::variables_map &vm,
-                 const Solver &solver, typename Solver::state_type state,
-                 const Feedback &feedback) noexcept {
+template <typename Solver, typename BoundaryCondition, typename Feedback>
+void main_driver(boost::program_options::variables_map& vm,
+                 const Solver& solver, typename Solver::state_type state,
+                 const BoundaryCondition& boundary_condition,
+                 const Feedback& feedback) noexcept {
   try {
     using state_type = typename Solver::state_type;
     // fetch program options
@@ -59,7 +60,7 @@ void main_driver(boost::program_options::variables_map &vm,
           std::min(feedback_interval, time - state.time.count()));
       std::chrono::duration<double> sub_goal = state.time + dt;
       auto start = std::chrono::steady_clock::now();
-      auto feedback = [&](const state_type &s) -> bool {
+      auto feedback_wrapper = [&](const state_type& s) -> bool {
         auto end = std::chrono::steady_clock::now();
         auto wall_time =
             std::chrono::duration_cast<std::chrono::duration<double>>(
@@ -76,11 +77,11 @@ void main_driver(boost::program_options::variables_map &vm,
         start = std::chrono::steady_clock::now();
         return s.time < sub_goal && s.cycle < cycles;
       };
-      state = solver.advance(state, state.time + dt, feedback);
+      state = solver.advance(state, state.time + dt, boundary_condition, feedback_wrapper);
     }
     fmt::print("Wait for write jobs to finish...\n");
     write_job.get();
-  } catch (std::exception &e) {
+  } catch (std::exception& e) {
     fmt::print(e.what());
   }
 }

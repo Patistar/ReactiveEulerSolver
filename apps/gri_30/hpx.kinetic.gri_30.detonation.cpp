@@ -20,6 +20,8 @@
 
 #include "fub/hpx/driver.hpp"
 #include "fub/hpx/kinetic.gri_30.1d.hpp"
+
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
@@ -87,6 +89,7 @@ int hpx_main(boost::program_options::variables_map &vm) {
   auto state = fub::hpx::kinetic::gri_30_1d::initialise(&initial_value_function,
                                                         coordinates, depth);
   feedback(state);
-  fub::hpx::main_driver(vm, fub::hpx::kinetic::gri_30_1d(), state, &feedback);
+  fub::euler::boundary_condition::reflective boundary{};
+  fub::hpx::main_driver(vm, fub::hpx::kinetic::gri_30_1d(), state, boundary, &feedback);
   return hpx::finalize();
 }

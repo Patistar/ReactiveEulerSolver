@@ -36,9 +36,10 @@ namespace euler {
 namespace boundary_condition {
 
 class reflective {
-  template <axis Axis, direction Dir, typename Source, typename Dest>
+  template <axis Axis, direction Dir, typename Source, typename Dest,
+            typename Equation>
   static void apply(const Source& source, const Dest& dest,
-                    std::true_type) noexcept {
+                    const Equation& equation, std::true_type) noexcept {
     static constexpr int Dim = as_int(Axis);
     for_each_index(dest.extents(), [&](auto indices) {
       const std::ptrdiff_t size = source.extents().get(Dim);
@@ -46,13 +47,16 @@ class reflective {
       auto mapped = indices;
       mapped[Dim] = size - 1 - i;
       dest(indices) = source(mapped);
-      dest.template get<Momentum<Dim>>()(indices) *= -1;
+      auto rho_u = equation.get_momentum(dest(indices));
+      rho_u[Dim] *= -1;
+      equation.set_momentum(dest(indices), rho_u);
     });
   }
 
-  template <axis Axis, direction Dir, typename Source, typename Dest>
+  template <axis Axis, direction Dir, typename Source, typename Dest,
+            typename Equation>
   static void apply(const Source& source, const Dest& dest,
-                    std::false_type) noexcept {
+                    const Equation& equation, std::false_type) noexcept {
     using namespace variables;
     static constexpr int Dim = as_int(Axis);
     for_each_index(dest.extents(), [&](auto indices) {
@@ -61,14 +65,18 @@ class reflective {
       auto mapped = indices;
       mapped[Dim] = size - 1 - i;
       dest(mapped) = source(indices);
-      dest.template get<Momentum<Dim>>()(mapped) *= -1;
+      auto rho_u = equation.get_momentum(dest(indices));
+      rho_u[Dim] *= -1;
+      equation.set_momentum(dest(indices), rho_u);
     });
   }
 
-  template <axis Axis, direction Dir, typename Source, typename Dest>
-  static void apply(const Source& source, const Dest& dest) noexcept {
-    return apply<Axis, Dir>(source, dest,
-                            bool_constant<Dir == direction::right>());
+  template <axis Axis, direction Dir, typename Source, typename Dest,
+            typename Equation>
+  static void apply(const Source& source, const Dest& dest,
+                    const Equation& equation) noexcept {
+    return apply<Axis, Dir>(source, dest, equation,
+                            bool_c<Dir == direction::right>);
   }
 
 public:
@@ -76,20 +84,26 @@ public:
             typename Coordinates>
   static auto
   get_face_neighbor(const typename grid_traits<Grid>::partition_type& partition,
-                    const Grid& /* grid */,
-                    const Coordinates& /* coordinates */) {
+                    const Grid& grid, const Coordinates& /* coordinates */) {
     using B = typename grid_traits<Grid>::patch_type;
     using Variables = typename B::variables_tuple;
-    auto reflect_data = [](const B& left) {
+    auto reflect_data = [equation = grid.equation()](const B& left) {
       auto reduced_extents =
           replace_extent(left.extents(), int_c<as_int(Axis)>, int_c<Width>);
       auto right = make_patch(Variables(), reduced_extents, left.descriptor());
-      apply<Axis, Dir>(make_view(left), make_view(right));
+      apply<Axis, Dir>(make_view(left), make_view(right), equation);
       return right;
     };
     return grid_traits<Grid>::dataflow(reflect_data, partition);
   }
 };
+
+const bool operator==(const reflective&, const reflective&) noexcept {
+  return true;
+}
+const bool operator!=(const reflective&, const reflective&) noexcept {
+  return false;
+}
 
 } // namespace boundary_condition
 } // namespace euler

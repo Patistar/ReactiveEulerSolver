@@ -62,14 +62,16 @@ public:
   using const_iterator = typename octree_type::const_iterator;
 
 private:
-  octree_type m_tree;
-  extents_type m_patch_extents;
+  octree_type m_tree{};
+  extents_type m_patch_extents{};
+  equation_type m_equation{};
 
 public:
   grid() = default;
 
-  grid(int depth, const extents_type& extents = extents_type())
-      : m_tree{}, m_patch_extents{extents} {
+  grid(int depth, const extents_type& extents = extents_type(),
+       const equation_type& equation = equation_type())
+      : m_tree{}, m_patch_extents{extents}, m_equation{equation} {
     octant_type octant{depth, {0}};
     octant_type last = octant_type{}.upper_descendant(depth);
     while (octant != last) {
@@ -109,6 +111,8 @@ public:
 
   /// @brief Returns the extents of a patch contained by this grid.
   const extents_type& patch_extents() const noexcept { return m_patch_extents; }
+
+  const equation_type& equation() const noexcept { return m_equation; }
 
   auto insert(const_iterator hint, const octant_type& octant,
               future<patch_type> data) {

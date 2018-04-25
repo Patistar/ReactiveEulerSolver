@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/grid.hpp"
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/serial_driver.hpp"
@@ -90,5 +91,6 @@ int main(int argc, char **argv) {
   auto state = fub::single_stage_1d_serial::initialise(&initial_value_function,
                                                        coordinates, depth);
 
-  serial_main_driver(vm, fub::single_stage_1d_serial(), state, &feedback);
+  fub::euler::boundary_condition::reflective boundary{};
+  serial_main_driver(vm, fub::single_stage_1d_serial(), state, boundary, &feedback);
 }

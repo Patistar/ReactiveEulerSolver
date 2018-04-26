@@ -296,25 +296,25 @@ constexpr auto grow(const extents<Es...>& e, int_constant<Dim> dim) noexcept {
 // replace_extent
 // {{{
 namespace detail {
-template <std::size_t Rank>
-constexpr array<index, Rank> replace_at_index(const array<index, Rank>& a,
-                                              index i, index value) noexcept {
-  array<index, Rank> replaced{a};
-  replaced[i] = value;
-  return replaced;
+template <std::size_t ReplaceIndex, index ReplaceWith, std::size_t Visitor, index Value>
+struct replace_index : index_constant<Value> {};
+
+template <std::size_t ReplaceIndex, index ReplaceWith, index Value>
+struct replace_index<ReplaceIndex, ReplaceWith, ReplaceIndex, Value> 
+	: index_constant<ReplaceWith> {};
+
+template <int Dim, int Value, index... Es, std::size_t... Is>
+constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
+                              int_constant<Value> value, std::index_sequence<Is...>) noexcept {
+  array<index, sizeof...(Is)> replaced{{replace_index<Dim, Value, Is, Es>::value...}};
+  return extents<replace_index<Dim, Value, Is, Es>::value...>(replaced);
 }
 } // namespace detail
 
 template <int Dim, int Value, index... Es>
 constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
                               int_constant<Value> value) noexcept {
-  constexpr int rank = extents<Es...>::rank;
-  constexpr array<index, rank> es{{Es...}};
-  constexpr array<index, rank> replaced =
-      detail::replace_at_index(es, Dim, Value);
-  return fub::apply(
-      [&](auto... Is) { return extents<replaced[Is()]...>(replaced); },
-      as_tuple_t<make_int_sequence<rank>>());
+  return detail::replace_extent(e, dim, value, std::make_index_sequence<sizeof...(Es)>()); 
 }
 // }}}
 

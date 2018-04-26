@@ -21,13 +21,14 @@
 #ifndef FUB_DRIVER_PRINT_CYCLE_TIMINGS_HPP
 #define FUB_DRIVER_PRINT_CYCLE_TIMINGS_HPP
 
+#include "fub/optional.hpp"
 #include <chrono>
 #include <fmt/format.h>
 
 namespace fub {
 
 class print_cycle_timings {
-  std::optional<std::chrono::duration<double>> final_time{};
+  optional<std::chrono::duration<double>> final_time{};
   std::chrono::steady_clock::time_point wall{std::chrono::steady_clock::now()};
   std::chrono::steady_clock::time_point cycle{std::chrono::steady_clock::now()};
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/hpx/single_stage_1d.hpp"
+#include "fub/hpx/single_stage.1d.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/run_simulation.hpp"

@@ -85,25 +85,18 @@ struct kinetic_source_term {
   template <typename State>
   auto retrieve_T_and_rhoX(const State& state) const noexcept {
     using namespace variables;
-    std::array<double, Size + 1> T_and_Y;
-    auto iter = T_and_Y.begin();
-    *iter++ = equation.get(temperature, state);
-    *iter = fub::apply(
-        [it = std::next(iter), &state, this](auto... species) mutable {
-          auto molar_masses = equation.get_molar_masses();
-          (void)std::initializer_list<int>{
-              ((void)(*it++ = state[species] / molar_masses[as_index(species)]),
-               42)...};
-          const double rhoY_0 = std::max(
-              0.0, state[density] - foldl(std::make_tuple(species...),
-                                          double(0), [&](double sum, auto s) {
-                                            return sum + state[s];
-                                          }));
-          const double rhoX_0 = rhoY_0 / molar_masses[0];
-          return rhoX_0;
-        },
-        tail_t<typename ideal_gas<Mechanism>::species_tuple>());
-    return T_and_Y;
+    std::array<double, Size + 1> T_and_rhoX;
+    T_and_rhoX[0] = equation.get(temperature, state);
+    std::array<double, Size> Y = equation.get_mass_fractions(state);
+    double rho = equation.get(density, state);
+    span<const double, Size> molar_masses = equation.get_molar_masses();
+    const double mean_molar_mass = fub::transform_reduce(
+        Y, molar_masses, double(0.), std::plus<>{}, std::divides<>{});
+    for (index i = 0; i < Size; ++i) {
+      const double lambda = (mean_molar_mass / molar_masses[i]);
+      T_and_rhoX[i + 1] = rho * Y[i] * lambda;
+    }
+    return T_and_rhoX;
   }
 
   template <typename State>

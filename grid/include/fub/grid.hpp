@@ -137,8 +137,12 @@ template <typename G> struct grid_traits {
   }
 }; // namespace fub
 
+template <typename Eq, typename E> struct standard_grid_node_patch {
+  using type = patch<as_tuple_t<complete_state_t<Eq>>, E>;
+};
+
 template <typename Eq, typename Extents> struct standard_grid_node {
-  using patch_type = patch<as_tuple_t<complete_state_t<Eq>>, Extents>;
+  using patch_type = typename standard_grid_node_patch<Eq, Extents>::type;
   standard_grid_node() = default;
   explicit standard_grid_node(patch_type&& b) noexcept : patch{std::move(b)} {}
   explicit standard_grid_node(const patch_type& b) noexcept : patch{b} {}

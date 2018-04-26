@@ -37,6 +37,7 @@
 
 namespace fub {
 template <typename, typename...> class patch_view;
+template <index, typename...> class row_view;
 
 namespace detail {
 template <typename E> struct make_row_extents_fn;
@@ -63,7 +64,7 @@ constexpr std::ptrdiff_t covolume(const extents<Values...>& e) noexcept {
   constexpr int rank = extents<Values...>::rank;
   auto array = as_array(e);
   return fub::accumulate(array.begin() + 1, array.end(), index(1),
-                    std::multiplies<>());
+                         std::multiplies<>());
 }
 
 template <typename E, typename... Vars> class row_cursor {
@@ -76,6 +77,9 @@ public:
     mixin() = default;
     using ranges::basic_mixin<row_cursor>::basic_mixin;
     mixin(const patch_view<E, Vars...>& parent, std::ptrdiff_t pos = 0)
+        : mixin(row_cursor(parent, pos)) {}
+    template <index N>
+    mixin(const row_view<N, Vars...>& parent, std::ptrdiff_t pos = 0)
         : mixin(row_cursor(parent, pos)) {}
   };
 
@@ -90,10 +94,20 @@ public:
                            m_pointers);
   }
 
-  patch_view<row_extents_t<E>, Vars...> read() const noexcept {
+  template <index N>
+  explicit row_cursor(const row_view<N, Vars...>& parent,
+                      std::ptrdiff_t pos = 0)
+      : m_pointers{parent.m_pointers}, m_row_length{N}, m_position{pos} {
+    std::ptrdiff_t n = m_row_length * pos;
+    for_each_tuple_element([n](auto& pointers) { std::advance(pointers, n); },
+                           m_pointers);
+  }
+
+  row_view<row_extents_t<E>().size(), Vars...> read() const noexcept {
     const auto e = make_row_extents(E{}, m_row_length);
     const auto args = std::tuple_cat(std::make_tuple(e), m_pointers);
-    return fub::make_from_tuple<patch_view<row_extents_t<E>, Vars...>>(args);
+    return fub::make_from_tuple<row_view<row_extents_t<E>().size(), Vars...>>(
+        args);
   }
 
   void next() noexcept {
@@ -124,12 +138,24 @@ public:
     template <typename E>
     mixin(const patch_view<E, Vars...>& parent, std::ptrdiff_t pos = 0)
         : mixin(view_cursor(parent, pos)) {}
+
+    template <index E>
+    mixin(const row_view<E, Vars...>& parent, std::ptrdiff_t pos = 0)
+        : mixin(view_cursor(parent, pos)) {}
   };
 
   view_cursor() = default;
 
   template <typename E>
   explicit view_cursor(const patch_view<E, Vars...>& parent,
+                       std::ptrdiff_t pos = 0)
+      : m_pointers{parent.m_pointers}, m_position{pos} {
+    fub::for_each_tuple_element(
+        [n = pos](auto& pointer) { std::advance(pointer, n); }, m_pointers);
+  }
+
+  template <index E>
+  explicit view_cursor(const row_view<E, Vars...>& parent,
                        std::ptrdiff_t pos = 0)
       : m_pointers{parent.m_pointers}, m_position{pos} {
     fub::for_each_tuple_element(
@@ -222,15 +248,15 @@ public:
 
   auto rows() const noexcept {
     detail::row_iterator<Extents, Vars...> first{*this};
-    detail::row_iterator<Extents, Vars...> last{*this,
-                                                detail::covolume(this->extents())};
+    detail::row_iterator<Extents, Vars...> last{
+        *this, detail::covolume(this->extents())};
     return ranges::make_iterator_range(first, last);
   }
 };
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
-template <int Size, typename... Vars>
-class patch_view<extents<Size>, Vars...> : public detail::base_patch_view<extents<Size>> {
+template <index Size, typename... Vars>
+class row_view : public detail::base_patch_view<extents<Size>> {
   using base_type = detail::base_patch_view<extents<Size>>;
   std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
 
@@ -241,15 +267,15 @@ public:
   using extents_type = ::fub::extents<Size>;
   using variables = std::tuple<Vars...>;
 
-  patch_view() = default;
+  row_view() = default;
 
-  patch_view(const extents_type& e,
-             typename variable_traits<Vars>::pointer... pointers)
+  row_view(const extents_type& e,
+           typename variable_traits<Vars>::pointer... pointers)
       : base_type(e), m_pointers{pointers...} {}
 
   template <typename Patch,
             typename = std::enable_if_t<is_patch<std::decay_t<Patch>>::value>>
-  patch_view(Patch&& block)
+  row_view(Patch&& block)
       : base_type(block.extents()),
         m_pointers{block.template get<std::remove_const_t<Vars>>().data()...} {}
 
@@ -265,7 +291,7 @@ public:
     return span<ElementT, Size>{std::get<Index::value>(m_pointers), Size};
   }
 
-  std::ptrdiff_t size() const noexcept { return this->extents().size(); }
+  index size() const noexcept { return this->extents().size(); }
 
   template <typename Var> auto operator[](Var) const noexcept {
     return get<Var>();
@@ -298,8 +324,8 @@ public:
   }
 
   auto rows() const noexcept {
-    detail::row_iterator<extents_type, Vars...> first{*this};
-    detail::row_iterator<extents_type, Vars...> last{
+    detail::row_iterator<extents<Size>, Vars...> first{*this};
+    detail::row_iterator<extents<Size>, Vars...> last{
         *this, detail::covolume(this->extents())};
     return ranges::make_iterator_range(first, last);
   }
@@ -314,6 +340,10 @@ template <typename Extents, typename... Vars>
 struct view_add_const<patch_view<Extents, Vars...>> {
   using type = patch_view<Extents, std::add_const_t<Vars>...>;
 };
+template <std::ptrdiff_t Extents, typename... Vars>
+struct view_add_const<row_view<Extents, Vars...>> {
+  using type = row_view<Extents, std::add_const_t<Vars>...>;
+};
 
 template <typename Extents, typename Storage, template <typename...> class V,
           typename... Vars>
@@ -327,12 +357,24 @@ auto make_view(const patch<V<Vars...>, Extents, Storage>& p) noexcept {
   return patch_view<Extents, std::add_const_t<Vars>...>(p);
 }
 
+template <index E, typename Storage, template <typename...> class V,
+          typename... Vars>
+auto make_view(patch<V<Vars...>, extents<E>, Storage>& p) noexcept {
+  return row_view<E, Vars...>(p);
+}
+
+template <index E, typename Storage, template <typename...> class V,
+          typename... Vars>
+auto make_view(const patch<V<Vars...>, extents<E>, Storage>& p) noexcept {
+  return row_view<E, std::add_const_t<Vars>...>(p);
+}
+
 template <typename Vars, index Size> struct view_row;
 template <typename V, index Size>
 using view_row_t = typename view_row<V, Size>::type;
 template <template <typename...> class V, index Size, typename... Vs>
 struct view_row<V<Vs...>, Size> {
-  using type = patch_view<extents<Size>, Vs...>;
+  using type = row_view<Size, Vs...>;
 };
 
 template <typename E, typename... Vars>
@@ -345,16 +387,21 @@ struct remove_flux<patch_view<E, Vars...>> {
   using type = patch_view<E, remove_flux_t<Vars>...>;
 };
 
-template <typename patch_view> struct is_view : std::false_type {};
+template <typename T> struct is_view : std::false_type {};
 template <typename T> static constexpr bool is_view_v = is_view<T>::value;
 
 template <typename E, typename... Vars>
 struct is_view<patch_view<E, Vars...>> : std::true_type {};
+template <std::ptrdiff_t Size, typename... Vars>
+struct is_view<row_view<Size, Vars...>> : std::true_type {};
 
 template <typename T, int Dim> struct view_static_extent;
 template <int Dim, typename E, typename... Vs>
 struct view_static_extent<patch_view<E, Vs...>, Dim>
     : std::integral_constant<std::ptrdiff_t, E().get(Dim)> {};
+template <std::ptrdiff_t Size, typename... Vs>
+struct view_static_extent<row_view<Size, Vs...>, 0>
+    : std::integral_constant<std::ptrdiff_t, Size> {};
 
 template <typename T, int Dim>
 static constexpr std::ptrdiff_t view_static_extent_v =
@@ -364,11 +411,16 @@ template <typename V> struct view_rank;
 template <typename E, typename... Vs>
 struct view_rank<patch_view<E, Vs...>> : std::integral_constant<int, E::rank> {
 };
+template <index E, typename... Vs>
+struct view_rank<row_view<E, Vs...>> : std::integral_constant<int, 1> {};
 template <typename V> static constexpr int view_rank_v = view_rank<V>::value;
 
 template <typename V> struct view_variables;
 template <typename E, typename... Vs>
 struct view_variables<patch_view<E, Vs...>> {
+  using type = std::tuple<Vs...>;
+};
+template <index E, typename... Vs> struct view_variables<row_view<E, Vs...>> {
   using type = std::tuple<Vs...>;
 };
 template <typename V> using view_variables_t = typename view_variables<V>::type;
@@ -387,24 +439,24 @@ for_each_row(F function, const Views&... views) {
 // drop / take with static extents
 
 template <index N, index Len, typename... Vars>
-auto drop(const patch_view<extents<Len>, Vars...>& view) noexcept {
-  return patch_view<extents<Len - N>, Vars...>(
+auto drop(const row_view<Len, Vars...>& view) noexcept {
+  return row_view<Len - N, Vars...>(
       extents<Len - N>(), drop<N>(view.template get<Vars>()).data()...);
 }
 
 template <index N, index Len, typename... Vars>
-auto take(const patch_view<extents<Len>, Vars...>& view) noexcept {
-  return patch_view<extents<N>, Vars...>(
-      extents<N>(), take<N>(view.template get<Vars>()).data()...);
+auto take(const row_view<Len, Vars...>& view) noexcept {
+  return row_view<N, Vars...>(extents<N>(),
+                              take<N>(view.template get<Vars>()).data()...);
 }
 
 template <index N, index Len, typename... Vars>
-auto rtake(const patch_view<extents<Len>, Vars...>& view) noexcept {
+auto rtake(const row_view<Len, Vars...>& view) noexcept {
   return drop<Len - N>(view);
 }
 
 template <index N, index Len, typename... Vars>
-auto rdrop(const patch_view<extents<Len>, Vars...>& view) noexcept {
+auto rdrop(const row_view<Len, Vars...>& view) noexcept {
   return take<Len - N>(view);
 }
 
@@ -421,6 +473,9 @@ template <typename E, typename... Vars>
 struct view_extents<patch_view<E, Vars...>> {
   using type = E;
 };
+template <index E, typename... Vars> struct view_extents<row_view<E, Vars...>> {
+  using type = extents<E>;
+};
 template <typename View>
 using view_extents_t = typename view_extents<View>::type;
 
@@ -428,6 +483,10 @@ template <typename... Vars> struct view_join_variables;
 
 template <typename E, typename... Vars, typename... Ts>
 struct view_join_variables<patch_view<E, Vars...>, Ts...> {
+  using type = std::tuple<std::remove_const_t<Vars>...>;
+};
+template <index E, typename... Vars, typename... Ts>
+struct view_join_variables<row_view<E, Vars...>, Ts...> {
   using type = std::tuple<std::remove_const_t<Vars>...>;
 };
 
@@ -462,9 +521,9 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
 ///
 /// Use this to transform a view and position index into a simd vector when
 /// doing vecotrised computations.
-template <typename Abi, typename E, typename... Vs>
+template <typename Abi, index E, typename... Vs>
 quantities<add_simd_t<std::remove_const_t<Vs>, Abi>...>
-load(const patch_view<E, Vs...>& view, index shift = 0) noexcept {
+load(const row_view<E, Vs...>& view, index shift = 0) noexcept {
   auto load = [=](auto x) {
     using T = typename variable_traits<std::decay_t<decltype(x)>>::value_type;
     simd<T, Abi> pack;
@@ -474,15 +533,15 @@ load(const patch_view<E, Vs...>& view, index shift = 0) noexcept {
   return {load(view.template get<Vs>())...};
 }
 
-template <typename E, typename... Vs>
-void store(const quantities<Vs...>& q, const patch_view<E, Vs...>& view,
+template <index E, typename... Vs>
+void store(const quantities<Vs...>& q, const row_view<E, Vs...>& view,
            index shift) noexcept {
   view(shift) = q;
 }
 
-template <typename Abi, typename E, typename... Vs>
+template <typename Abi, index E, typename... Vs>
 void store(const add_simd_t<quantities<Vs...>, Abi>& q,
-           const patch_view<E, Vs...>& view, index shift) noexcept {
+           const row_view<E, Vs...>& view, index shift) noexcept {
   auto store = [=](const simd<double, Abi>& pack, double* pointer) {
     pack.copy_to(pointer + shift, element_alignment);
   };
@@ -508,18 +567,18 @@ template <typename V, typename Abi> struct simd_proxy {
   }
 };
 
-template <typename Abi, typename E, typename... Vs>
+template <typename Abi, index E, typename... Vs>
 std::enable_if_t<conjunction<std::is_const<Vs>...>::value,
                  quantities<add_simd_t<std::remove_const_t<Vs>, Abi>...>>
-load_or_proxy(const patch_view<E, Vs...>& view, index shift = 0) noexcept {
+load_or_proxy(const row_view<E, Vs...>& view, index shift = 0) noexcept {
   return load<Abi>(view, shift);
 }
 
-template <typename Abi, typename E, typename... Vs>
+template <typename Abi, index E, typename... Vs>
 std::enable_if_t<conjunction<negation<std::is_const<Vs>>...>::value,
-                 simd_proxy<patch_view<E, Vs...>, Abi>>
-load_or_proxy(const patch_view<E, Vs...>& view, index shift = 0) noexcept {
-  return simd_proxy<patch_view<E, Vs...>, Abi>{view, shift};
+                 simd_proxy<row_view<E, Vs...>, Abi>>
+load_or_proxy(const row_view<E, Vs...>& view, index shift = 0) noexcept {
+  return simd_proxy<row_view<E, Vs...>, Abi>{view, shift};
 }
 
 namespace detail {

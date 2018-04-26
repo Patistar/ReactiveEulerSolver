@@ -25,7 +25,7 @@
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
-#include "fub/godunov_splitting.hpp"
+#include "fub/strang_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"

@@ -20,10 +20,17 @@
 
 #include "fub/simd.hpp"
 
+#include "fmt/format.h"
+#include "fmt/ostream.h"
+
 int main()
 {
   using scalar_t = fub::simd<double, fub::simd_abi::scalar>;
+  using sse_t = fub::simd<double, fub::simd_abi::sse>;
   scalar_t x = 1.;
   where(x < 0, x) = 0.;
   where(x >= 0, x) = -x;
+
+  sse_t y = 2;
+  fmt::print("x: {}, y: {}\n", x, y);
 }

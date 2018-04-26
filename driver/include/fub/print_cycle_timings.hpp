@@ -48,7 +48,7 @@ public:
       fmt::print("[{:.2f}%] T = {:.10f}s, dt = {:.4e}s, cycle = {:10}   "
                  "             "
                  "  (wall-time: {:.6f}s,  time-step duration: {:.2e}s)\n",
-                 100 * (s.time / *final_time).get(), s.time.count(),
+                 100 * s.time / *final_time, s.time.count(),
                  s.dt.count(), s.cycle, wall_time.count(), cycle_time.count());
     } else {
       fmt::print("T = {:.10f}s, dt = {:.4e}s, cycle = {:10}   "

@@ -18,20 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid.hpp"
+#include "fub/serial/single_stage.1d.hpp"
+
 #include "fub/euler/boundary_condition/reflective.hpp"
+#include "fub/grid.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/serial_driver.hpp"
-#include "fub/single_stage_1d_serial.hpp"
+#include "fub/run_simulation.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <boost/program_options.hpp>
 
 #include <array>
 
-using Equation = fub::single_stage_1d_serial::equation_type;
-using Grid = fub::single_stage_1d_serial::grid_type;
+using Equation = fub::serial::single_stage_1d::equation_type;
+using Grid = fub::serial::single_stage_1d::grid_type;
 using Partition = Grid::partition_type;
 
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
@@ -44,7 +45,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1> &xs) {
+initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
   if (xs[0] < 0.5) {
     return states[0];
@@ -53,30 +54,32 @@ initial_value_function(const std::array<double, 1> &xs) {
   }
 }
 
-using state_type = fub::single_stage_1d_serial::state_type;
+using state_type = fub::serial::single_stage_1d::state_type;
 
-void feedback(state_type state) {
-  std::string file_name = fmt::format("out_{}.cgns", state.cycle);
-  auto file = fub::output::cgns::open(file_name.c_str(), 2);
-  fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
-  for (const Partition &partition : state.grid) {
-    const auto &octant = fub::grid_traits<Grid>::octant(partition);
-    auto data = partition.second->patch;
-    fub::output::cgns::write(file, octant, fub::make_view(data),
-                             state.coordinates, Equation());
+struct write_cgns_file {
+  void operator()(state_type state) const {
+    fmt::print("[CGNS] Write output file...\n", state.cycle);
+    std::string file_name = fmt::format("out_{}.cgns", state.cycle);
+    auto file = fub::output::cgns::open(file_name.c_str(), 2);
+    fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
+    for (const Partition& partition : state.grid) {
+      const auto& octant = fub::grid_traits<Grid>::octant(partition);
+      auto node = partition.second.get();
+      fub::output::cgns::write(file, octant, fub::make_view(node->patch),
+                               state.coordinates, Equation());
+    }
   }
-}
+};
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("cycles", po::value<int>()->default_value(100),
-                     "The amount of time step to evolve the euler equations.");
   desc.add_options()("depth", po::value<int>()->default_value(0),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(1),
+  desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
-  desc.add_options()("feedback_interval", po::value<double>()->default_value(0.1),
+  desc.add_options()("feedback_interval",
+                     po::value<double>()->default_value(1e-6),
                      "The time interval in which we write output files.");
 
   po::variables_map vm;
@@ -86,11 +89,18 @@ int main(int argc, char **argv) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
 
-  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1}, extents);
+  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 
-  auto state = fub::single_stage_1d_serial::initialise(&initial_value_function,
-                                                       coordinates, depth);
-
-  fub::euler::boundary_condition::reflective boundary{};
-  serial_main_driver(vm, fub::single_stage_1d_serial(), state, boundary, &feedback);
+  auto state = fub::serial::single_stage_1d::initialise(&initial_value_function,
+                                                        coordinates, depth);
+  write_cgns_file write_cgns;
+  write_cgns(state);
+  fub::euler::boundary_condition::reflective boundary_condition{};
+  fub::simulation_options options{};
+  options.feedback_interval =
+      std::chrono::duration<double>(vm["feedback_interval"].as<double>());
+  options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
+  fub::run_simulation(fub::serial::single_stage_1d(), state, boundary_condition,
+                      options, write_cgns,
+                      fub::print_cycle_timings{options.final_time});
 }

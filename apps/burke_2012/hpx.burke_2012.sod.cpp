@@ -19,10 +19,10 @@
 // SOFTWARE.
 
 #include "fub/hpx/burke_2012.1d.hpp"
-#include "fub/hpx/driver.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
+#include "fub/run_simulation.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
@@ -56,17 +56,29 @@ initial_value_function(const std::array<double, 1>& xs) {
 
 using state_type = fub::hpx::burke_2012_1d::state_type;
 
-void feedback(state_type state) {
-  std::string file_name = fmt::format("out_{}.cgns", state.cycle);
-  auto file = fub::output::cgns::open(file_name.c_str(), 2);
-  fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
-  for (const Partition& partition : state.grid) {
-    const auto& octant = fub::grid_traits<Grid>::octant(partition);
-    auto node = partition.second.get();
-    fub::output::cgns::write(file, octant, fub::make_view(node.patch),
-                             state.coordinates, Equation());
+struct write_cgns_file {
+  mutable hpx::future<void> queue = hpx::make_ready_future();
+
+  void operator()(state_type state) const {
+    fmt::print("[CGNS] Add cgns output to the queue...\n", state.cycle);
+    queue = queue.then([state = std::move(state)](hpx::future<void>) {
+      std::string file_name = fmt::format("out_{}.cgns", state.cycle);
+      auto file = fub::output::cgns::open(file_name.c_str(), 2);
+      fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
+      for (const Partition& partition : state.grid) {
+        const auto& octant = fub::grid_traits<Grid>::octant(partition);
+        auto node = partition.second.get();
+        fub::output::cgns::write(file, octant, fub::make_view(node.patch),
+                                 state.coordinates, Equation());
+      }
+    });
   }
-}
+
+  ~write_cgns_file() noexcept {
+    fmt::print("[CGNS] Wait for all output tasks to finish their job.\n");
+    queue.wait();
+  }
+};
 
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
@@ -86,12 +98,18 @@ int main(int argc, char** argv) {
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
-  fub::uniform_cartesian_coordinates<1> coordinates({0}, {0.2}, extents);
+  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
   auto state = fub::hpx::burke_2012_1d::initialise(&initial_value_function,
                                                    coordinates, depth);
-  feedback(state);
-  fub::euler::boundary_condition::reflective boundary{};
-  fub::hpx::main_driver(vm, fub::hpx::burke_2012_1d(), state, boundary,
-                        &feedback);
+  write_cgns_file write_cgns{};
+  write_cgns(state);
+  fub::euler::boundary_condition::reflective boundary_condition{};
+  fub::simulation_options options{};
+  options.feedback_interval =
+      std::chrono::duration<double>(vm["feedback_interval"].as<double>());
+  options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
+  fub::run_simulation(fub::hpx::burke_2012_1d(), state, boundary_condition,
+                      options, write_cgns,
+                      fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

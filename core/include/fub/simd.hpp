@@ -27,9 +27,12 @@
 #include "fub/simd/scalar.hpp"
 #include "fub/simd/sse.hpp"
 
+#include "fub/array.hpp"
 #include "fub/utility.hpp"
 
 #include <cassert>
+#include <ostream>
+#include <fmt/ostream.h>
 
 namespace fub {
 
@@ -52,6 +55,20 @@ simd_mask<A, Abi> almost_equal(const simd<A, Abi>& x,
   const simd<A, Abi> diff = fub::abs(x - y);
   const simd<A, Abi> sum = fub::abs(x + y);
   return diff <= (eps * sum * ulp) || diff < min;
+}
+
+template <typename T, typename Abi>
+std::ostream& operator<<(std::ostream& out, const simd<T, Abi>& v) {
+  constexpr std::size_t width = simd_size_v<simd<T, Abi>>;
+  constexpr std::size_t alignment = memory_alignment_v<simd<T, Abi>, T>;
+  alignas(alignment) array<T, width> array;
+  v.copy_to(array.data(), vector_alignment);
+  out << "(" << array[0];
+  for (int i = 1; i < width; ++i) {
+    out << ", " << array[1];
+  }
+  out << ")";
+  return out;
 }
 
 } // namespace fub

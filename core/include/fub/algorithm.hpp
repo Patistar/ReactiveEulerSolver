@@ -30,6 +30,7 @@
 #include <limits>
 
 #include <range/v3/range_concepts.hpp>
+#include <range/v3/utility/invoke.hpp>
 #include <type_traits>
 
 namespace fub {
@@ -49,7 +50,7 @@ constexpr std::enable_if_t<
     ranges::InputIterator<I>() && ranges::Sentinel<S, I>(), T>
 accumulate(I first, S last, T init, BinaryOp binary_op = BinaryOp()) {
   while (first != last) {
-    init = fub::invoke(binary_op, init, *first++);
+    init = ranges::invoke(binary_op, init, *first++);
   }
   return init;
 }
@@ -85,7 +86,7 @@ constexpr std::enable_if_t<
 count(I first, S last, const T& needle, Pred pred = Pred()) {
   std::ptrdiff_t counter{0};
   while (first != last) {
-    if (fub::invoke(pred, *first, needle)) {
+    if (ranges::invoke(pred, *first, needle)) {
       ++counter;
     }
     ++first;
@@ -110,8 +111,8 @@ transform_reduce(I left, S last, J right, T initial,
                  BinaryOp1 binary_op1 = BinaryOp1(),
                  BinaryOp2 binary_op2 = BinaryOp2()) {
   while (left != last) {
-    initial = fub::invoke(binary_op1, initial,
-                          fub::invoke(binary_op2, *left, *right));
+    initial = ranges::invoke(binary_op1, initial,
+                             fub::invoke(binary_op2, *left, *right));
     ++left;
     ++right;
   }

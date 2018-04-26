@@ -62,7 +62,7 @@ template <index... Values>
 constexpr std::ptrdiff_t covolume(const extents<Values...>& e) noexcept {
   constexpr int rank = extents<Values...>::rank;
   auto array = as_array(e);
-  return accumulate(array.begin() + 1, array.end(), index(1),
+  return fub::accumulate(array.begin() + 1, array.end(), index(1),
                     std::multiplies<>());
 }
 
@@ -446,7 +446,7 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
       "Only one-dimensional views an be joined.");
   static constexpr array<index, sizeof...(RowViews)> sizes{
       {view_static_extent<RowViews, 0>::value...}};
-  static constexpr int total_size = accumulate(sizes, index(0));
+  static constexpr int total_size = fub::accumulate(sizes, index(0));
   patch<view_join_variables_t<RowViews...>, extents<total_size>,
         automatic_storage_descriptor>
       joined_row;

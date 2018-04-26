@@ -18,11 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/grid.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/euler/boundary_condition/reflective.hpp"
-#include "fub/serial/driver.hpp"
+#include "fub/run_simulation.hpp"
 #include "fub/serial/kinetic.burke_2012.1d.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
@@ -39,15 +39,15 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   using namespace fub::euler::mechanism::burke2012::variables;
   moles[as_index(o2)] = 2.0;
   moles[as_index(h2)] = 2.0;
-  auto left = Equation().set_TPX(990, 10E5, moles);
+  auto left = Equation().set_TPX(1150, 5E5, moles);
   auto right = Equation().set_TPX(300, 1E5, moles);
   return {{left, right}};
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1> &xs) {
+initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
-  if (0.25 < xs[0] && xs[0] < 0.3) {
+  if (xs[0] < 0.02) {
     return states[0];
   } else {
     return states[1];
@@ -56,29 +56,30 @@ initial_value_function(const std::array<double, 1> &xs) {
 
 using state_type = fub::serial::kinetic::burke_2012_1d::state_type;
 
-void feedback(state_type state) {
-  std::string file_name = fmt::format("out_{}.cgns", state.cycle);
-  auto file = fub::output::cgns::open(file_name.c_str(), 2);
-  fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
-  for (const Partition &partition : state.grid) {
-    const auto &octant = fub::grid_traits<Grid>::octant(partition);
-    auto data = partition.second->patch;
-    fub::output::cgns::write(file, octant, fub::make_view(data),
-                             state.coordinates, Equation());
+struct write_cgns_file {
+  void operator()(state_type state) const {
+    fmt::print("[CGNS] Write output file...\n", state.cycle);
+    std::string file_name = fmt::format("out_{}.cgns", state.cycle);
+    auto file = fub::output::cgns::open(file_name.c_str(), 2);
+    fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
+    for (const Partition& partition : state.grid) {
+      const auto& octant = fub::grid_traits<Grid>::octant(partition);
+      auto node = partition.second.get();
+      fub::output::cgns::write(file, octant, fub::make_view(node->patch),
+                               state.coordinates, Equation());
+    }
   }
-}
+};
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("cycles", po::value<int>()->default_value(1000000),
-                     "The amount of time step to evolve the euler equations.");
-  desc.add_options()("depth", po::value<int>()->default_value(4),
+  desc.add_options()("depth", po::value<int>()->default_value(0),
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(5e-6),
+                     po::value<double>()->default_value(1e-6),
                      "The time interval in which we write output files.");
 
   po::variables_map vm;
@@ -92,8 +93,14 @@ int main(int argc, char **argv) {
 
   auto state = fub::serial::kinetic::burke_2012_1d::initialise(
       &initial_value_function, coordinates, depth);
-  feedback(state);
-  fub::euler::boundary_condition::reflective boundary{};
-  fub::serial::main_driver(vm, fub::serial::kinetic::burke_2012_1d(), state, boundary,
-                           &feedback);
+  write_cgns_file write_cgns;
+  write_cgns(state);
+  fub::euler::boundary_condition::reflective boundary_condition{};
+  fub::simulation_options options{};
+  options.feedback_interval =
+      std::chrono::duration<double>(vm["feedback_interval"].as<double>());
+  options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
+  fub::run_simulation(fub::serial::kinetic::burke_2012_1d(), state,
+                      boundary_condition, options, write_cgns,
+                      fub::print_cycle_timings{options.final_time});
 }

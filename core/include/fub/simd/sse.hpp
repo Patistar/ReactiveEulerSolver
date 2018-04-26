@@ -166,6 +166,8 @@ public:
   explicit operator const native_type&() const noexcept { return m_value; }
   explicit operator native_type&() noexcept { return m_value; }
 
+
+
   // Copy members
 
   template <typename U>

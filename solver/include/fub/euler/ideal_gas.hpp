@@ -333,7 +333,7 @@ private:
   find_temperature(const Abi& abi, nodeduce_t<species_span<simd<A, Abi>>> h,
                    nodeduce_t<species_span<simd<A, Abi>>> cps, simd<A, Abi> U_0,
                    species_span<const simd<A, Abi>> Y_0,
-                   simd<A, Abi> T_0 = 300., std::ptrdiff_t tolerance = 100000,
+                   simd<A, Abi> T_0 = 300., std::ptrdiff_t tolerance = 10000000,
                    std::ptrdiff_t max_iterations = 1000) const {
     // Prepare U evaluation
     const species_span<const A> Rs = get_specific_gas_constants();
@@ -363,8 +363,11 @@ private:
     if (!not_done_yet) {
       return T;
     }
-    throw std::runtime_error{"ideal_gas::find_temperature (simd): Newton "
-                             "iteration did not converge."};
+    std::string what =
+        fmt::format("ideal_gas::find_temperature (simd): Newton iteration did "
+                    "not converge. T = {}, U_0 = {}, U = {}",
+                    T, U_0, U);
+    throw std::runtime_error{std::move(what)};
   }
 
 public:

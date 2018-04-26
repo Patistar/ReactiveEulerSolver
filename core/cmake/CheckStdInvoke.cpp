@@ -20,6 +20,5 @@
 
 #include <functional>
 
-int main() {
-  return std::invoke([] { return 0; });
-}
+int f() { return 0; }
+int main() { return std::invoke(f); }

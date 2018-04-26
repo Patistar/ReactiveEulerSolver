@@ -18,8 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/hpx/driver.hpp"
 #include "fub/hpx/kinetic.burke_2012.1d.hpp"
+
+#include "fub/driver.hpp"
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
@@ -44,7 +45,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1> &xs) {
+initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
   if (xs[0] < 0.1) {
     return states[0];
@@ -59,15 +60,15 @@ void feedback(state_type state) {
   std::string file_name = fmt::format("out_{}.cgns", state.cycle);
   auto file = fub::output::cgns::open(file_name.c_str(), 2);
   fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
-  for (const Partition &partition : state.grid) {
-    const auto &octant = fub::grid_traits<Grid>::octant(partition);
+  for (const Partition& partition : state.grid) {
+    const auto& octant = fub::grid_traits<Grid>::octant(partition);
     auto node = partition.second.get();
     fub::output::cgns::write(file, octant, fub::make_view(node.patch),
                              state.coordinates, Equation());
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
   desc.add_options()("cycles", po::value<int>()->default_value(1000000),
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
   return hpx::init(desc, argc, argv);
 }
 
-int hpx_main(boost::program_options::variables_map &vm) {
+int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {0.2}, extents);
@@ -90,7 +91,7 @@ int hpx_main(boost::program_options::variables_map &vm) {
       &initial_value_function, coordinates, depth);
   feedback(state);
   fub::euler::boundary_condition::reflective boundary{};
-  fub::hpx::main_driver(vm, fub::hpx::kinetic::burke_2012_1d(), state, boundary,
-                        &feedback);
+  fub::main_driver(vm, fub::hpx::kinetic::burke_2012_1d(), state, boundary,
+                   &feedback);
   return hpx::finalize();
 }

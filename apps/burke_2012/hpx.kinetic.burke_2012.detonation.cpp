@@ -19,11 +19,11 @@
 // SOFTWARE.
 
 #include "fub/hpx/kinetic.burke_2012.1d.hpp"
-#include "fub/hpx/driver.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/run_simulation.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #include <boost/program_options.hpp>
@@ -39,7 +39,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   using namespace fub::euler::mechanism::burke2012::variables;
   moles[as_index(o2)] = 2.0;
   moles[as_index(h2)] = 2.0;
-  auto left = Equation().set_TPX(550, 7E5, moles);
+  auto left = Equation().set_TPX(1050, 5E5, moles);
   auto right = Equation().set_TPX(300, 1E5, moles);
   return {{left, right}};
 }
@@ -47,7 +47,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 Equation::complete_state
 initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
-  if (xs[0] < 0.01) {
+  if (xs[0] < 0.02) {
     return states[0];
   } else {
     return states[1];
@@ -71,9 +71,10 @@ void feedback(state_type state) {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("cycles", po::value<int>()->default_value(1000000),
+  desc.add_options()("cycles",
+                     po::value<std::ptrdiff_t>()->default_value(1000000),
                      "The amount of time step to evolve the euler equations.");
-  desc.add_options()("depth", po::value<int>()->default_value(2),
+  desc.add_options()("depth", po::value<int>()->default_value(5),
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
@@ -86,12 +87,17 @@ int main(int argc, char** argv) {
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
-  fub::uniform_cartesian_coordinates<1> coordinates({0}, {20.0}, extents);
+  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
   auto state = fub::hpx::kinetic::burke_2012_1d::initialise(
       &initial_value_function, coordinates, depth);
   feedback(state);
-  fub::euler::boundary_condition::reflective boundary{};
-  fub::hpx::main_driver(vm, fub::hpx::kinetic::burke_2012_1d(), state, boundary,
-                        &feedback);
+  fub::euler::boundary_condition::reflective boundary_condition{};
+  fub::simulation_options options{};
+  options.feedback_interval =
+      std::chrono::duration<double>(vm["feedback_interval"].as<double>());
+  options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
+  fub::run_simulation(fub::hpx::kinetic::burke_2012_1d(), state,
+                      boundary_condition, options, &feedback,
+                      fub::print_cycle_timings{options.final_time.count()});
   return hpx::finalize();
 }

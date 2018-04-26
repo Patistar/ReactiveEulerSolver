@@ -40,7 +40,7 @@ struct burke_2012_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
-  using patch_extents_type = extents<16>;
+  using patch_extents_type = extents<8>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::burke2012::Burke2012, rank>;
   using grid_type = hpx::grid<equation_type, patch_extents_type>;

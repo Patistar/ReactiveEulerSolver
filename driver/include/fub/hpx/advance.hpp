@@ -28,6 +28,7 @@
 
 #include "fub/functional.hpp"
 
+#include <array>
 #include <chrono>
 #include <utility>
 
@@ -76,8 +77,9 @@ State advance(const Solver& solver, const State& state,
   int prev_i = computation_graph_depth - 1;
   int next_i = 0;
   while (true) {
-    times[next_i].wait();
-    if (!fub::invoke(std::ref(feedback), time_levels[next_i].get())) {
+    auto time = times[next_i].get();
+    if (!fub::invoke(std::ref(feedback), time_levels[next_i].get()) ||
+        !(time < goal)) {
       break;
     }
     time_levels[next_i] = time_levels[prev_i].then(get_next_level);

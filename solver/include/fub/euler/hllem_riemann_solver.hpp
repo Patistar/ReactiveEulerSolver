@@ -64,10 +64,8 @@ struct hllem_riemann_solver {
          equation.get_momentum(right) - equation.get_momentum(left),
          equation.get_energy(right) - equatin.get_energy(left)}};
 
-    const double delta =
-        b1 * b2 / (cA + std::abs<double>(uA)) *
-        fub::transform_reduce(left_eigen.begin(), left_eigen.end(), dQ.begin(),
-                              delta);
+    const double delta = b1 * b2 / (cA + std::abs<double>(uA)) *
+                         fub::transform_reduce(left_eigen, dQ, delta);
 
     // Apply correction for the contact discontinuity
     flux_state_t<Equation> f;

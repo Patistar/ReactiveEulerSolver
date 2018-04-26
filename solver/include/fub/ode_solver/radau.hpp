@@ -106,8 +106,8 @@ struct Radau {
               // low, change WORK[2] to a smaller value!
     constexpr double t0 = 0;        // initial time
     double t = dt.count();          // final fime
-    constexpr double reltol = 1e-3; // relative tolerances
-    constexpr double abstol = 1e-6; // absolute tolerances
+    constexpr double reltol = 1e-11; // relative tolerances
+    constexpr double abstol = 1e-15; // absolute tolerances
 
     static constexpr int work_len = Size * (Size + 7 * Size + 3 * 7 + 3) + 20;
     std::vector<double, Allocator> work(work_len, alloc);
@@ -120,7 +120,7 @@ struct Radau {
     iwork[0] = 1; // Use Hessenberg matrix form
     // iwork[1] = 10000; // Increase maximum number of steps
     iwork[12] = 7;     // Start off with order 13
-    work[2] = 0.001; // Recompute Jacobian less often (default 0.001)
+    work[2] = 0.01; // Recompute Jacobian less often (default 0.001)
 
     int idid = radau_detail::call_radau(
         radau_rhs,                                      // RHS function

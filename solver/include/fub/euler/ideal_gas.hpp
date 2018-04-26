@@ -149,7 +149,7 @@ public:
   // {{{
   void get_specific_heat_capacities_at_constant_pressure(
       species_span<A> heat_capacities, A temperature) const noexcept {
-    assert(temperature > 0);
+    // assert(temperature > 0);
     m_mechanism.get_specific_heat_capacities_at_constant_pressure(
         heat_capacities, temperature);
   }
@@ -455,6 +455,8 @@ public:
     std::transform(mole_fractions.begin(), mole_fractions.end(),
                    molar_masses.begin(), fractions.begin(),
                    std::multiplies<>{});
+    std::transform(fractions.begin(), fractions.end(), fractions.begin(),
+                   [](double x) { return std::max(0., x); });
     A sum = std::accumulate(fractions.begin(), fractions.end(), A(0));
     std::transform(fractions.begin(), fractions.end(), fractions.begin(),
                    [sum](A Y) { return Y / sum; });

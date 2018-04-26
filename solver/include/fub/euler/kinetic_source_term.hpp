@@ -46,57 +46,57 @@ struct kinetic_source_term {
   struct ode_system {
     ideal_gas<Mechanism> equation{};
 
-    void operator()(span<double, Size + 1> dTdt_and_drhoXdt,
-                    span<const double, Size + 1> T_and_rhoX,
-                    double /* t */) const noexcept {
+    void operator()(span<double, Size + 1> dTdt_and_dcdt,
+                    span<const double, Size + 1> T_and_c, double /* t */) const
+        noexcept {
       // Compute production rates by calling the reaction mechanism.
-      span<double, Size> drhoXdt = drop<1>(dTdt_and_drhoXdt);
-      span<const double, Size> rhoX = drop<1>(T_and_rhoX);
-      const double T = T_and_rhoX[0];
-      assert(T >= 0);
-      const double fractions_sum =
-          std::accumulate(rhoX.begin(), rhoX.end(), 0.0);
+      span<double, Size> dcdt = drop<1>(dTdt_and_dcdt);
+      span<const double, Size> c = drop<1>(T_and_c);
+      const double T = T_and_c[0];
+      const double c_sum = std::accumulate(c.begin(), c.end(), 0.0);
       const double R = equation.get_universal_gas_constant();
-      const double P = fractions_sum * R * T;
+      const double P = c_sum * R * T;
       // Fill drhoXdt here by calling the get_production_rates function of the
       // underlying mechanism.
-      equation.get_production_rates(drhoXdt, rhoX, T, P);
+      equation.get_production_rates(dcdt, c, T, P);
+
+      // Get the mole fractions by computing the mean molar masses
+      span<const double, Size> M = equation.get_molar_masses();
+      const double mean_M = fub::transform_reduce(M, c, double(0)) / c_sum;
+      std::array<double, Size> rhoX;
+      std::transform(c.begin(), c.end(), rhoX.begin(),
+                     [=](double c_) { return c_ * mean_M; });
+      const double rho = std::accumulate(rhoX.begin(), rhoX.end(), double(0));
 
       // Compute dTdt such that the internal energy stays constant!
       std::array<double, Size> h;
+      equation.get_specific_enthalpies_of_formation(h, T);
       std::array<double, Size> cp;
-      typename ideal_gas<Mechanism>::complete_state q =
-          equation.set_TPX(h, cp, T, P, rhoX);
-      const double mean_cp =
-          equation.get_mean_specific_heat_capacity_at_constant_pressure(q);
-      span<const double, Size> M = equation.get_molar_masses();
-      double dTdt = 0;
-      double mean_M = 0;
-      for (int i = 0; i < Size - 1; ++i) {
-        dTdt += (h[i] - R / M[i] * T) * (M[i] * drhoXdt[i]);
-        mean_M += rhoX[i] * M[i] / fractions_sum;
-      }
+      equation.get_specific_heat_capacities_at_constant_pressure(cp, T);
       // We set dTdt as shown in Phillips thesis here
-      dTdt_and_drhoXdt[0] =
-          dTdt / (equation.get(Density(), q) * (R / mean_M - mean_cp));
+      double dTdt = 0;
+      double mean_cp = 0;
+      for (int i = 0; i < Size - 1; ++i) {
+        dTdt += (h[i] - R / M[i] * T) * (M[i] * dcdt[i]);
+        mean_cp += cp[i] * c[i] * M[i] / rho;
+      }
+      dTdt /= (rho * (R / mean_M - mean_cp));
+      dTdt_and_dcdt[0] = dTdt;
     }
   };
 
   template <typename State>
-  auto retrieve_T_and_rhoX(const State& state) const noexcept {
+  auto retrieve_T_and_c(const State& state) const noexcept {
     using namespace variables;
-    std::array<double, Size + 1> T_and_rhoX;
-    T_and_rhoX[0] = equation.get(temperature, state);
+    std::array<double, Size + 1> T_and_c;
+    T_and_c[0] = equation.get(temperature, state);
     std::array<double, Size> Y = equation.get_mass_fractions(state);
     double rho = equation.get(density, state);
     span<const double, Size> molar_masses = equation.get_molar_masses();
-    const double mean_molar_mass = fub::transform_reduce(
-        Y, molar_masses, double(0.), std::plus<>{}, std::divides<>{});
     for (index i = 0; i < Size; ++i) {
-      const double lambda = (mean_molar_mass / molar_masses[i]);
-      T_and_rhoX[i + 1] = rho * Y[i] * lambda;
+      T_and_c[i + 1] = rho * Y[i] / molar_masses[i];
     }
-    return T_and_rhoX;
+    return T_and_c;
   }
 
   template <typename State>
@@ -109,7 +109,7 @@ struct kinetic_source_term {
 
     /// Solve the above ODE here by calling an ode solver.
     ode_system system{equation};
-    std::array<double, Size + 1> T_and_rhoX = retrieve_T_and_rhoX(state);
+    std::array<double, Size + 1> T_and_rhoX = retrieve_T_and_c(state);
     m_ode_solver.integrate(system, make_span(T_and_rhoX), dt);
 
     /// Make a new state from the T and Y values.
@@ -160,7 +160,7 @@ struct kinetic_source_term {
             const auto view = make_view(patch);
             auto get_max_dt = [=](auto& state) {
               ode_system system{equation};
-              auto T_and_rhoX = retrieve_T_and_rhoX(state);
+              auto T_and_rhoX = retrieve_T_and_c(state);
               decltype(T_and_rhoX) dTdt_and_drhoXdt;
               /// Compute derivatives and retrieve them
               system(dTdt_and_drhoXdt, T_and_rhoX, 0);

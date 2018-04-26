@@ -45,7 +45,7 @@ struct HyperbolicSystemSourceSolver {
         [=, solver = *this](std::chrono::duration<double> stable_dt_adv,
                             std::chrono::duration<double> stable_dt_kin) {
           std::chrono::duration<double> actual_dt =
-              std::min({limited_dt, cfl * stable_dt_adv, cfl * stable_dt_kin});
+              std::min({limited_dt, cfl * stable_dt_adv, stable_dt_kin});
           auto next = solver.m_splitting.step(
               grid, actual_dt, coordinates, boundary_condition,
               solver.m_source_solver, solver.m_hyperbolic_solver);

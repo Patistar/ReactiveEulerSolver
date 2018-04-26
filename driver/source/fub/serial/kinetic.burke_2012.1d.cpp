@@ -24,11 +24,13 @@
 
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
-#include "fub/euler/muscl_hancock_method.hpp"
+// #include "fub/euler/muscl_hancock_method.hpp"
+#include "fub/godunov_method.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/strang_splitting.hpp"
+// #include "fub/strang_splitting.hpp"
+#include "fub/godunov_splitting.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
@@ -36,14 +38,14 @@ namespace serial {
 namespace kinetic {
 namespace {
 const burke_2012_1d::equation_type equation{};
-const euler::muscl_hancock_method<euler::hlle_riemann_solver> flux_method;
+const godunov_method<euler::hlle_riemann_solver> flux_method;
 const time_integrator::forward_euler time_integrator;
 const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
                                decltype(time_integrator)>
     advective_solver{equation, flux_method, time_integrator};
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
-    strang_splitting(), advective_solver, kinetic_source_term);
+    godunov_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(

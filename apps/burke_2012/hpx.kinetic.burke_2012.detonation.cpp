@@ -37,18 +37,18 @@ using Partition = Grid::partition_type;
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::burke2012::variables;
-  moles[as_index(o2)] = 2.0;
+  moles[as_index(o2)] = 1.0;
   moles[as_index(h2)] = 2.0;
   moles[as_index(n2)] = 2.0;
   auto left = Equation().set_TPX(1150, 1E5, moles);
-  auto right = Equation().set_TPX(300, 1E5, moles);
+  auto right = Equation().set_TPX(500, 1E5, moles);
   return {{left, right}};
 }
 
 Equation::complete_state
 initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
-  if (xs[0] < 0.02) {
+  if (xs[0] < 0.1) {
     return states[0];
   } else {
     return states[1];

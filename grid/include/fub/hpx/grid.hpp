@@ -38,8 +38,12 @@ using ::hpx::future;
 using ::hpx::make_ready_future;
 using ::hpx::shared_future;
 
+template <typename Eq, typename E> struct grid_node_patch {
+  using type = patch<as_tuple_t<complete_state_t<Eq>>, E>;
+};
+
 template <typename Eq, typename Extents> struct grid_node {
-  using patch_type = patch<as_tuple_t<complete_state_t<Eq>>, Extents>;
+  using patch_type = typename grid_node_patch<Eq, Extents>::type;
   grid_node() = default;
   explicit grid_node(patch_type&& b) noexcept : patch{std::move(b)} {}
   explicit grid_node(const patch_type& b) noexcept : patch{b} {}

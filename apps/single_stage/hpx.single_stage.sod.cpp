@@ -18,9 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/euler/boundary_condition/reflective.hpp"
-#include "fub/hpx/driver.hpp"
 #include "fub/hpx/single_stage_1d.hpp"
+
+#include "fub/euler/boundary_condition/reflective.hpp"
+#include "fub/run_simulation.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"

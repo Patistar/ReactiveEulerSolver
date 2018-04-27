@@ -50,50 +50,10 @@ single_stage_2d::state_type single_stage_2d::initialise(
   return ::fub::hpx::initialise<state_type>(std::move(f), coordinates, depth);
 }
 
-namespace {
-template <class BX, class BY> struct joined_boundary_condition {
-  BX m_boundary_x;
-  BY m_boundary_y;
-
-  template <int Width, direction Dir, typename Grid, typename Coordinates>
-  auto get_face_neighbor_impl(
-      const typename grid_traits<Grid>::partition_type& partition,
-      const Grid& grid, const Coordinates& coordinates, int_constant<0>) const {
-    return m_boundary_x.template get_face_neighbor<Width, axis::x, Dir>(
-        partition, grid, coordinates);
-  }
-
-  template <int Width, direction Dir, typename Grid, typename Coordinates>
-  auto get_face_neighbor_impl(
-      const typename grid_traits<Grid>::partition_type& partition,
-      const Grid& grid, const Coordinates& coordinates, int_constant<1>) const {
-    return m_boundary_y.template get_face_neighbor<Width, axis::y, Dir>(
-        partition, grid, coordinates);
-  }
-
-  template <int Width, axis Axis, direction Dir, typename Grid,
-            typename Coordinates>
-  auto
-  get_face_neighbor(const typename grid_traits<Grid>::partition_type& partition,
-                    const Grid& grid, const Coordinates& coordinates) const {
-    return get_face_neighbor_impl<Width, Dir>(partition, grid, coordinates,
-                                              int_c<as_int(Axis)>);
-  }
-};
-
-template <class BX, class BY> auto join_boundary(BX&& bx, BY&& by) {
-  return joined_boundary_condition<std::decay_t<BX>, std::decay_t<BY>>{
-      std::forward<BX>(bx), std::forward<BY>(by)};
-}
-
-} // namespace
-
 single_stage_2d::state_type single_stage_2d::advance(
     const state_type& state, std::chrono::duration<double> goal,
-    const boundary_condition_x& boundary_x,
-    const boundary_condition_y& boundary_y, feedback_function feedback) {
-  return ::fub::hpx::advance(advective_solver, state, goal,
-                             join_boundary(boundary_x, boundary_y),
+    const boundary_condition& boundary, feedback_function feedback) {
+  return ::fub::hpx::advance(advective_solver, state, goal, boundary,
                              std::move(feedback));
 }
 

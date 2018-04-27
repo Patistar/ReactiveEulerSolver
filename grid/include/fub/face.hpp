@@ -21,11 +21,19 @@
 #ifndef FUB_FACE_HPP
 #define FUB_FACE_HPP
 
+#include <type_traits>
+
 namespace fub {
 
 enum class direction { left = -1, right = +1 };
 
 enum class axis { x, y, z };
+
+template <axis A>
+using axis_constant = std::integral_constant<axis, A>;
+
+template <axis A>
+static constexpr axis_constant<A> axis_c{};
 
 struct face {
   axis dimension;

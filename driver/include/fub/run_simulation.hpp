@@ -52,7 +52,7 @@ void run_simulation(
     const std::chrono::duration<double> dt =
         std::min(options.feedback_interval, rest);
     state = solver.advance(std::move(state), state.time + dt,
-                           boundary_condition, cycle_feedback);
+                           boundary_condition, std::ref(cycle_feedback));
     fub::invoke(interval_feedback, state);
   }
 }

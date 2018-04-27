@@ -282,6 +282,12 @@ template <index N, typename T> span<T> drop(span<T> view) {
                  std::max(0, view.size() - N));
 }
 
+template <typename T>
+span<T, dyn> drop(const span<T, dyn>& view, index n) noexcept {
+  return span<T>(view.data() + std::min(view.size(), n),
+                 std::max(0, view.size() - n));
+}
+
 template <index N, typename T> span<T, N> take(span<T> view) {
   if (view.size() < N) {
     throw std::out_of_range{"take: span's length is smaller than than."};

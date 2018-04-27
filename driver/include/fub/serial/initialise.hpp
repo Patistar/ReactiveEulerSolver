@@ -43,7 +43,7 @@ State initialise(InitialCondition f,
           auto view = make_view(patch);
           for_each_index(patch.extents(),
                          [&](const std::array<index, Rank>& i) {
-                           view(i) = ::fub::invoke(f, ::fub::apply(adapted, i));
+                           view(i) = fub::invoke(f, fub::apply(adapted, i));
                          });
           return std::make_shared<typename traits::node_type>(std::move(patch));
         },

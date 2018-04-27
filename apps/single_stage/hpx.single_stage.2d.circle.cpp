@@ -46,14 +46,14 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 Equation::complete_state
 initial_value_function(const std::array<double, 2>& xs) {
   static auto states = get_initial_states();
-  if (xs[0] * xs[0] + xs[1] * xs[1] < 0.3 * 0.3) {
+  if ((xs[0] * xs[0] + xs[1] * xs[1]) < 0.3 * 0.3) {
     return states[0];
   } else {
     return states[1];
   }
 }
 
-using state_type = fub::hpx::single_stage_1d::state_type;
+using state_type = fub::hpx::single_stage_2d::state_type;
 
 struct write_cgns_file {
   mutable hpx::future<void> queue = hpx::make_ready_future();
@@ -95,9 +95,9 @@ int main(int argc, char** argv) {
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
   auto extents = static_cast<fub::array<fub::index, 2>>(Grid::extents_type());
-  fub::uniform_cartesian_coordinates<1> coordinates({-1.0, -1.0}, {1.0, 1.0},
+  fub::uniform_cartesian_coordinates<2> coordinates({-1.0, -1.0}, {1.0, 1.0},
                                                     extents);
-  auto state = fub::hpx::single_stage_1d::initialise(&initial_value_function,
+  auto state = fub::hpx::single_stage_2d::initialise(&initial_value_function,
                                                      coordinates, depth);
   write_cgns_file write_cgns{};
   write_cgns(state);
@@ -106,7 +106,7 @@ int hpx_main(boost::program_options::variables_map& vm) {
   options.feedback_interval =
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
-  fub::run_simulation(fub::hpx::single_stage_1d(), state, boundary_condition,
+  fub::run_simulation(fub::hpx::single_stage_2d(), state, boundary_condition,
                       options, write_cgns,
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();

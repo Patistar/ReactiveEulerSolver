@@ -162,12 +162,19 @@ void flow_solution_write(const zone_context& zone, const View& patch,
   throw_if_cg_error(cg_sol_write(zone.file, zone.base, zone.id, "FlowSolution",
                                  CellCenter, &solution));
   std::vector<double> buffer(patch.extents().size());
-  span<const double> span(buffer);
+  span<const double> view{buffer};
   for_each_tuple_element(
       [&](auto var) {
-        std::transform(patch.begin(), patch.end(), buffer.begin(),
-                       [&](auto q) { return equation.get(var, q); });
-        cell_centered_field_write(zone, solution, var.name(), span);
+        span<double> out{buffer};
+        for_each_row(
+            [&](auto row) {
+              std::transform(row.begin(), row.end(), out.begin(),
+                             [&](auto q) { return equation.get(var, q); });
+              out = span<double>{out.data() + row.size(),
+                                 out.size() - row.size()};
+            },
+            patch);
+        cell_centered_field_write(zone, solution, var.name(), view);
         // physical_dimension_write(zone, solution, var);
       },
       vars);

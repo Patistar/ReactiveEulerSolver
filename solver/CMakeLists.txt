@@ -7,8 +7,6 @@ add_library(FortranRadauSolver
   source/fub/ode_solver/dc_decsol.f
   source/fub/ode_solver/decsol.f)
 
-find_package(ReactorLib REQUIRED)
-
 add_library(ReactiveEulerSolver.solver
   source/fub/ode_solver/Radau.cpp
   source/fub/euler/hll_riemann_solver.cpp

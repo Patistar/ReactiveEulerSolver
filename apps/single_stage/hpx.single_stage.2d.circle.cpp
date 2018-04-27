@@ -82,12 +82,12 @@ struct write_cgns_file {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("depth", po::value<int>()->default_value(4),
+  desc.add_options()("depth", po::value<int>()->default_value(6),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(2),
+  desc.add_options()("time", po::value<double>()->default_value(1),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(1e-3),
+                     po::value<double>()->default_value(5e-3),
                      "The time interval in which we write output files.");
   return hpx::init(desc, argc, argv);
 }
@@ -107,7 +107,7 @@ int hpx_main(boost::program_options::variables_map& vm) {
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
   fub::run_simulation(fub::hpx::single_stage_2d(), state, boundary_condition,
-                      options, write_cgns,
+                      options, std::ref(write_cgns),
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

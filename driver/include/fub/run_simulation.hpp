@@ -42,8 +42,8 @@ void run_simulation(
     const Solver& solver, typename Solver::state_type state,
     const BoundaryCondition& boundary_condition,
     const simulation_options& options,
-    const IntervalFeedback& interval_feedback,
-    const CycleFeedback& cycle_feedback = CycleFeedback()) noexcept {
+    IntervalFeedback interval_feedback,
+    CycleFeedback cycle_feedback = CycleFeedback()) noexcept {
   constexpr std::chrono::duration<double> eps(
       std::numeric_limits<double>::epsilon());
   while (state.time < options.final_time) {

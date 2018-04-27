@@ -15,6 +15,6 @@ add_library(ReactiveEulerSolver.solver
   source/fub/euler/mechanism/burke_2012.cpp
   source/fub/euler/mechanism/gri_30.cpp)
 target_include_directories(ReactiveEulerSolver.solver PUBLIC include)
-target_link_libraries(ReactiveEulerSolver.solver PUBLIC ReactiveEulerSolver.grid)
+target_link_libraries(ReactiveEulerSolver.solver PUBLIC ReactiveEulerSolver.grid FortranRadauSolver)
 
 add_subdirectory(tests)

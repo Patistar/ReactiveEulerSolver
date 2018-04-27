@@ -752,7 +752,8 @@ template <int Dim, int Width, typename Extents, typename... Vars>
 auto slice_left(const patch_view<Extents, Vars...>& source) {
   auto changed_extents =
       replace_extent(source.extents(), int_c<Dim>, int_c<Width>);
-  auto dest = make_patch(std::tuple<Vars...>(), changed_extents);
+  auto dest =
+      make_patch(std::tuple<std::remove_const_t<Vars>...>(), changed_extents);
   slice_left<Dim, Width>(make_view(dest), source);
   return dest;
 }
@@ -775,7 +776,8 @@ template <int Dim, int Width, typename Extents, typename... Vars>
 auto slice_right(const patch_view<Extents, Vars...>& source) {
   auto changed_extents =
       replace_extent(source.extents(), int_c<Dim>, int_c<Width>);
-  auto dest = make_patch(std::tuple<Vars...>(), changed_extents);
+  auto dest =
+      make_patch(std::tuple<std::remove_const_t<Vars>...>(), changed_extents);
   slice_right<Dim, Width>(make_view(dest), source);
   return dest;
 }

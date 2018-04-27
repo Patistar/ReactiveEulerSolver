@@ -741,15 +741,17 @@ void slice_left(const ViewA& dest, const ViewB& source) {
         auto dt = make_tensor(dest[variable]);
         array<index, view_rank_v<ViewA>> origin{};
         origin[Dim] = source.extents().get(Dim) - Width;
-        array<index, view_rank_v<ViewA>> extent = dest.extents();
-        dt = st.slice(origin, extent);
+        auto extents =
+            static_cast<array<index, view_rank_v<ViewA>>>(dest.extents());
+        dt = st.slice(origin, extents);
       },
       view_variables_t<ViewA>());
 }
 
 template <int Dim, int Width, typename Extents, typename... Vars>
 auto slice_left(const patch_view<Extents, Vars...>& source) {
-  auto changed_extents = replace_extent<Dim, Width>(source.extents());
+  auto changed_extents =
+      replace_extent(source.extents(), int_c<Dim>, int_c<Width>);
   auto dest = make_patch(std::tuple<Vars...>(), changed_extents);
   slice_left<Dim, Width>(make_view(dest), source);
   return dest;
@@ -762,15 +764,17 @@ void slice_right(const ViewA& dest, const ViewB& source) {
         auto st = make_tensor(source[variable]);
         auto dt = make_tensor(dest[variable]);
         array<index, view_rank_v<ViewA>> origin{};
-        array<index, view_rank_v<ViewA>> extent = dest.extents();
-        dt = st.slice(origin, extent);
+        auto extents =
+            static_cast<array<index, view_rank_v<ViewA>>>(dest.extents());
+        dt = st.slice(origin, extents);
       },
       view_variables_t<ViewA>());
 }
 
 template <int Dim, int Width, typename Extents, typename... Vars>
 auto slice_right(const patch_view<Extents, Vars...>& source) {
-  auto changed_extents = replace_extent<Dim, Width>(source.extents());
+  auto changed_extents =
+      replace_extent(source.extents(), int_c<Dim>, int_c<Width>);
   auto dest = make_patch(std::tuple<Vars...>(), changed_extents);
   slice_right<Dim, Width>(make_view(dest), source);
   return dest;

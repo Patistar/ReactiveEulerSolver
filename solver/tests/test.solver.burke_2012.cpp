@@ -34,10 +34,10 @@ int main()
   x[Index_v<H2>] = 2.0;
   x[Index_v<O2>] = 1.0;
   fub::euler::ideal_gas<Burke2012> eq{};
-  auto state = eq.set_TPX(1100, 1e5, x);
+  auto state = eq.set_TPX(1100, 4e5, x);
   auto source_term = fub::euler::make_kinetic_source_term(eq);
   using namespace std::chrono_literals;
-  auto next = source_term.advance_state(state, 0.0001s);
+  auto next = source_term.advance_state(state, 0.001s);
   fub::for_each_tuple_element([&](auto var) {
     std::cout << var.name() << ": " << next[var] << '\n';
   }, get_variables(next));

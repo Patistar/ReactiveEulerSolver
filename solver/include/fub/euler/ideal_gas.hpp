@@ -333,7 +333,7 @@ private:
   find_temperature(const Abi& abi, nodeduce_t<species_span<simd<A, Abi>>> h,
                    nodeduce_t<species_span<simd<A, Abi>>> cps, simd<A, Abi> U_0,
                    species_span<const simd<A, Abi>> Y_0,
-                   simd<A, Abi> T_0 = 300., std::ptrdiff_t tolerance = 10000000,
+                   simd<A, Abi> T_0 = 300., std::ptrdiff_t tolerance = 1000000000,
                    std::ptrdiff_t max_iterations = 1000) const {
     // Prepare U evaluation
     const species_span<const A> Rs = get_specific_gas_constants();

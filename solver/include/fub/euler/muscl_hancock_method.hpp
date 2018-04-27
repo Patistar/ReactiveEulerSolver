@@ -192,10 +192,16 @@ template <typename RiemannSolver> struct muscl_hancock_method {
 
     // Compute spatial density gradient, drho / dx
     using namespace variables;
+    S dYdx_mass_sum = 0;
+    fub::for_each_tuple_element(
+        [&](auto species) {
+          dYdx_mass_sum += dwdx[species] / molar_masses[as_index(species)];
+        },
+        species_tuple(equation));
     S drhodx = dwdx[pressure] / (R * w[temperature]) -
                w[pressure] / (R * w[temperature] * w[temperature]) *
                    dwdx[temperature] -
-               rho * dRdt / R;
+               w[pressure] / (R * R * w[temperature]) * R_hat * dYdx_mass_sum;
 
     // Compute velocity derivate, du / dt
     S dudt = -w[velocity<0>] * dwdx[velocity<0>] - dwdx[pressure] / rho;
@@ -207,9 +213,11 @@ template <typename RiemannSolver> struct muscl_hancock_method {
              (rho * cv);
 
     // Compute pressure derivate, dp / dt
-    S dpdt = rho * (R * dTdt + dRdt * w[temperature] +
-                    dwdx[velocity<0>] * R * w[temperature]) -
-             (rho * dwdx[velocity<0>] + drhodx * w[velocity<0>]);
+    // dpdt = -(drhodx .* u + rho .* dudx) .* R .* T + rho .* R .* dTdt + rho .*
+    // dRdt .* T;
+    S dpdt = -(drhodx * w[velocity<0>] + rho * dwdx[velocity<0>]) * R *
+                 w[temperature] +
+             rho * R * dTdt + rho * dRdt * w[temperature];
 
     // Construct States
     using species_t = species_tuple_t<ideal_gas<Mechanism, Rank>>;
@@ -276,8 +284,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
             typename Coordinates>
   std::enable_if_t<
       is_simd_abi_v<Abi>,
-      reconstructed_states<Mechanism, Rank,
-                           view_extents_t<StateSpan>().size()>>
+      reconstructed_states<Mechanism, Rank, view_extents_t<StateSpan>().size()>>
   reconstruct_states(const ideal_gas<Mechanism, Rank>& eq, const Abi& abi,
                      const StateSpan& qL, const nodeduce_t<StateSpan>& qM,
                      const nodeduce_t<StateSpan>& qR,

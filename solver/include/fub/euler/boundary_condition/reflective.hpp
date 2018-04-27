@@ -49,7 +49,7 @@ class reflective {
       dest(indices) = source(mapped);
       auto rho_u = equation.get_momentum(dest(indices));
       rho_u[Dim] *= -1;
-      equation.set_momentum(dest(indices), rho_u);
+      dest(indices) = equation.set_momentum(dest(indices), rho_u);
     });
   }
 
@@ -67,7 +67,7 @@ class reflective {
       dest(mapped) = source(indices);
       auto rho_u = equation.get_momentum(dest(indices));
       rho_u[Dim] *= -1;
-      equation.set_momentum(dest(indices), rho_u);
+      dest(indices) = equation.set_momentum(dest(indices), rho_u);
     });
   }
 

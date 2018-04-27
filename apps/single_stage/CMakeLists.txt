@@ -11,5 +11,9 @@ if (HPX_FOUND)
 add_executable(hpx.single_stage.sod hpx.single_stage.sod.cpp)
 target_link_libraries(hpx.single_stage.sod ReactiveEulerSolver.driver.hpx.single_stage.1d)
 hpx_setup_target(hpx.single_stage.sod)
+
+add_executable(hpx.single_stage.2d.circle hpx.single_stage.2d.circle.cpp)
+target_link_libraries(hpx.single_stage.2d.circle ReactiveEulerSolver.driver.hpx.single_stage.2d)
+hpx_setup_target(hpx.single_stage.2d.circle)
 endif()
 

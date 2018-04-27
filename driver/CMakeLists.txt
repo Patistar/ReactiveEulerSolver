@@ -20,6 +20,11 @@ add_library(ReactiveEulerSolver.driver.hpx.single_stage.1d source/fub/hpx/single
 target_include_directories(ReactiveEulerSolver.driver.hpx.single_stage.1d PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.driver.hpx.single_stage.1d ReactiveEulerSolver.solver Boost::program_options)
 hpx_setup_target(ReactiveEulerSolver.driver.hpx.single_stage.1d)
+
+add_library(ReactiveEulerSolver.driver.hpx.single_stage.2d source/fub/hpx/single_stage.2d.cpp)
+target_include_directories(ReactiveEulerSolver.driver.hpx.single_stage.2d PUBLIC include)
+target_link_libraries(ReactiveEulerSolver.driver.hpx.single_stage.2d ReactiveEulerSolver.solver Boost::program_options)
+hpx_setup_target(ReactiveEulerSolver.driver.hpx.single_stage.2d)
 endif()
 
 add_library(ReactiveEulerSolver.driver.serial.burke_2012.1d source/fub/serial/burke_2012.1d.cpp)

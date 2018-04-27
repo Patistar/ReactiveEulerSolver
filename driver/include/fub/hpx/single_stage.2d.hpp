@@ -25,19 +25,20 @@
 
 #include "fub/euler/mechanism/single_stage.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
+#include "fub/polymorphic_boundary_condition.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <functional>
 
 namespace fub {
-namespace solver {
+namespace hpx {
 
 struct single_stage_2d {
   static constexpr int rank = 2;
   static constexpr int ghost_width = 2;
 
-  using patch_extents_type = extents<128, 128>;
+  using patch_extents_type = extents<32, 32>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::single_stage::single_stage, rank>;
   using grid_type = hpx::grid<equation_type, patch_extents_type>;
@@ -57,18 +58,26 @@ struct single_stage_2d {
   using initial_condition_function =
       std::function<equation_state_t(const std::array<double, rank>&)>;
 
-  using feedback_function =
-      std::function<bool(const state_type&)>;
+  using feedback_function = std::function<bool(const state_type&)>;
+
+  using boundary_condition_x =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::x>;
+
+  using boundary_condition_y =
+      polymorphic_boundary_condition<grid_type, ghost_width, axis::y>;
 
   static state_type initialise(initial_condition_function,
-                               const uniform_cartesian_coordinates<rank>&, int depth);
+                               const uniform_cartesian_coordinates<rank>&,
+                               int depth);
 
   static state_type advance(const state_type& state,
                             std::chrono::duration<double> dt,
+                            const boundary_condition_x& boundary_x,
+                            const boundary_condition_y& boundary_y,
                             feedback_function feedback);
 };
 
-} // namespace solver
+} // namespace hpx
 } // namespace fub
 
-#endif // !SOLVER_HPP
+#endif

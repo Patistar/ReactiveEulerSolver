@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/hpx/kinetic.burke_2012.1d.hpp"
+#include "fub/hpx/single_stage.2d.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
@@ -30,31 +30,30 @@
 
 #include <array>
 
-using Equation = fub::hpx::kinetic::burke_2012_1d::equation_type;
-using Grid = fub::hpx::kinetic::burke_2012_1d::grid_type;
+using Equation = fub::hpx::single_stage_2d::equation_type;
+using Grid = fub::hpx::single_stage_2d::grid_type;
 using Partition = Grid::partition_type;
 
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
-  using namespace fub::euler::mechanism::burke2012::variables;
-  moles[as_index(o2)] = 1.0;
-  moles[as_index(h2)] = 2.0;
-  auto left = Equation().set_TPX(2000, 5E5, moles);
-  auto right = Equation().set_TPX(300, 1E5, moles);
+  using namespace fub::euler::mechanism::single_stage::variables;
+  moles[as_index(fuel)] = 1.0;
+  auto left = Equation().set_TPX(1, 3, moles);
+  auto right = Equation().set_TPX(1, 1, moles);
   return {{left, right}};
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1>& xs) {
+initial_value_function(const std::array<double, 2>& xs) {
   static auto states = get_initial_states();
-  if (0.29 < xs[0] && xs[0] < 0.3) {
+  if (xs[0] * xs[0] + xs[1] * xs[1] < 0.3 * 0.3) {
     return states[0];
   } else {
     return states[1];
   }
 }
 
-using state_type = fub::hpx::kinetic::burke_2012_1d::state_type;
+using state_type = fub::hpx::single_stage_1d::state_type;
 
 struct write_cgns_file {
   mutable hpx::future<void> queue = hpx::make_ready_future();
@@ -83,22 +82,23 @@ struct write_cgns_file {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("depth", po::value<int>()->default_value(6),
+  desc.add_options()("depth", po::value<int>()->default_value(4),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(1e-4),
+  desc.add_options()("time", po::value<double>()->default_value(2),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(1e-6),
+                     po::value<double>()->default_value(1e-3),
                      "The time interval in which we write output files.");
   return hpx::init(desc, argc, argv);
 }
 
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
-  fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
-  auto state = fub::hpx::kinetic::burke_2012_1d::initialise(
-      &initial_value_function, coordinates, depth);
+  auto extents = static_cast<fub::array<fub::index, 2>>(Grid::extents_type());
+  fub::uniform_cartesian_coordinates<1> coordinates({-1.0, -1.0}, {1.0, 1.0},
+                                                    extents);
+  auto state = fub::hpx::single_stage_1d::initialise(&initial_value_function,
+                                                     coordinates, depth);
   write_cgns_file write_cgns{};
   write_cgns(state);
   fub::euler::boundary_condition::reflective boundary_condition{};
@@ -106,8 +106,8 @@ int hpx_main(boost::program_options::variables_map& vm) {
   options.feedback_interval =
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
-  fub::run_simulation(fub::hpx::kinetic::burke_2012_1d(), state,
-                      boundary_condition, options, write_cgns,
+  fub::run_simulation(fub::hpx::single_stage_1d(), state, boundary_condition,
+                      options, write_cgns,
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

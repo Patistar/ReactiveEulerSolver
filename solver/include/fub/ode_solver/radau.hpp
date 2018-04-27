@@ -106,8 +106,8 @@ struct Radau {
               // low, change WORK[2] to a smaller value!
     constexpr double t0 = 0;        // initial time
     double t = dt.count();          // final fime
-    constexpr double reltol = 1e-11; // relative tolerances
-    constexpr double abstol = 1e-15; // absolute tolerances
+    constexpr double reltol = 1e-9; // relative tolerances
+    constexpr double abstol = 1e-12; // absolute tolerances
 
     static constexpr int work_len = Size * (Size + 7 * Size + 3 * 7 + 3) + 20;
     std::vector<double, Allocator> work(work_len, alloc);

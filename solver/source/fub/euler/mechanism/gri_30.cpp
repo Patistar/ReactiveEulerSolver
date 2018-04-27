@@ -3337,9 +3337,8 @@ std::enable_if_t<std::is_arithmetic<Arithmetic>::value>
 get_specific_heat_capacities_at_constant_pressure_impl(span<Arithmetic> cp,
                                                        Arithmetic T) noexcept {
   // {{{
-  T = std::min(T, Arithmetic(300));
+  T = std::max(T, Arithmetic(300));
   if (T > 1000.0) {
-
     cp[sAR] =
         0x1.a042152c51ec9p+7 *
         (0x1.4p+1 + T * (0x0p+0 + T * (0x0p+0 + T * (0x0p+0 + T * 0x0p+0))));
@@ -4935,7 +4934,7 @@ std::enable_if_t<is_simd<Simd>::value>
 get_specific_heat_capacities_at_constant_pressure_impl(span<Simd> cp,
                                                        Simd T) noexcept {
   // {{{
-  T = fub::min(T, Simd(300));
+  T = fub::max(T, Simd(300));
   auto bigT = T > 1000.0;
   if (any_of(bigT)) {
     where(bigT, cp[sAR]) =

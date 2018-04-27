@@ -30,8 +30,8 @@
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/godunov_splitting.hpp"
-// #include "fub/strang_splitting.hpp"
+// #include "fub/godunov_splitting.hpp"
+#include "fub/strang_splitting.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
@@ -47,14 +47,14 @@ const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
     advective_solver{equation, flux_method, time_integrator};
 const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
 const auto solver = make_hyperbolic_system_source_solver(
-    godunov_splitting(), advective_solver, kinetic_source_term);
+    strang_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(
     initial_condition_function f,
     const uniform_cartesian_coordinates<rank>& coordinates, int depth) {
   return ::fub::hpx::initialise<state_type>(std::move(f), coordinates, depth,
-                                            0.5);
+                                            0.25);
 }
 
 burke_2012_1d::state_type burke_2012_1d::advance(

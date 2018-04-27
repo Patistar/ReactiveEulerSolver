@@ -63,7 +63,7 @@ template <typename Arithmetic>
 std::enable_if_t<std::is_arithmetic<Arithmetic>::value>
 get_specific_heat_capacities_at_constant_pressure_impl(span<Arithmetic> cp,
                                                        Arithmetic T) noexcept {
-  T = std::min(T, Arithmetic(300));
+  T = std::max(T, Arithmetic(300));
   if (T > 1000.0) {
     cp[index_v<N2>] = 2.96733125e+02 *
                       (2.92664000e+00 +
@@ -186,7 +186,7 @@ template <typename Simd>
 std::enable_if_t<is_simd<Simd>::value>
 get_specific_heat_capacities_at_constant_pressure_impl(span<Simd> cp,
                                                        Simd T) noexcept {
-  T = fub::min(T, Simd(300));
+  T = fub::max(T, Simd(300));
   auto big_T = T > 1000.0;
   if (any_of(big_T)) {
     where(big_T, cp[index_v<N2>]) =

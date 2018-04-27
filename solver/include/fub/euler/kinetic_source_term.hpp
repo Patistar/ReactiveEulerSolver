@@ -27,6 +27,8 @@
 #include "fub/patch_view.hpp"
 #include "fub/variables.hpp"
 
+//#include "Reactor.h"
+
 #include <array>
 #include <chrono>
 #include <numeric>
@@ -99,27 +101,44 @@ struct kinetic_source_term {
     return T_and_c;
   }
 
-  template <typename State>
-  std::enable_if_t<
-      std::is_convertible<State,
-                          typename ideal_gas<Mechanism>::complete_state>::value,
-      typename ideal_gas<Mechanism>::complete_state>
-  advance_state(const State& state, std::chrono::duration<double> dt) const {
+  typename ideal_gas<Mechanism>::complete_state
+  advance_state(const typename ideal_gas<Mechanism>::complete_state& state,
+                std::chrono::duration<double> dt) const {
     using namespace variables;
 
-    /// Solve the above ODE here by calling an ode solver.
+    // Solve the above ODE here by calling an ode solver.
     ode_system system{equation};
-    std::array<double, Size + 1> T_and_rhoX = retrieve_T_and_c(state);
-    m_ode_solver.integrate(system, make_span(T_and_rhoX), dt);
+    std::array<double, Size + 1> T_and_c = retrieve_T_and_c(state);
+    m_ode_solver.integrate(system, make_span(T_and_c), dt);
 
     /// Make a new state from the T and Y values.
-    const double T = T_and_rhoX[0];
+    const double T = T_and_c[0];
     const double R = equation.get_universal_gas_constant();
-    span<double, Size> rhoX = drop<1>(make_span(T_and_rhoX));
-    const double fractions_sum = std::accumulate(rhoX.begin(), rhoX.end(), 0.0);
-    const double P = fractions_sum * R * T;
+    span<double, Size> c = drop<1>(make_span(T_and_c));
+    const double c_sum = std::accumulate(c.begin(), c.end(), 0.0);
+    const double P = c_sum * R * T;
+
+    // Get the mole fractions by computing the mean molar masses
+    span<const double, Size> M = equation.get_molar_masses();
+    const double mean_M = fub::transform_reduce(M, c, double(0)) / c_sum;
+    std::array<double, Size> rhoX;
+    std::transform(c.begin(), c.end(), rhoX.begin(),
+                   [=](double c_) { return c_ * mean_M; });
     return equation.set_momentum(equation.set_TPX(T, P, rhoX),
                                  equation.get_momentum(state));
+    // using namespace variables;
+    // static FlameMasterReactor reactor{"libburke2012.dylib"};
+    // reactor.setTemperature(state[temperature]);
+    // reactor.setDensity(state[density]);
+    // auto mass_fractions = equation.get_mass_fractions(state);
+    // reactor.setMassFractions(&mass_fractions[0]);
+    // reactor.advance(dt.count());
+    // std::copy_n(reactor.getMassFractions(), mass_fractions.size(),
+    // mass_fractions.begin());
+    // return equation.set_momentum(equation.set_TPY(reactor.getTemperature(),
+    // reactor.getPressure(),
+    // mass_fractions),
+    // equation.get_momentum(state));
   }
 
   template <typename Grid>
@@ -160,42 +179,36 @@ struct kinetic_source_term {
             const auto view = make_view(patch);
             auto get_max_dt = [=](auto& state) {
               ode_system system{equation};
-              auto T_and_rhoX = retrieve_T_and_c(state);
-              decltype(T_and_rhoX) dTdt_and_drhoXdt;
+              auto T_and_c = retrieve_T_and_c(state);
+              decltype(T_and_c) dTdt_and_dcdt;
               /// Compute derivatives and retrieve them
-              system(dTdt_and_drhoXdt, T_and_rhoX, 0);
-              auto rhoX = drop<1>(make_span(T_and_rhoX));
-              auto drhoXdt = drop<1>(make_span(dTdt_and_drhoXdt));
-              const double T = T_and_rhoX[0];
-              const double dTdt = dTdt_and_drhoXdt[0];
+              system(dTdt_and_dcdt, T_and_c, 0);
+              auto c = drop<1>(make_span(T_and_c));
+              auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
+              const double T = T_and_c[0];
+              const double dTdt = dTdt_and_dcdt[0];
               /// Compute max dt for each component and take the minimum
               auto molar_masses = solver.equation.get_molar_masses();
-              std::array<double, Size> drhoYdt;
-              std::transform(drhoXdt.begin(), drhoXdt.end(),
-                             molar_masses.begin(), drhoYdt.begin(),
-                             [=](double x, double m) { return x * m; });
-              std::array<double, Size> Y =
-                  solver.equation.get_mass_fractions(state);
               const double rho = solver.equation.get(Density(), state);
               const double max_dt = fub::transform_reduce(
-                  drhoYdt.begin(), drhoYdt.end(), Y.begin(),
+                  dcdt.begin(), dcdt.end(), c.begin(),
                   std::numeric_limits<double>::infinity(),
                   [](double t1, double t2) { return std::min(t1, t2); },
-                  [=](double drhoY_dt, double y) {
-                    return drhoY_dt < -1E-16
-                               ? std::abs(rho * y / drhoY_dt)
-                               : std::numeric_limits<double>::infinity();
+                  [=](double dc_dt, double c) {
+                    return dc_dt < 0 ? std::abs(c / dc_dt)
+                                     : std::numeric_limits<double>::infinity();
                   });
               return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) : max_dt;
             };
-            const double max_dt =
+            double max_dt =
                 std::accumulate(view.begin(), view.end(),
                                 std::numeric_limits<double>::infinity(),
                                 [=](double dt, const auto& state) {
                                   return std::min(dt, get_max_dt(state));
                                 });
+            max_dt = std::max(max_dt, 1e-7);
             assert(max_dt > 0);
-            return std::chrono::duration<double>(std::max(1e-8, max_dt));
+            return std::chrono::duration<double>(max_dt);
           };
           return grid_traits<Grid>::dataflow(std::move(get_dt),
                                              std::move(partition));

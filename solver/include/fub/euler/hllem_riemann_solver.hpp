@@ -32,26 +32,42 @@ struct hllem_riemann_solver {
   template <typename E> using State = state_type_t<E>;
   HLLESignalVelocity m_signals{0.5};
 
+  template <typename Abi, typename Equation>
+  add_simd_t<conservative_state_t<Equation>, Abi>
+  get_star_state(const Abi& abi, const complete_state_t<Equation>& qL,
+                 const complete_state_t<Equation>& qR, double bL, double bR,
+                 const Equation& eq) {
+    auto fL = eq.get_flux(abi, qL);
+    auto fR = eq.get_flux(abi, qR);
+    add_simd_t<conservative_state_t<Equation>, Abi> q_star;
+    for_each_tuple_element([&](auto var) {
+      q_star[var] =
+          (fL[var] - fR[var] + bR * qR[var] - bL * qL[var]) / (bR - bL);
+    });
+    return q_star;
+  }
+
   /// @brief Returns the F(q*) where F is the flux defined by the equation, q*
   /// the approximated solution to the Riemann Problem spanned by `left` and
   /// `right` states.
   template <typename Equation>
-  add_flux_t<cons_type_t<Equation>>
-  compute_numeric_flux(const State<Equation>& left,
-                       const State<Equation>& right,
+  add_simd_t<add_flux_t<conservative_state_t<Equation>>, Abi>
+  compute_numeric_flux(const Abi& abi,
+                       const add_simd_t<complete_state_t<Equation>, Abi>& left,
+                       const add_simd_t<complete_state_t<Equation>, Abi>& right,
                        const Equation& equation) const noexcept {
     const auto result = HLLRiemannSolver::compute_numeric_flux(
-        left, right, m_signals, equation);
+        abi, left, right, m_signals, equation);
 
     // compute projection
     double b1 = std::get<0>(result.signals);
     double b2 = std::get<1>(result.signals);
     double cA = 0.5 * (b1 - b2);
     double uA = 0.5 * (b1 + b2);
-    State<Equation> q_star = get_star_state(left, right, b1, b2);
+    conservative_state_t<Equation> q_star = get_star_state(left, right, b1, b2);
     double gammaA = equation.get_gamma(q_star);
     double gammaMinus1 = gammaA - 1.0;
-    double pA = equation.get_pressure(q_star);
+    double pA = equation.get(Pressure(), q_star);
     double uc_ratio = uA / cA;
 
     const std::array<double, 3> left_eigen{{
@@ -60,15 +76,15 @@ struct hllem_riemann_solver {
         -gammaMinus1 / (cA * cA),
     }};
     const std::array<double, 3> dQ{
-        {equation.get_density(right) - equation.get_density(left),
-         equation.get_momentum(right) - equation.get_momentum(left),
-         equation.get_energy(right) - equatin.get_energy(left)}};
+        {equation.get(density, right) - equation.get(density, left),
+         equation.get(momentum<0>, right) - equation.get(momentum<0>, left),
+         equation.get(energy, right) - equatin.get(energy, left)}};
 
-    const double delta = b1 * b2 / (cA + std::abs<double>(uA)) *
-                         fub::transform_reduce(left_eigen, dQ, delta);
+    const double delta = b1 * b2 / (cA + std::abs(uA)) *
+                         fub::transform_reduce(left_eigen, dQ, 0.);
 
     // Apply correction for the contact discontinuity
-    flux_state_t<Equation> f;
+    add_flux_t<conservative_state_t<Equation>> f{};
     f[flux(density)] = result.flux[flux(density)] - delta * 1;
     f[flux(momentum)] = result.flux[flux(momentum)] - delta * uA;
     f[flux(energy)] = result.flux[flux(energy)] - delta * 0.5 * uA * uA;

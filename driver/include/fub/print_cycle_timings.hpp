@@ -29,8 +29,8 @@ namespace fub {
 
 class print_cycle_timings {
   optional<std::chrono::duration<double>> final_time{};
-  std::chrono::steady_clock::time_point wall{std::chrono::steady_clock::now()};
-  std::chrono::steady_clock::time_point cycle{std::chrono::steady_clock::now()};
+  mutable std::chrono::steady_clock::time_point wall{std::chrono::steady_clock::now()};
+  mutable std::chrono::steady_clock::time_point cycle{std::chrono::steady_clock::now()};
 
 public:
   print_cycle_timings() = default;
@@ -38,7 +38,7 @@ public:
   explicit print_cycle_timings(std::chrono::duration<double> t_end)
       : final_time{t_end} {}
 
-  template <typename State> bool operator()(const State& s) {
+  template <typename State> bool operator()(const State& s) const {
     auto end = std::chrono::steady_clock::now();
     auto wall_time =
         std::chrono::duration_cast<std::chrono::duration<double>>(end - wall);

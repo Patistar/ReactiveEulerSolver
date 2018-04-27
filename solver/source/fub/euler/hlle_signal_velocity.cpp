@@ -40,9 +40,10 @@ hlle_signal_velocity::do_computation(const state_type& left,
   const auto aL = left[speed_of_sound];
   const auto aR = right[speed_of_sound];
   const auto roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const auto roeA = (sqRhoL * aL + sqRhoR * aR) / (sqRhoL + sqRhoR) +
-                    0.5f * (sqRhoL * sqRhoR) / (sqRhoL + sqRhoR) *
-                        (sqRhoL + sqRhoR) * (uR - uL) * (uR - uL);
+  const auto roeA = std::sqrt(
+      (sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
+      0.5f * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
+          (uR - uL) * (uR - uL));
   const auto sL1 = uL - m_beta * aL;
   const auto sL2 = roeU - roeA;
   const auto sR1 = roeU + roeA;
@@ -64,9 +65,10 @@ impl(const Abi&, double beta,
   const auto aL = left[speed_of_sound];
   const auto aR = right[speed_of_sound];
   const auto roeU = (sqRhoL * uL + sqRhoR * uR) / (sqRhoL + sqRhoR);
-  const auto roeA = (sqRhoL * aL + sqRhoR * aR) / (sqRhoL + sqRhoR) +
-                    0.5f * (sqRhoL * sqRhoR) / (sqRhoL + sqRhoR) *
-                        (sqRhoL + sqRhoR) * (uR - uL) * (uR - uL);
+  const auto roeA = fub::sqrt(
+      (sqRhoL * aL * aL + sqRhoR * aR * aR) / (sqRhoL + sqRhoR) +
+      0.5f * (sqRhoL * sqRhoR) / ((sqRhoL + sqRhoR) * (sqRhoL + sqRhoR)) *
+          (uR - uL) * (uR - uL));
   const auto sL1 = uL - beta * aL;
   const auto sL2 = roeU - roeA;
   const auto sR1 = roeU + roeA;

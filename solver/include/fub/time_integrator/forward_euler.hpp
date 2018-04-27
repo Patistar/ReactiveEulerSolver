@@ -114,10 +114,10 @@ private:
         make_view(fub::as_const(permutated_mid)), make_view(permutated_right),
         dt, coordinates, equation);
     double lambda = dt.count() / coordinates.dx()[as_int(Axis)];
-    do_integrate(lambda, make_view(as_const(permutated_mid)),
-                 make_view(as_const(fluxes)), make_view(permutated_mid),
+    do_integrate(lambda, make_view(fub::as_const(permutated_mid)),
+                 make_view(fub::as_const(fluxes)), make_view(permutated_mid),
                  equation);
-    permutate<as_int(Axis), 0>(out, make_view(as_const(permutated_mid)));
+    permutate<as_int(Axis), 0>(out, make_view(fub::as_const(permutated_mid)));
   }
 
 public:

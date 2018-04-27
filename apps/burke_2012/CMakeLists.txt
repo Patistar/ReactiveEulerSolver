@@ -13,8 +13,7 @@ target_link_libraries(serial.kinetic.burke_2012.sod
 
 add_executable(serial.kinetic.burke_2012.detonation serial.kinetic.burke_2012.detonation.cpp)
 target_link_libraries(serial.kinetic.burke_2012.detonation
-  ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d
-  FortranRadauSolver)
+  ReactiveEulerSolver.driver.serial.kinetic.burke_2012.1d)
 
 find_package(HPX)
 
@@ -24,11 +23,11 @@ target_link_libraries(hpx.burke_2012.sod ReactiveEulerSolver.driver.hpx.burke_20
 hpx_setup_target(hpx.burke_2012.sod)
 
 add_executable(hpx.kinetic.burke_2012.sod hpx.kinetic.burke_2012.sod.cpp)
-target_link_libraries(hpx.kinetic.burke_2012.sod ReactiveEulerSolver.driver.hpx.kinetic.burke_2012.1d FortranRadauSolver)
+target_link_libraries(hpx.kinetic.burke_2012.sod ReactiveEulerSolver.driver.hpx.kinetic.burke_2012.1d)
 hpx_setup_target(hpx.kinetic.burke_2012.sod)
 
 add_executable(hpx.kinetic.burke_2012.detonation hpx.kinetic.burke_2012.detonation.cpp)
-target_link_libraries(hpx.kinetic.burke_2012.detonation ReactiveEulerSolver.driver.hpx.kinetic.burke_2012.1d FortranRadauSolver)
+target_link_libraries(hpx.kinetic.burke_2012.detonation ReactiveEulerSolver.driver.hpx.kinetic.burke_2012.1d)
 hpx_setup_target(hpx.kinetic.burke_2012.detonation)
 endif()
 

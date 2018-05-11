@@ -525,10 +525,11 @@ template <typename V> struct add_flux_<V, false> {
 };
 
 template <typename V> struct add_flux_<V, true> {
-  using type = list_cast_t<
-      vector_variable,
-      meta::transform<list_cast_t<meta::list, typename V::variables_tuple>,
-                      fluxify>>;
+  struct type
+      : list_cast_t<vector_variable,
+                    meta::transform<
+                        list_cast_t<meta::list, typename V::variables_tuple>,
+                        fluxify>> {};
 };
 } // namespace detail
 
@@ -627,10 +628,11 @@ template <typename V, typename Abi> struct add_simd_<V, Abi, false> {
 };
 
 template <typename V, typename Abi> struct add_simd_<V, Abi, true> {
-  using type = list_cast_t<
-      vector_variable,
-      meta::transform<list_cast_t<meta::list, typename V::variables_tuple>,
-                      simdify<Abi>>>;
+  struct type
+      : list_cast_t<vector_variable,
+                    meta::transform<
+                        list_cast_t<meta::list, typename V::variables_tuple>,
+                        simdify<Abi>>> {};
 };
 } // namespace detail
 

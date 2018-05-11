@@ -110,7 +110,7 @@ template <typename Variables, typename Extents,
 #ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
           typename Descriptor = pmr_storage_descriptor>
 #else
-          typename Descriptor = dynamic_storage_descriptor<>>
+          typename Descriptor = storage_descriptor<>>
 #endif
 class patch {
 public:

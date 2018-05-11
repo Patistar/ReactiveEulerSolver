@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/patch_view.hpp"
 #include "fub/algorithm.hpp"
+#include "fub/patch_view.hpp"
 
 #define CATCH_CONFIG_MAIN
 #include <catch.hpp>
@@ -58,15 +58,16 @@ TEST_CASE("View selects its variables.") {
 TEST_CASE("Rows") {
   Patch patch(Extents(100));
   auto view = fub::make_view(patch);
-  REQUIRE(std::is_same<decltype(view),
-                       fub::patch_view<Extents, Density, Velocity, Pressure>>::value);
+  REQUIRE(
+      std::is_same<decltype(view), fub::patch_view<Extents, Density, Velocity,
+                                                   Pressure>>::value);
   auto rows = view.rows();
   int counter = 0;
   SECTION("hand written for loop") {
     for (auto row : rows) {
-      REQUIRE(std::is_same<decltype(row),
-                           fub::patch_view<fub::extents<16>, Density,
-                                     Velocity, Pressure>>::value);
+      REQUIRE(
+          std::is_same<decltype(row),
+                       fub::row_view<16, Density, Velocity, Pressure>>::value);
       REQUIRE(row.size() == 16);
       ++counter;
       if (counter > 100) {
@@ -78,9 +79,9 @@ TEST_CASE("Rows") {
   SECTION("for_each_row") {
     fub::for_each_row(
         [&counter](auto row) {
-          REQUIRE(std::is_same<decltype(row),
-                               fub::patch_view<fub::extents<16>,
-                                         Density, Velocity, Pressure>>::value);
+          REQUIRE(
+              std::is_same<decltype(row), fub::row_view<16, Density, Velocity,
+                                                        Pressure>>::value);
           REQUIRE(row.size() == 16);
           ++counter;
           if (counter > 100) {
@@ -100,8 +101,9 @@ TEST_CASE("subview of rows") {
   fub::for_each_row(
       [&](const fub::view_row_t<Vars, size>& row) {
         for (auto x : row) {
-          fub::for_each_tuple_element([=](auto q) { x[q] = counter; },
-                        std::tuple<Density, Velocity, Pressure>{});
+          fub::for_each_tuple_element(
+              [=](auto q) { x[q] = counter; },
+              std::tuple<Density, Velocity, Pressure>{});
           ++counter;
         }
       },
@@ -138,11 +140,32 @@ TEST_CASE("subview of rows") {
   SECTION("join") {
     fub::for_each_row(
         [](const fub::view_row_t<Vars, size>& row) {
-          auto left = fub::take<size - 1>(row);
+          auto left = fub::rdrop<1>(row);
           auto right = fub::drop<1>(row);
           auto joined = fub::join(left, right);
           REQUIRE(joined.size() == 2 * size - 2);
         },
         fub::make_view(patch));
   }
+}
+
+TEST_CASE("vector variables") {
+  struct Thermo : fub::vector_variable<Density, Pressure> {};
+  fub::patch<std::tuple<Thermo, Velocity>, fub::extents<100>> patch{};
+  auto view = fub::make_view(patch);
+  fub::for_each_index(view.extents(), [&](auto index) {
+    view(index) = fub::quantities<Thermo, Velocity>{{1.0, 2.0}, static_cast<int>(index[0])};
+  });
+
+  static constexpr Density density{};
+  static constexpr Pressure pressure{};
+  static constexpr Velocity velocity{};
+  fub::for_each_index(view.extents(), [&](auto index) {
+    REQUIRE(view[density](index) == 1.0);
+    REQUIRE(view[pressure](index) == 2.0);
+    REQUIRE(view[velocity](index) == index[0]);
+    REQUIRE(view(index)[density] == 1.0);
+    REQUIRE(view(index)[pressure] == 2.0);
+    REQUIRE(view(index)[velocity] == index[0]);
+  });
 }

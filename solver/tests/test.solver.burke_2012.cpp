@@ -29,8 +29,8 @@ int main()
   using namespace fub::euler::mechanism::burke2012;
   const int n_species = std::tuple_size<Burke2012::species_tuple>::value;
   std::vector<double> x(n_species);
-  const std::ptrdiff_t h2 = Index_v<H2>;
-  const std::ptrdiff_t o2 = Index_v<O2>;
+  //const std::ptrdiff_t h2 = Index_v<H2>;
+  //const std::ptrdiff_t o2 = Index_v<O2>;
   x[Index_v<H2>] = 2.0;
   x[Index_v<O2>] = 1.0;
   fub::euler::ideal_gas<Burke2012> eq{};

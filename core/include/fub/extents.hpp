@@ -296,17 +296,20 @@ constexpr auto grow(const extents<Es...>& e, int_constant<Dim> dim) noexcept {
 // replace_extent
 // {{{
 namespace detail {
-template <std::size_t ReplaceIndex, index ReplaceWith, std::size_t Visitor, index Value>
+template <std::size_t ReplaceIndex, index ReplaceWith, std::size_t Visitor,
+          index Value>
 struct replace_index : index_constant<Value> {};
 
 template <std::size_t ReplaceIndex, index ReplaceWith, index Value>
-struct replace_index<ReplaceIndex, ReplaceWith, ReplaceIndex, Value> 
-	: index_constant<ReplaceWith> {};
+struct replace_index<ReplaceIndex, ReplaceWith, ReplaceIndex, Value>
+    : index_constant<ReplaceWith> {};
 
 template <int Dim, int Value, index... Es, std::size_t... Is>
-constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
-                              int_constant<Value> value, std::index_sequence<Is...>) noexcept {
-  array<index, sizeof...(Is)> replaced{{replace_index<Dim, Value, Is, Es>::value...}};
+constexpr auto replace_extent(const extents<Es...>&, int_constant<Dim>,
+                              int_constant<Value>,
+                              std::index_sequence<Is...>) noexcept {
+  array<index, sizeof...(Is)> replaced{
+      {replace_index<Dim, Value, Is, Es>::value...}};
   return extents<replace_index<Dim, Value, Is, Es>::value...>(replaced);
 }
 } // namespace detail
@@ -314,7 +317,8 @@ constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
 template <int Dim, int Value, index... Es>
 constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
                               int_constant<Value> value) noexcept {
-  return detail::replace_extent(e, dim, value, std::make_index_sequence<sizeof...(Es)>()); 
+  return detail::replace_extent(e, dim, value,
+                                std::make_index_sequence<sizeof...(Es)>());
 }
 // }}}
 

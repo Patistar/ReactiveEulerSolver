@@ -64,8 +64,8 @@ std::ostream& operator<<(std::ostream& out, const simd<T, Abi>& v) {
   alignas(alignment) array<T, width> array;
   v.copy_to(array.data(), vector_alignment);
   out << "(" << array[0];
-  for (int i = 1; i < width; ++i) {
-    out << ", " << array[1];
+  for (std::size_t i = 1; i < width; ++i) {
+    out << ", " << array[i];
   }
   out << ")";
   return out;

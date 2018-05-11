@@ -274,8 +274,8 @@ template <typename RiemannSolver> struct muscl_hancock_method {
 
   template <typename Mechanism, int Rank, index Size>
   struct reconstructed_states {
-    using patch_type = patch<complete_state_t<ideal_gas<Mechanism, Rank>>,
-                             extents<Size>, automatic_storage_descriptor>;
+    using patch_type =
+        patch<complete_state_t<ideal_gas<Mechanism, Rank>>, extents<Size>>;
     patch_type on_left_face;
     patch_type on_right_face;
   };

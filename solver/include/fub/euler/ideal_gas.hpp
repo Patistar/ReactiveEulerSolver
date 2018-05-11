@@ -33,6 +33,10 @@
 namespace fub {
 namespace euler {
 
+struct ThermoVariables
+    : vector_variable<Density, Energy, Pressure, Temperature, SpeedOfSound,
+                      HeatCapacityAtConstantP, Enthalpy> {};
+
 /// @brief This problem describes the multiple species ideal gas euler
 /// equations.
 ///
@@ -81,6 +85,9 @@ public:
   /// and thus also contains the Species type which is only implicitly given
   /// in the State variables.
   using species_tuple = typename Mechanism::species_tuple;
+  struct Species : list_cast_t<vector_variable, species_tuple> {};
+  struct SpeciesTail : tail_t<list_cast_t<vector_variable, species_tuple>> {};
+
   static constexpr std::size_t species_size =
       std::tuple_size<species_tuple>::value;
   template <typename T> using species_span = span<T, species_size>;
@@ -97,17 +104,14 @@ public:
   /// @brief This defines all variables on a data patch for this problem.
   /// Note that it does not contain the first species concentration.
   /// It is given implicitly by `ρY_0 = ρ(1 - Σ Y_i)`
-  using complete_state =
-      concat_t<quantities<Density>, momentum_states_t,
-               quantities<Energy, Pressure, Temperature, SpeedOfSound,
-                          HeatCapacityAtConstantP, Enthalpy>,
-               tail_t<as_quantities_t<species_tuple>>>;
+  using complete_state = concat_t<quantities<ThermoVariables>,
+                                  momentum_states_t, quantities<Species>>;
 
   /// @brief This defines all variables which shall be conserved by the finite
   /// volume methods.
   using conservative_state =
       concat_t<quantities<Density>, momentum_states_t, quantities<Energy>,
-               tail_t<as_quantities_t<species_tuple>>>;
+               quantities<SpeciesTail>>;
   // }}}
 
   //////////////////////////////////////////////////////////////////////////////
@@ -333,7 +337,8 @@ private:
   find_temperature(const Abi& abi, nodeduce_t<species_span<simd<A, Abi>>> h,
                    nodeduce_t<species_span<simd<A, Abi>>> cps, simd<A, Abi> U_0,
                    species_span<const simd<A, Abi>> Y_0,
-                   simd<A, Abi> T_0 = 300., std::ptrdiff_t tolerance = 1000000000,
+                   simd<A, Abi> T_0 = 300.,
+                   std::ptrdiff_t tolerance = 1000000000,
                    std::ptrdiff_t max_iterations = 1000) const {
     // Prepare U evaluation
     const species_span<const A> Rs = get_specific_gas_constants();
@@ -654,8 +659,9 @@ public:
     using namespace variables;
     add_flux_t<conservative_state> f;
     const auto u = q[momentum<Dim>] / q[density];
-    fub::for_each_tuple_element([&](auto fq) { f[fq] = u * q[unflux(fq)]; },
-                                get_variables(f));
+    for_each_tuple_element([&](auto fq) { f[fq] = u * q[unflux(fq)]; },
+        fub::apply([](auto... vs) { return flatten_variables(vs...); },
+                   get_variables(f)));
     f[flux(momentum<Dim>)] += q[pressure];
     f[flux(energy)] += u * q[pressure];
     return f;
@@ -673,8 +679,10 @@ public:
     using namespace variables;
     add_flux_t<add_simd_t<conservative_state, Abi>> f;
     auto u = q[momentum<Dim>] / q[density];
-    fub::for_each_tuple_element([&](auto fq) { f[fq] = u * q[unflux(fq)]; },
-                                get_variables(f));
+    for_each_tuple_element(
+        [&](auto fq) { f[fq] = u * q[unflux(fq)]; },
+        fub::apply([](auto... vs) { return flatten_variables(vs...); },
+                   get_variables(f)));
     f[flux(momentum<Dim>)] += q[pressure];
     f[flux(energy)] += u * q[pressure];
     return f;

@@ -38,9 +38,9 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::gri_30;
   moles[as_index(N2())] = 1.0;
-  auto left = Equation().set_TPX(300, 10E5, moles);
+  auto left = Equation().set_TPX(900, 8E5, moles);
   std::swap(moles[as_index(N2())], moles[as_index(AR())]);
-  auto right = Equation().set_TPX(345, 1E5, moles);
+  auto right = Equation().set_TPX(345, 8E5, moles);
   return {{left, right}};
 }
 
@@ -107,7 +107,7 @@ int hpx_main(boost::program_options::variables_map& vm) {
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
   fub::run_simulation(fub::hpx::kinetic::gri_30_1d(), state, boundary_condition,
-                      options, write_cgns,
+                      options, std::ref(write_cgns),
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

@@ -24,16 +24,19 @@
 #include <catch.hpp>
 
 using fub::quantities;
+using fub::vector_variable;
 
 struct Density {
-  using value_type = int;
+  using value_type = double;
 };
 static constexpr Density density;
 
 struct Velocity {
-  using value_type = int;
+  using value_type = double;
 };
 static constexpr Velocity velocity;
+
+struct Vector : vector_variable<Density, Velocity> {};
 
 TEST_CASE("Can be constructed") {
   quantities<> empty{};
@@ -56,4 +59,20 @@ TEST_CASE("Can be constructed") {
   quantities<Density, Velocity> rhou3 = urho;
   REQUIRE(rhou3[density] == urho[density]);
   REQUIRE(rhou3[velocity] == urho[velocity]);
+
+  quantities<Vector> rhou4 = urho;
+  REQUIRE(rhou4[density] == urho[density]);
+  REQUIRE(rhou4[velocity] == urho[velocity]);
+}
+
+TEST_CASE("Accessing flux vector variables") {
+  fub::add_flux_t<quantities<Vector>> f;
+  f[density] = 0;
+  f[velocity] = 0;
+}
+
+TEST_CASE("Accessing simd flux vector variables") {
+  fub::add_flux_t<fub::add_simd_t<quantities<Vector>>> f;
+  f[density] = 0;
+  f[velocity] = 0;
 }

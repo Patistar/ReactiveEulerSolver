@@ -33,7 +33,10 @@
 #include <range/v3/utility/basic_iterator.hpp>
 #include <range/v3/view/zip.hpp>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
 #include <unsupported/Eigen/CXX11/Tensor>
+#pragma clang diagnostic pop
 
 namespace fub {
 template <typename, typename...> class patch_view;
@@ -61,14 +64,18 @@ template <typename E> using row_extents_t = decltype(make_row_extents(E{}, 0));
 
 template <index... Values>
 constexpr std::ptrdiff_t covolume(const extents<Values...>& e) noexcept {
-  constexpr int rank = extents<Values...>::rank;
   auto array = as_array(e);
   return fub::accumulate(array.begin() + 1, array.end(), index(1),
                          std::multiplies<>());
 }
 
 template <typename E, typename... Vars> class row_cursor {
-  std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
+  template <typename V>
+  using pointer = std::conditional_t<
+      std::is_const<V>::value,
+      typename variable_traits<std::remove_const_t<V>>::const_pointer,
+      typename variable_traits<V>::pointer>;
+  std::tuple<pointer<Vars>...> m_pointers{};
   std::ptrdiff_t m_row_length{0};
   std::ptrdiff_t m_position{0};
 
@@ -90,8 +97,7 @@ public:
       : m_pointers{parent.m_pointers}, m_row_length{parent.extents().get(0)},
         m_position{pos} {
     std::ptrdiff_t n = m_row_length * pos;
-    for_each_tuple_element([n](auto& pointers) { std::advance(pointers, n); },
-                           m_pointers);
+    for_each_tuple_element([n](auto& ps) { ps = ps + n; }, m_pointers);
   }
 
   template <index N>
@@ -99,8 +105,7 @@ public:
                       std::ptrdiff_t pos = 0)
       : m_pointers{parent.m_pointers}, m_row_length{N}, m_position{pos} {
     std::ptrdiff_t n = m_row_length * pos;
-    for_each_tuple_element([n](auto& pointers) { std::advance(pointers, n); },
-                           m_pointers);
+    for_each_tuple_element([n](auto& ps) { ps = ps + n; }, m_pointers);
   }
 
   row_view<row_extents_t<E>().size(), Vars...> read() const noexcept {
@@ -112,9 +117,7 @@ public:
 
   void next() noexcept {
     fub::for_each_tuple_element(
-        [row_length = m_row_length](auto& pointers) {
-          std::advance(pointers, row_length);
-        },
+        [row_length = m_row_length](auto& ps) { ps = ps + row_length; },
         m_pointers);
     ++m_position;
   }
@@ -128,7 +131,12 @@ template <typename E, typename... Vars>
 using row_iterator = ranges::basic_iterator<row_cursor<E, Vars...>>;
 
 template <typename... Vars> class view_cursor {
-  std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
+  template <typename V>
+  using pointer = std::conditional_t<
+      std::is_const<V>::value,
+      typename variable_traits<std::remove_const_t<V>>::const_pointer,
+      typename variable_traits<V>::pointer>;
+  std::tuple<pointer<Vars>...> m_pointers{};
   std::ptrdiff_t m_position{0};
 
 public:
@@ -150,16 +158,16 @@ public:
   explicit view_cursor(const patch_view<E, Vars...>& parent,
                        std::ptrdiff_t pos = 0)
       : m_pointers{parent.m_pointers}, m_position{pos} {
-    fub::for_each_tuple_element(
-        [n = pos](auto& pointer) { std::advance(pointer, n); }, m_pointers);
+    fub::for_each_tuple_element([n = pos](auto& ptr) { ptr = ptr + n; },
+                                m_pointers);
   }
 
   template <index E>
   explicit view_cursor(const row_view<E, Vars...>& parent,
                        std::ptrdiff_t pos = 0)
       : m_pointers{parent.m_pointers}, m_position{pos} {
-    fub::for_each_tuple_element(
-        [n = pos](auto& pointer) { std::advance(pointer, n); }, m_pointers);
+    fub::for_each_tuple_element([n = pos](auto& ptr) { ptr = ptr + n; },
+                                m_pointers);
   }
 
   quantities_ref<Vars...> read() const noexcept {
@@ -167,7 +175,7 @@ public:
   }
 
   void next() noexcept {
-    fub::for_each_tuple_element([](auto& pointer) { std::advance(pointer, 1); },
+    fub::for_each_tuple_element([](auto& ptr) { ptr = ptr + index(1); },
                                 m_pointers);
     ++m_position;
   }
@@ -194,7 +202,12 @@ public:
 template <typename Extents, typename... Vars>
 class patch_view : public detail::base_patch_view<Extents> {
   using base_type = detail::base_patch_view<Extents>;
-  std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
+  template <typename V>
+  using pointer = std::conditional_t<
+      std::is_const<V>::value,
+      typename variable_traits<std::remove_const_t<V>>::const_pointer,
+      typename variable_traits<V>::pointer>;
+  std::tuple<pointer<Vars>...> m_pointers{};
 
   friend class detail::row_cursor<Extents, Vars...>;
   friend class detail::view_cursor<Vars...>;
@@ -205,27 +218,24 @@ public:
 
   patch_view() = default;
 
-  patch_view(const Extents& e,
-             typename variable_traits<Vars>::pointer... pointers)
-      : base_type(e), m_pointers{pointers...} {}
+  patch_view(const Extents& e, pointer<Vars>... ptr)
+      : base_type(e), m_pointers{ptr...} {}
 
   template <typename Patch,
             typename = std::enable_if_t<is_patch<std::decay_t<Patch>>::value>>
   patch_view(Patch&& block)
       : base_type(block.extents()),
-        m_pointers{block.template get<std::remove_const_t<Vars>>().data()...} {}
+        m_pointers{variable_traits<std::remove_const_t<Vars>>::get_pointer(
+            block.template get<std::remove_const_t<Vars>>())...} {}
 
   template <typename Var> auto get() const noexcept {
-    using Index = variable_find_index<std::remove_cv_t<Var>,
-                                      meta::list<std::remove_cv_t<Vars>...>>;
+    using Index = variable_find_index<Var, meta::list<Vars...>>;
     static_assert(Index::value < sizeof...(Vars),
                   "Could not find requested variable.");
-    using ValueT = typename variable_traits<std::decay_t<Var>>::value_type;
-    using VarInPack = std::tuple_element_t<Index::value, variables>;
-    using ElementT = std::conditional_t<std::is_const<VarInPack>::value,
-                                        const ValueT, ValueT>;
-    return mdspan<ElementT, Extents>{std::get<Index::value>(m_pointers),
-                                     this->extents()};
+    using Holder =
+        std::remove_const_t<std::tuple_element_t<Index::value, variables>>;
+    return variable_traits<Holder>::view(
+        Var(), std::get<Index::value>(m_pointers), this->extents());
   }
 
   std::ptrdiff_t size() const noexcept { return this->extents().size(); }
@@ -237,8 +247,14 @@ public:
   template <std::size_t N>
   quantities_ref<Vars...> operator()(const array<std::ptrdiff_t, N>& idx) const
       noexcept {
-    return quantities_ref<Vars...>{
-        std::addressof(fub::apply(get<Vars>(), idx))...};
+    layout_left::mapping<extents_type> mapping;
+    auto offset = fub::apply(mapping, idx);
+    return fub::apply(
+        [=](auto... Is) {
+          return quantities_ref<Vars...>{
+              (std::get<decltype(Is)::value>(m_pointers) + offset)...};
+        },
+        as_tuple_t<decltype(make_index_sequence<sizeof...(Vars)>())>{});
   }
 
   template <typename... IndexTs>
@@ -257,8 +273,15 @@ public:
 /// \brief span over multiple variables with uniform extents and layout mapping.
 template <index Size, typename... Vars>
 class row_view : public detail::base_patch_view<extents<Size>> {
+public:
   using base_type = detail::base_patch_view<extents<Size>>;
-  std::tuple<typename variable_traits<Vars>::pointer...> m_pointers{};
+
+  template <typename V>
+  using pointer = std::conditional_t<
+      std::is_const<V>::value,
+      typename variable_traits<std::remove_const_t<V>>::const_pointer,
+      typename variable_traits<V>::pointer>;
+  std::tuple<pointer<Vars>...> m_pointers;
 
   friend class detail::row_cursor<extents<Size>, Vars...>;
   friend class detail::view_cursor<Vars...>;
@@ -269,26 +292,26 @@ public:
 
   row_view() = default;
 
-  row_view(const extents_type& e,
-           typename variable_traits<Vars>::pointer... pointers)
-      : base_type(e), m_pointers{pointers...} {}
+  row_view(const extents_type& e, pointer<Vars>... ps)
+      : base_type(e), m_pointers{ps...} {}
 
   template <typename Patch,
             typename = std::enable_if_t<is_patch<std::decay_t<Patch>>::value>>
   row_view(Patch&& block)
       : base_type(block.extents()),
-        m_pointers{block.template get<std::remove_const_t<Vars>>().data()...} {}
+        m_pointers{variable_traits<std::remove_const_t<Vars>>::get_pointer(
+            block.template get<std::remove_const_t<Vars>>())...} {}
 
   template <typename Var> auto get() const noexcept {
-    using Index = variable_find_index<std::remove_cv_t<Var>,
-                                      meta::list<std::remove_cv_t<Vars>...>>;
+    using Index = variable_find_index<Var, meta::list<Vars...>>;
     static_assert(Index::value < sizeof...(Vars),
                   "Could not find requested variable.");
-    using ValueT = typename variable_traits<std::decay_t<Var>>::value_type;
-    using VarInPack = std::tuple_element_t<Index::value, variables>;
-    using ElementT = std::conditional_t<std::is_const<VarInPack>::value,
-                                        const ValueT, ValueT>;
-    return span<ElementT, Size>{std::get<Index::value>(m_pointers), Size};
+    using Holder =
+        std::remove_const_t<std::tuple_element_t<Index::value, variables>>;
+    auto mdspan = variable_traits<Holder>::view(
+        Var(), std::get<Index::value>(m_pointers), this->extents());
+    return span<typename decltype(mdspan)::element_type, Size>(mdspan.data(),
+                                                               mdspan.size());
   }
 
   index size() const noexcept { return this->extents().size(); }
@@ -297,11 +320,15 @@ public:
     return get<Var>();
   }
 
-  template <std::size_t N>
-  quantities_ref<Vars...> operator()(const array<std::ptrdiff_t, N>& idx) const
+  quantities_ref<Vars...> operator()(const array<std::ptrdiff_t, 1>& idx) const
       noexcept {
-    return quantities_ref<Vars...>{
-        std::addressof(fub::apply(get<Vars>(), idx))...};
+    index offset = idx[0];
+    return fub::apply(
+        [=](auto... Is) {
+          return quantities_ref<Vars...>{
+              (std::get<decltype(Is)::value>(m_pointers) + offset)...};
+        },
+        as_tuple_t<decltype(make_index_sequence<sizeof...(Vars)>())>{});
   }
 
   template <typename... IndexTs>
@@ -330,6 +357,37 @@ public:
     return ranges::make_iterator_range(first, last);
   }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// drop / take with static extents
+
+template <index N, index Len, typename... Vs>
+auto drop(const row_view<Len, Vs...>& view) noexcept {
+  return fub::apply(
+      [](auto... pointers) {
+        return row_view<Len - N, Vs...>(extents<Len - N>(), (pointers + N)...);
+      },
+      view.m_pointers);
+}
+
+template <index N, index Len, typename... Vs>
+auto take(const row_view<Len, Vs...>& view) noexcept {
+  return fub::apply(
+      [](auto... pointers) {
+        return row_view<N, Vs...>(extents<N>(), pointers...);
+      },
+      view.m_pointers);
+}
+
+template <index N, index Len, typename... Vs>
+auto rtake(const row_view<Len, Vs...>& view) noexcept {
+  return drop<Len - N>(view);
+}
+
+template <index N, index Len, typename... Vs>
+auto rdrop(const row_view<Len, Vs...>& view) noexcept {
+  return take<Len - N>(view);
+}
 
 template <typename Extents, typename... Vars>
 using const_patch_view = patch_view<Extents, std::add_const_t<Vars>...>;
@@ -418,10 +476,10 @@ template <typename V> static constexpr int view_rank_v = view_rank<V>::value;
 template <typename V> struct view_variables;
 template <typename E, typename... Vs>
 struct view_variables<patch_view<E, Vs...>> {
-  using type = std::tuple<Vs...>;
+  using type = flatten_variables_t<Vs...>;
 };
 template <index E, typename... Vs> struct view_variables<row_view<E, Vs...>> {
-  using type = std::tuple<Vs...>;
+  using type = flatten_variables_t<Vs...>;
 };
 template <typename V> using view_variables_t = typename view_variables<V>::type;
 
@@ -433,31 +491,6 @@ for_each_row(F function, const Views&... views) {
     fub::apply(std::ref(function), rows);
   }
   return function;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// drop / take with static extents
-
-template <index N, index Len, typename... Vars>
-auto drop(const row_view<Len, Vars...>& view) noexcept {
-  return row_view<Len - N, Vars...>(
-      extents<Len - N>(), drop<N>(view.template get<Vars>()).data()...);
-}
-
-template <index N, index Len, typename... Vars>
-auto take(const row_view<Len, Vars...>& view) noexcept {
-  return row_view<N, Vars...>(extents<N>(),
-                              take<N>(view.template get<Vars>()).data()...);
-}
-
-template <index N, index Len, typename... Vars>
-auto rtake(const row_view<Len, Vars...>& view) noexcept {
-  return drop<Len - N>(view);
-}
-
-template <index N, index Len, typename... Vars>
-auto rdrop(const row_view<Len, Vars...>& view) noexcept {
-  return take<Len - N>(view);
 }
 
 template <typename View> struct view_variable_tuple;
@@ -506,9 +539,7 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
   static constexpr array<index, sizeof...(RowViews)> sizes{
       {view_static_extent<RowViews, 0>::value...}};
   static constexpr int total_size = fub::accumulate(sizes, index(0));
-  patch<view_join_variables_t<RowViews...>, extents<total_size>,
-        automatic_storage_descriptor>
-      joined_row;
+  patch<view_join_variables_t<RowViews...>, extents<total_size>> joined_row;
   auto view = make_view(joined_row);
   auto it = view.begin();
   (void)std::initializer_list<int>{
@@ -522,15 +553,30 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
 /// Use this to transform a view and position index into a simd vector when
 /// doing vecotrised computations.
 template <typename Abi, index E, typename... Vs>
-quantities<add_simd_t<std::remove_const_t<Vs>, Abi>...>
+add_simd_t<quantities<std::decay_t<Vs>...>, Abi>
 load(const row_view<E, Vs...>& view, index shift = 0) noexcept {
-  auto load = [=](auto x) {
-    using T = typename variable_traits<std::decay_t<decltype(x)>>::value_type;
-    simd<T, Abi> pack;
-    pack.copy_from(x.data() + shift, element_alignment);
-    return pack;
+  auto load_ = [=](auto x) {
+    using V = std::decay_t<decltype(x)>;
+    if constexpr (is_vector_variable<V>::value) {
+      using T = typename V::scalar_type;
+      using Vt = typename V::variables_tuple;
+      static constexpr std::size_t size = std::tuple_size<Vt>::value;
+      std::array<simd<T, Abi>, size> packs;
+      int i = 0;
+      for_each_tuple_element(
+          [&](auto var) {
+            packs[i++].copy_from(view[var].data() + shift, element_alignment);
+          },
+          Vt{});
+      return packs;
+    } else {
+      using T = typename variable_traits<V>::value_type;
+      simd<T, Abi> pack;
+      pack.copy_from(view[x].data() + shift, element_alignment);
+      return pack;
+    }
   };
-  return {load(view.template get<Vs>())...};
+  return {load_(std::decay_t<Vs>{})...};
 }
 
 template <index E, typename... Vs>
@@ -546,19 +592,22 @@ void store(const add_simd_t<quantities<Vs...>, Abi>& q,
     pack.copy_to(pointer + shift, element_alignment);
   };
   fub::for_each_tuple_element(
-      [&](auto var) { store(q[var], view[var].data()); }, std::tuple<Vs...>{});
+      [&](auto var) { store(q[var], view[var].data()); },
+      flatten_variables(Vs{}...));
 }
 
-template <typename V, typename Abi> struct simd_proxy {
-  using Variables = view_variables_t<V>;
-  using simd_type = add_simd_t<as_quantities_t<Variables>, Abi>;
+template <typename V, typename Abi> struct simd_proxy;
+template <index N, typename Abi, typename... Vars>
+struct simd_proxy<row_view<N, Vars...>, Abi> {
+  using Variables = std::tuple<Vars...>;
+  using simd_type = add_simd_t<quantities<Vars...>, Abi>;
 
-  V view;
+  row_view<N, Vars...> view;
   index shift;
 
-  simd_proxy(V v, index s) noexcept : view{v}, shift{s} {}
-  simd_proxy(const simd_proxy&);
-  simd_proxy& operator=(const simd_proxy&);
+  simd_proxy(row_view<N, Vars...> v, index s) noexcept : view{v}, shift{s} {}
+  simd_proxy(const simd_proxy&) /* = delete */;
+  simd_proxy& operator=(const simd_proxy&) /* = delete; */;
 
   operator simd_type() const noexcept { return load<Abi>(view, shift); }
 

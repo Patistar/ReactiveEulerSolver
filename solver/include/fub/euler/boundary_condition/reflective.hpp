@@ -98,10 +98,10 @@ public:
   }
 };
 
-inline const bool operator==(const reflective&, const reflective&) noexcept {
+constexpr bool operator==(const reflective&, const reflective&) noexcept {
   return true;
 }
-inline const bool operator!=(const reflective&, const reflective&) noexcept {
+constexpr bool operator!=(const reflective&, const reflective&) noexcept {
   return false;
 }
 

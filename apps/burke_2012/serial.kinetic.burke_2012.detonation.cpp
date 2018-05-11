@@ -59,7 +59,7 @@ using state_type = fub::serial::kinetic::burke_2012_1d::state_type;
 struct write_cgns_file {
   fub::print_cycle_timings print_cycle;
 
-  bool operator()(const state_type& state) const {
+  bool operator()(const state_type& state) {
     bool ret = print_cycle(state);
     fmt::print("[CGNS] Write output file...\n", state.cycle);
     std::string file_name = fmt::format("out_{}.cgns", state.cycle);
@@ -105,5 +105,6 @@ int main(int argc, char** argv) {
   write_cgns_file write_cgns{fub::print_cycle_timings{options.final_time}};
   write_cgns(state);
   fub::run_simulation(fub::serial::kinetic::burke_2012_1d(), state,
-                      boundary_condition, options, write_cgns, write_cgns);
+                      boundary_condition, options, std::ref(write_cgns),
+                      std::ref(write_cgns));
 }

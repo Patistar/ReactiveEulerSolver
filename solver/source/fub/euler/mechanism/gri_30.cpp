@@ -796,8 +796,8 @@ void gri_30::get_production_rates(span<double> cdot, span<const double> c,
   std::array<double, rEnd> w;
   std::array<double, rEnd> k;
 
-  int nSpec = 53;
-  int nSpecIn = 53;
+  //int nSpec = 53;
+  //int nSpecIn = 53;
   double kTroe0, kTroeInf, fcTroe;
   double RGAS = 8314.34;
   double lgt = log(temp);

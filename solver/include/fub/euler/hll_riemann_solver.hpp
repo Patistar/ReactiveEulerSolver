@@ -96,16 +96,29 @@ class hll_riemann_solver {
       const simd_state_t<Equation, Abi>& qR,
       const simd_flux_t<Equation, Abi>& fR, const Equation& equation) noexcept {
     const auto signals = invoke(signal_fn, abi, qL, qR, equation);
-    const auto compute = [&](auto quantity) {
+    const auto compute_variable = [&](auto quantity) {
       return apply_formula(abi, qL[quantity], qR[quantity], fL[flux(quantity)],
                            fR[flux(quantity)], std::get<0>(signals),
                            std::get<1>(signals));
+    };
+    const auto compute = [&](auto quantity) {
+      using Q = decltype(quantity);
+      if constexpr (is_vector_variable<Q>::value) {
+        auto flattened = flatten_variables(quantity);
+        typename variable_traits<Q>::value_type value;
+        index i = 0;
+        for_each_tuple_element(
+            [&](auto q) { value[i++] = compute_variable(q); }, flattened);
+        return value;
+      } else {
+        return compute_variable(quantity);
+      }
     };
     return fub::apply(
         [&](auto... vars) {
           return simd_flux_t<Equation, Abi>{compute(vars)...};
         },
-        get_variables(conservative_state_t<Equation>()));
+        get_variables(add_simd_t<conservative_state_t<Equation>, Abi>()));
   }
 
 public:

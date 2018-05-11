@@ -82,7 +82,7 @@ struct write_cgns_file {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("depth", po::value<int>()->default_value(6),
+  desc.add_options()("depth", po::value<int>()->default_value(4),
                      "Depth of tree.");
   desc.add_options()("time", po::value<double>()->default_value(1),
                      "The final time level which we are interested in.");

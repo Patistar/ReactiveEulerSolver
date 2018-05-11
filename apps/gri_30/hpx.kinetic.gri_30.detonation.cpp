@@ -37,18 +37,18 @@ using Partition = Grid::partition_type;
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::gri_30;
-  moles[as_index(O2())] = 1.0;
-  moles[as_index(CH4())] = 1.0;
-  moles[as_index(C2H6())] = 1.0;
-  auto left = Equation().set_TPX(900, 7E5, moles);
-  auto right = Equation().set_TPX(300, 1E5, moles);
+  // N2:0.73831776923748738,O2:0.19626167307188444,CH3OCH3:0.0654206
+  moles[as_index(N2())] = 0.738311;
+  moles[as_index(O2())] = 0.1962616;
+  auto left = Equation().set_TPX(900, 20E5, moles);
+  auto right = Equation().set_TPX(300, 8E5, moles);
   return {{left, right}};
 }
 
 Equation::complete_state
 initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
-  if (xs[0] < 0.8) {
+  if (xs[0] < 0.4) {
     return states[0];
   } else {
     return states[1];
@@ -108,7 +108,7 @@ int hpx_main(boost::program_options::variables_map& vm) {
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
   fub::run_simulation(fub::hpx::kinetic::gri_30_1d(), state, boundary_condition,
-                      options, write_cgns,
+                      options, std::ref(write_cgns),
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

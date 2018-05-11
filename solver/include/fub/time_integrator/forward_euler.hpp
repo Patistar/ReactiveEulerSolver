@@ -54,22 +54,27 @@ private:
   template <typename StatesIn, typename Flux, typename StatesOut,
             typename Equation>
   static void do_integrate(double lambda, StatesIn u, Flux f, StatesOut next,
-                           const Equation &equation) noexcept {
+                           const Equation& equation) noexcept {
     fub::for_each_row(
         [&](auto u, auto f, auto next) {
           auto fL = rdrop<1>(f);
           auto fR = drop<1>(f);
           fub::for_each_simd(
-              [&](auto abi, auto &&next, auto u, const auto &fL,
-                  const auto &fR) {
+              [&](auto abi, auto&& next_, auto u_, const auto& fL,
+                  const auto& fR) {
+                auto flattened = fub::apply(
+                    [](auto... vars) {
+                      return unflux(flatten_variables(vars...));
+                    },
+                    get_variables(fL));
                 fub::for_each_tuple_element(
                     [&](auto q) {
                       const auto flux_q = flux(q);
-                      u[q] = do_integrate_impl(abi, lambda, u[q], fL[flux_q],
+                      u_[q] = do_integrate_impl(abi, lambda, u_[q], fL[flux_q],
                                                fR[flux_q]);
                     },
-                    conservative_variables_t<Equation>());
-                next = equation.get_complete_state(abi, u);
+                    flattened);
+                next_ = equation.get_complete_state(abi, u_);
               },
               next, u, fL, fR);
         },
@@ -78,11 +83,11 @@ private:
 
   template <typename Out, typename L, typename M, typename R,
             typename Coordinates, typename FluxMethod, typename Equation>
-  static void integrate_impl(const Out &out, const L &left, const M &middle,
-                             const R &right, std::chrono::duration<double> dt,
-                             const Coordinates &coordinates,
-                             const FluxMethod &flux_method,
-                             const Equation &equation,
+  static void integrate_impl(const Out& out, const L& left, const M& middle,
+                             const R& right, std::chrono::duration<double> dt,
+                             const Coordinates& coordinates,
+                             const FluxMethod& flux_method,
+                             const Equation& equation,
                              std::integral_constant<axis, axis::x>) {
 
     auto fluxes =
@@ -97,10 +102,10 @@ private:
   template <axis Axis, typename Out, typename L, typename M, typename R,
             typename Coordinates, typename FluxMethod, typename Equation>
   static void
-  integrate_impl(const Out &out, const L &left, const M &middle, const R &right,
+  integrate_impl(const Out& out, const L& left, const M& middle, const R& right,
                  std::chrono::duration<double> dt,
-                 const Coordinates &coordinates, const FluxMethod &flux_method,
-                 const Equation &equation, std::integral_constant<axis, Axis>) {
+                 const Coordinates& coordinates, const FluxMethod& flux_method,
+                 const Equation& equation, std::integral_constant<axis, Axis>) {
     static constexpr int Dim = as_int(Axis);
     const auto sliced_left = slice_left<Dim, 2>(left);
     const auto permutated_left = permutate<Dim, 0>(make_view(sliced_left));
@@ -124,15 +129,15 @@ public:
   template <axis Axis, typename Out, typename L, typename M, typename R,
             typename Coordinates, typename FluxMethod, typename Equation>
   static void
-  integrate(const Out &out, const L &left, const M &middle, const R &right,
-            std::chrono::duration<double> dt, const Coordinates &coordinates,
-            const FluxMethod &flux_method, const Equation &equation) {
+  integrate(const Out& out, const L& left, const M& middle, const R& right,
+            std::chrono::duration<double> dt, const Coordinates& coordinates,
+            const FluxMethod& flux_method, const Equation& equation) {
     integrate_impl(out, left, middle, right, dt, coordinates, flux_method,
                    equation, std::integral_constant<axis, Axis>());
   }
 
   template <axis Axis, typename Equation, typename Extents>
-  static auto make_flux_patch(const Extents &extents) {
+  static auto make_flux_patch(const Extents& extents) {
     static constexpr int Dim = as_int(Axis);
     auto grown = grow(extents, int_c<Dim>);
     return make_patch(as_tuple_t<flux_type_t<Equation>>(), grown);

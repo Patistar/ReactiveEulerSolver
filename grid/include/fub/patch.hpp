@@ -40,119 +40,10 @@ namespace fub {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                            Storage Descriptor
 // {{{
-template <typename D, typename E>
-using has_make_storage_member_function_t =
-    decltype(std::declval<D&>().make_storage(std::declval<const E&>()));
-
-template <typename D, typename E>
-struct has_make_storage_member_function
-    : is_detected<has_make_storage_member_function_t, D, E> {};
-
-template <typename D, typename S, typename E>
-using has_view_member_function_t = decltype(
-    std::declval<D&>().view(std::declval<S>(), std::declval<const E&>()));
-
-template <typename D, typename S, typename E>
-struct has_view_member_function
-    : is_detected<has_view_member_function_t, D, S, E> {};
-
-template <typename Descriptor> struct descriptor_traits {
-  using descriptor_type = Descriptor;
-
-  template <typename Extents, typename... Vars>
-  static auto make_storage(Descriptor& descriptor, const Extents& extents,
-                           const std::tuple<Vars...>& variables) {
-    return descriptor.make_storage(extents, variables);
-  }
-
-  template <typename Extents, typename Vars>
-  using storage_type = decltype(
-      make_storage(std::declval<Descriptor&>(), std::declval<const Extents&>(),
-                   std::declval<const as_tuple_t<Vars>&>()));
-
-  template <typename Variable, typename Extents, typename Vars>
-  static auto view(const Descriptor& /* descriptor */,
-                   storage_type<Extents, Vars>& storage, const Extents& extents,
-                   const Vars&) {
-    using pointer = typename variable_traits<Variable>::pointer;
-    using index = variable_find_index<Variable, Vars>;
-    pointer data = std::get<index::value>(storage).data();
-    return mdspan<typename variable_traits<Variable>::value_type, Extents>{
-        data, extents};
-  }
-
-  template <typename Variable, typename Extents, typename Vars>
-  static auto view(const Descriptor& /* descriptor */,
-                   const storage_type<Extents, Vars>& storage,
-                   const Extents& extents, const Vars&) {
-    using index = variable_find_index<Variable, Vars>;
-    auto data = std::get<index::value>(storage).data();
-    return mdspan<const typename variable_traits<Variable>::value_type,
-                  Extents>{data, extents};
-  }
-
-  template <typename Variable, typename Extents, typename Variables>
-  using view_type = decltype(
-      view(std::declval<const Variable&>(),
-           std::declval<storage_type<Extents, Variables>&>(),
-           std::declval<const Extents&>(), std::declval<const Variables&>()));
-
-  template <typename Variable, typename Extents, typename Variables>
-  using const_view_type = decltype(
-      view(std::declval<const Variable&>(),
-           std::declval<const storage_type<Extents, Variables>&>(),
-           std::declval<const Extents&>(), std::declval<const Variables&>()));
-};
-
-/// @brief This storage descriptor tries to use an `std::array<T, N>` whenever
-/// all extents are compile-time known.
-struct automatic_storage_descriptor {
-  template <typename Extents, typename... Vars>
-  static auto make_storage(const Extents& e, const std::tuple<Vars...>& vars,
-                           std::true_type) noexcept {
-    return fub::apply(
-        [](auto... vs) {
-          constexpr index Size = Extents().size();
-          auto make_array = [](auto v) {
-            // We do not initialize the array here. Just create the storage.
-            std::array<typename variable_traits<decltype(v)>::value_type, Size>
-                array;
-            return array;
-          };
-          return std::make_tuple(make_array(vs)...);
-        },
-        vars);
-  }
-
-  template <typename Extents, typename... Vars>
-  static auto make_storage(const Extents& extents,
-                           const std::tuple<Vars...>& vars, std::false_type) {
-    return fub::apply(
-        [&](auto... vs) {
-          auto make_vector = [](auto v, const Extents& extents) {
-            const auto size = variable_traits<decltype(v)>::size(extents);
-            return std::vector<
-                typename variable_traits<decltype(v)>::value_type>(size);
-          };
-          return std::make_tuple(make_vector(vs, extents)...);
-        },
-        vars);
-  }
-
-  template <typename Extents, typename... Vars>
-  static auto make_storage(
-      const Extents& extents,
-      const std::tuple<Vars...>& vars) noexcept(Extents::rank_dynamic == 0) {
-    return make_storage(extents, vars,
-                        bool_c < Extents::rank_dynamic == 0 &&
-                            (sizeof...(Vars) < 20) >);
-  }
-};
 
 /// @brief This storage descriptor uses an user defined allocator to allocate
 /// create data on blocks.
-template <typename Allocator = std::allocator<void>>
-struct dynamic_storage_descriptor {
+template <typename Allocator = std::allocator<void>> struct storage_descriptor {
   using proto_allocator = Allocator;
   proto_allocator allocator;
 
@@ -161,24 +52,53 @@ struct dynamic_storage_descriptor {
                     const std::tuple<Vars...>& vars) const {
     return fub::apply(
         [&extents, alloc = allocator](auto... vs) {
-          auto make_pmr_vector = [](auto v, const Extents& extents,
-                                    const proto_allocator& alloc) {
+          auto make_vector = [](auto v, const Extents& extents,
+                                const proto_allocator& alloc) {
             using Var = decltype(v);
-            using T = typename variable_traits<Var>::value_type;
-            using Traits = std::allocator_traits<proto_allocator>;
-            using Alloc = typename Traits::template rebind_alloc<T>;
-            const std::ptrdiff_t size = variable_traits<Var>::size(extents);
-            return std::vector<T, Alloc>(size, Alloc{alloc});
+            if constexpr (is_detected<detail::variables_tuple_t, Var>::value) {
+              using T = typename Var::scalar_type;
+              using Traits = std::allocator_traits<proto_allocator>;
+              using Alloc = typename Traits::template rebind_alloc<T>;
+              const std::ptrdiff_t size = variable_traits<Var>::size(extents);
+              return std::vector<T, Alloc>(size, Alloc{alloc});
+            } else {
+              using T = typename variable_traits<Var>::value_type;
+              using Traits = std::allocator_traits<proto_allocator>;
+              using Alloc = typename Traits::template rebind_alloc<T>;
+              const std::ptrdiff_t size = variable_traits<Var>::size(extents);
+              return std::vector<T, Alloc>(size, Alloc{alloc});
+            }
           };
-          return std::make_tuple(make_pmr_vector(vs, extents, alloc)...);
+          return std::make_tuple(make_vector(vs, extents, alloc)...);
         },
         vars);
   }
+
+  template <typename Variable, typename S, typename Extents, typename Vars>
+  static auto view(S&& storage, const Extents& extents, const Vars&) {
+    // using pointer = typename variable_traits<Variable>::pointer;
+    using index = variable_find_index<Variable, Vars>;
+    using Holder = std::tuple_element_t<index::value, Vars>;
+    auto&& variable_storage = std::get<index::value>(storage);
+    auto p = variable_traits<Holder>::get_pointer(variable_storage);
+    return variable_traits<Holder>::view(Variable(), p, extents);
+  }
+
+  // template <typename Variable, typename Extents, typename Variables>
+  // using view_type = decltype(
+  // view(std::declval<const Variable&>(),
+  // std::declval<storage_type<Extents, Variables>&>(),
+  // std::declval<const Extents&>(), std::declval<const Variables&>()));
+
+  // template <typename Variable, typename Extents, typename Variables>
+  // using const_view_type =
+  // decltype(view(std::declval<const Variable&>(),
+  // std::declval<const storage_type<Extents, Variables>&>()));
 };
 
 #ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
-using pmr_storage_descriptor = dynamic_storage_descriptor<
-    boost::container::pmr::polymorphic_allocator<void>>;
+using pmr_storage_descriptor =
+    storage_descriptor<boost::container::pmr::polymorphic_allocator<void>>;
 #endif
 
 // }}}
@@ -193,14 +113,12 @@ template <typename Variables, typename Extents,
           typename Descriptor = dynamic_storage_descriptor<>>
 #endif
 class patch {
-  using Traits = descriptor_traits<Descriptor>;
-
 public:
   using extents_type = Extents;
   using descriptor_type = Descriptor;
   using variables_tuple = as_tuple_t<Variables>;
   using storage_type =
-      typename Traits::template storage_type<Extents, Variables>;
+      decltype(descriptor_type().make_storage(Extents(), variables_tuple()));
 
 private:
   extents_type m_extents{};
@@ -211,25 +129,22 @@ public:
   /// @brief Default constructs storage by using default extents and default
   /// descriptors.
   patch()
-      : m_storage{
-            Traits::make_storage(m_descriptor, m_extents, variables_tuple{})} {}
+      : m_storage{m_descriptor.make_storage(m_extents, variables_tuple{})} {}
 
   /// @brief Constructs storage with specified extents.
   explicit patch(const Extents& extents)
-      : m_extents{extents}, m_storage{Traits::make_storage(
-                                m_descriptor, m_extents, variables_tuple{})} {}
+      : m_extents{extents}, m_storage{m_descriptor.make_storage(
+                                m_extents, variables_tuple{})} {}
 
   /// @brief Constructs storage with specified descriptor alone.
   explicit patch(const Descriptor& descriptor)
-      : m_descriptor{descriptor}, m_storage{Traits::make_storage(
-                                      m_descriptor, m_extents,
-                                      variables_tuple{})} {}
+      : m_descriptor{descriptor}, m_storage{m_descriptor.make_storage(
+                                      m_extents, variables_tuple{})} {}
 
   /// @brief Constructs storage by specified extents and specified descriptor.
   patch(const Extents& extents, const Descriptor& descriptor)
       : m_extents{extents}, m_descriptor{descriptor},
-        m_storage{
-            Traits::make_storage(m_descriptor, m_extents, variables_tuple{})} {}
+        m_storage{m_descriptor.make_storage(m_extents, variables_tuple{})} {}
 
   /// @brief Returns the extents of this block.
   const Extents& extents() const noexcept { return m_extents; }
@@ -244,25 +159,25 @@ public:
   ///
   /// Example:
   ///
-  ///     struct Density { using value_type = double; };
+  ///     struct Density {};
   ///     patch<std::tuple<Density>, extents<16, 16>> block{};
   ///     auto view = block.get<Density>();
-  ///     static_assert(std::is_same_v<view, span<double, extents<16, 16>>);
+  ///     static_assert(std::is_same_v<view, mdspan<double, extents<16, 16>>);
   ///
   /// The example sets up a block containing a single dense variable called
   /// `Density`. We use the `get` method to obtain a view of data associated
   /// with `Density`over this patch. The standard implementation returns a \a
   /// span.
   template <typename Variable> auto get() {
-    return Traits::template view<Variable>(m_descriptor, m_storage, m_extents,
-                                           variables_tuple{});
+    return m_descriptor.template view<Variable>(m_storage, m_extents,
+                                                variables_tuple{});
   }
 
   /// @brief Returns a view to const data associated to this block for a
   /// specified variable type.
   template <typename Variable> auto get() const {
-    return Traits::template view<Variable>(m_descriptor, m_storage, m_extents,
-                                           variables_tuple{});
+    return m_descriptor.template view<Variable>(m_storage, m_extents,
+                                                variables_tuple{});
   }
 
   /// @brief Returns a view to mutable data associated with a specified
@@ -272,7 +187,7 @@ public:
   ///
   ///     struct Density { using value_type = double; };
   ///     static constexpr Density density{};
-  ///     patch<Variables<Density>, Extents<16, 16>> block{};
+  ///     patch<std::tuple<Density>, Extents<16, 16>> block{};
   ///     auto view = block[density];
   ///     static_assert(std::is_same_v<view, span<double, Extents<16, 16>>);
   ///

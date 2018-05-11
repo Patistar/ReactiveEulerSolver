@@ -188,8 +188,8 @@ struct kinetic_source_term {
               const double T = T_and_c[0];
               const double dTdt = dTdt_and_dcdt[0];
               /// Compute max dt for each component and take the minimum
-              auto molar_masses = solver.equation.get_molar_masses();
-              const double rho = solver.equation.get(Density(), state);
+              // auto molar_masses = solver.equation.get_molar_masses();
+              // const double rho = solver.equation.get(Density(), state);
               const double max_dt = fub::transform_reduce(
                   dcdt.begin(), dcdt.end(), c.begin(),
                   std::numeric_limits<double>::infinity(),

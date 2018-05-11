@@ -31,7 +31,6 @@ struct Density {
     // [kg / m^3]
     return {{1, -3}};
   }
-  using value_type = double;
 };
 
 template <int Dim = 0> struct Velocity;
@@ -42,7 +41,6 @@ template <> struct Velocity<0> {
     // [m / s]
     return {{0, +1, -1}};
   }
-  using value_type = double;
 };
 
 template <> struct Velocity<1> {
@@ -51,7 +49,6 @@ template <> struct Velocity<1> {
     // [m / s]
     return {{0, +1, -1}};
   }
-  using value_type = double;
 };
 
 template <> struct Velocity<2> {
@@ -60,7 +57,6 @@ template <> struct Velocity<2> {
     // [m / s]
     return {{0, +1, -1}};
   }
-  using value_type = double;
 };
 
 template <int Dim> struct Momentum;
@@ -71,7 +67,6 @@ template <> struct Momentum<0> {
     // [kg / m^2 s]
     return {{1, -2, -1}};
   }
-  using value_type = double;
 };
 
 template <> struct Momentum<1> {
@@ -80,7 +75,6 @@ template <> struct Momentum<1> {
     // [kg / m^2 s]
     return {{1, -2, -1}};
   }
-  using value_type = double;
 };
 
 template <> struct Momentum<2> {
@@ -89,43 +83,38 @@ template <> struct Momentum<2> {
     // [kg / m^2 s]
     return {{1, -2, -1}};
   }
-  using value_type = double;
 };
 
 struct Pressure {
   static constexpr const char* name() noexcept { return "Pressure"; }
-    static constexpr std::array<double, 5> physical_dimensions() {
+  static constexpr std::array<double, 5> physical_dimensions() {
     // [kg / m s^2]
     return {{1, -1, -2}};
   }
-  using value_type = double;
 };
 
 struct Energy {
-  static constexpr const char* name() noexcept { return "EnergyStagnationDensity"; }
-  using value_type = double;
+  static constexpr const char* name() noexcept {
+    return "EnergyStagnationDensity";
+  }
 };
 
 struct Temperature {
   static constexpr const char* name() noexcept { return "Temperature"; }
-  using value_type = double;
 };
 
 struct SpeedOfSound {
   static constexpr const char* name() noexcept { return "VelocitySound"; }
-  using value_type = double;
 };
 
 struct HeatCapacityAtConstantP {
   static constexpr const char* name() noexcept {
     return "SpecificHeatPressure";
   }
-  using value_type = double;
 };
 
 struct Enthalpy {
   static constexpr const char* name() noexcept { return "Enthalpy"; }
-  using value_type = double;
 };
 
 namespace variables {

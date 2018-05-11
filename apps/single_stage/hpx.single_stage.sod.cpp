@@ -106,7 +106,7 @@ int hpx_main(boost::program_options::variables_map& vm) {
       std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
   fub::run_simulation(fub::hpx::single_stage_1d(), state, boundary_condition,
-                      options, write_cgns,
+                      options, std::ref(write_cgns),
                       fub::print_cycle_timings{options.final_time});
   return hpx::finalize();
 }

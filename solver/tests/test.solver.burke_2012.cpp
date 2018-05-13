@@ -40,5 +40,5 @@ int main()
   auto next = source_term.advance_state(state, 0.001s);
   fub::for_each_tuple_element([&](auto var) {
     std::cout << var.name() << ": " << next[var] << '\n';
-  }, get_variables(next));
+  }, flatten_variables(next));
 }

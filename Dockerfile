@@ -1,5 +1,5 @@
 # Use an official g++ runtime as base
-FROM gcc:7.3
+FROM gcc:8.1
 
 # Set the working directory to /ReactiveEulerSolver
 WORKDIR /ReactiveEulerSolver

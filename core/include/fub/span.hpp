@@ -43,10 +43,7 @@ public:
 
   index size() const noexcept { return N; }
 
-  reference access(index n) const
-      noexcept(noexcept(Accessor::access(m_pointer, n))) {
-    return Accessor::access(m_pointer, n);
-  }
+  reference access(index n) const { return Accessor::access(m_pointer, n); }
 
   pointer get_pointer() const noexcept { return m_pointer; }
 

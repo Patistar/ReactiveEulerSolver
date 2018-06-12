@@ -123,7 +123,7 @@ public:
   }
 
 private:
-  native_type m_value;
+  native_type m_value{};
 };
 
 inline bool any_of(const simd_mask<double, simd_abi::sse>& x) noexcept {
@@ -255,7 +255,7 @@ public:
   }
 
 private:
-  native_type m_value;
+  native_type m_value{};
 };
 
 template <>

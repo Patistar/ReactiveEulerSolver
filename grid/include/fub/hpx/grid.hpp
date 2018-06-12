@@ -26,17 +26,13 @@
 #include <hpx/hpx.hpp>
 #pragma clang diagnostic pop
 
+#include "fub/type_traits.hpp"
 #include "fub/grid.hpp"
 #include "fub/octree.hpp"
 #include "fub/patch.hpp"
 
 namespace fub {
 namespace hpx {
-
-using ::hpx::async;
-using ::hpx::future;
-using ::hpx::make_ready_future;
-using ::hpx::shared_future;
 
 template <typename Eq, typename E> struct grid_node_patch {
   using type = patch<as_tuple_t<complete_state_t<Eq>>, E>;
@@ -58,19 +54,13 @@ public:
   using extents_type = PatchExtents;
   using patch_type = patch<as_tuple_t<complete_state_t<Eq>>, extents_type>;
   using node_type = grid_node<equation_type, extents_type>;
-  using mapped_type = shared_future<node_type>;
+  using mapped_type = ::hpx::shared_future<node_type>;
   using octree_type = octree<mapped_type, rank>;
   using octant_type = octant<rank>;
   using partition_type = typename octree_type::value_type;
   using iterator = typename octree_type::iterator;
   using const_iterator = typename octree_type::const_iterator;
 
-private:
-  octree_type m_tree{};
-  extents_type m_patch_extents{};
-  equation_type m_equation{};
-
-public:
   grid() = default;
 
   grid(int depth, const extents_type& extents = extents_type(),
@@ -79,11 +69,11 @@ public:
     octant_type octant{depth, {0}};
     octant_type last = octant_type{}.upper_descendant(depth);
     while (octant != last) {
-      auto data = hpx::make_ready_future(node_type{});
+      auto data = ::hpx::make_ready_future(node_type{});
       m_tree.insert(m_tree.end(), {octant, std::move(data)});
       octant = octant.next();
     }
-    auto pointer = hpx::make_ready_future(node_type{});
+    auto pointer = ::hpx::make_ready_future(node_type{});
     m_tree.insert(m_tree.end(), {octant, std::move(pointer)});
   }
 
@@ -116,32 +106,40 @@ public:
   /// @brief Returns the extents of a patch contained by this grid.
   const extents_type& patch_extents() const noexcept { return m_patch_extents; }
 
+  /// @brief Returns the equation which defines the stored state.
   const equation_type& equation() const noexcept { return m_equation; }
 
-  auto insert(const_iterator hint, const octant_type& octant,
-              future<patch_type> data) {
-    shared_future<node_type> node = data.then([](future<patch_type> patch) {
-      return node_type(std::move(patch.get()));
-    });
-    return m_tree.insert(hint, std::make_pair(octant, std::move(node)));
+  iterator insert(const_iterator hint, const octant_type& octant,
+                  ::hpx::future<patch_type> data) {
+    ::hpx::shared_future<node_type> node =
+        data.then([](::hpx::future<patch_type> patch) {
+          return node_type(std::move(patch.get()));
+        });
+    return m_tree.insert(hint, std::make_pair(octant, std::move(node))).first;
   }
 
-  auto insert(const octant_type& octant, future<patch_type> data) {
-    shared_future<node_type> node = data.then([](future<patch_type> patch) {
-      return node_type(std::move(patch.get()));
-    });
-    return m_tree.insert(std::make_pair(octant, std::move(node)));
+  iterator insert(const octant_type& octant, ::hpx::future<patch_type> data) {
+    ::hpx::shared_future<node_type> node =
+        data.then([](::hpx::future<patch_type> patch) {
+          return node_type(std::move(patch.get()));
+        });
+    return m_tree.insert(std::make_pair(octant, std::move(node))).first;
   }
 
   template <typename... Args>
-  auto emplace(const octant_type& octant, Args&&... args) {
+  iterator emplace(const octant_type& octant, Args&&... args) {
     auto make_node = [](auto&&... args) {
       return node_type(patch_type(std::forward<decltype(args)>(args)...));
     };
-    shared_future<node_type> node =
+    ::hpx::shared_future<node_type> node =
         ::hpx::async(make_node, std::forward<Args>(args)...);
-    return m_tree.insert(octant, std::move(node));
+    return m_tree.insert(octant, std::move(node)).first;
   }
+
+private:
+  octree_type m_tree{};
+  extents_type m_patch_extents{};
+  equation_type m_equation{};
 };
 
 template <typename T> struct filter_patch_fn {
@@ -160,15 +158,15 @@ template <typename Eq, typename Ex> struct filter_patch_fn<grid_node<Eq, Ex>> {
 };
 
 template <typename Eq, typename Ex>
-struct filter_patch_fn<shared_future<grid_node<Eq, Ex>>> {
-  auto operator()(const shared_future<grid_node<Eq, Ex>>& mapped) const {
+struct filter_patch_fn<::hpx::shared_future<grid_node<Eq, Ex>>> {
+  auto operator()(const ::hpx::shared_future<grid_node<Eq, Ex>>& mapped) const {
     return mapped.then([](const auto& m) { return filter_patch(m.get()); });
   }
 };
 
 template <int Rank, typename Eq, typename Ex>
 struct filter_patch_fn<
-    std::pair<const octant<Rank>, shared_future<grid_node<Eq, Ex>>>> {
+    std::pair<const octant<Rank>, ::hpx::shared_future<grid_node<Eq, Ex>>>> {
   auto operator()(const typename grid<Eq, Ex>::partition_type& p) const {
     return filter_patch_fn<typename grid<Eq, Ex>::mapped_type>{}(p.second);
   }
@@ -220,7 +218,7 @@ template <typename Eq, typename Ex> struct grid_traits<hpx::grid<Eq, Ex>> {
   /// @brief This function specialises the reduce algorithm for the grid at
   /// hand.
   template <typename T, typename BinaryOp, typename Proj>
-  static hpx::future<T> reduce(const grid_type& grid, T initial,
+  static ::hpx::future<T> reduce(const grid_type& grid, T initial,
                                BinaryOp binary_op, Proj proj) {
     using Projected = invoke_result_t<Proj, const partition_type&>;
     std::vector<Projected> projected;
@@ -231,9 +229,9 @@ template <typename Eq, typename Ex> struct grid_traits<hpx::grid<Eq, Ex>> {
                    });
     return ::hpx::when_all(projected).then(
         [=, binary_op = std::move(binary_op)](auto ps) {
-          auto&& projected = ps.get();
+          auto&& projected_ = ps.get();
           return std::accumulate(
-              projected.begin(), projected.end(), initial,
+              projected_.begin(), projected_.end(), initial,
               [binary_op = std::move(binary_op)](auto&& x, auto&& y) {
                 return fub::invoke(binary_op, x, y.get());
               });

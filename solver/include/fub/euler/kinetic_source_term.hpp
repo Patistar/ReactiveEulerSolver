@@ -27,12 +27,9 @@
 #include "fub/patch_view.hpp"
 #include "fub/variables.hpp"
 
-//#include "Reactor.h"
-
 #include <array>
 #include <chrono>
 #include <numeric>
-#include <vector>
 
 namespace fub {
 namespace euler {
@@ -126,19 +123,6 @@ struct kinetic_source_term {
                    [=](double c_) { return c_ * mean_M; });
     return equation.set_momentum(equation.set_TPX(T, P, rhoX),
                                  equation.get_momentum(state));
-    // using namespace variables;
-    // static FlameMasterReactor reactor{"libburke2012.dylib"};
-    // reactor.setTemperature(state[temperature]);
-    // reactor.setDensity(state[density]);
-    // auto mass_fractions = equation.get_mass_fractions(state);
-    // reactor.setMassFractions(&mass_fractions[0]);
-    // reactor.advance(dt.count());
-    // std::copy_n(reactor.getMassFractions(), mass_fractions.size(),
-    // mass_fractions.begin());
-    // return equation.set_momentum(equation.set_TPY(reactor.getTemperature(),
-    // reactor.getPressure(),
-    // mass_fractions),
-    // equation.get_momentum(state));
   }
 
   template <typename Grid>
@@ -178,7 +162,7 @@ struct kinetic_source_term {
                   const auto& patch) -> std::chrono::duration<double> {
             const auto view = make_view(patch);
             auto get_max_dt = [=](auto& state) {
-              ode_system system{equation};
+              ode_system system{solver.equation};
               auto T_and_c = retrieve_T_and_c(state);
               decltype(T_and_c) dTdt_and_dcdt;
               /// Compute derivatives and retrieve them

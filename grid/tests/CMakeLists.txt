@@ -19,6 +19,16 @@ target_link_libraries(test.grid.patch ReactiveEulerSolver.grid Catch2)
 add_executable(test.grid.octree test.grid.octree.cpp)
 target_link_libraries(test.grid.octree ReactiveEulerSolver.grid Catch2)
 
+if (NOT DEFINED HPX_FOUND OR NOT HPX_FOUND)
+  find_package(HPX 1.0)
+endif()
+
+if (HPX_FOUND)
+add_executable(test.grid.distributed_grid test.grid.distributed_grid.cpp)
+target_link_libraries(test.grid.distributed_grid ReactiveEulerSolver.grid Catch2)
+hpx_setup_target(test.grid.distributed_grid)
+endif()
+
 add_executable(test.grid.interval_map test.grid.interval_map.cpp)
 target_link_libraries(test.grid.interval_map ReactiveEulerSolver.grid)
 

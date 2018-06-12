@@ -33,8 +33,8 @@ namespace hpx {
 namespace {
 const burke_2012_1d::equation_type equation{};
 
-const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
-    flux_method;
+// const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
+const fub::godunov_method<fub::euler::hlle_riemann_solver> flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;
 
@@ -49,11 +49,9 @@ burke_2012_1d::state_type burke_2012_1d::initialise(
   return ::fub::hpx::initialise<state_type>(std::move(f), coordinates, depth);
 }
 
-burke_2012_1d::state_type
-burke_2012_1d::advance(const state_type& state,
-                         std::chrono::duration<double> goal,
-                          const boundary_condition& boundary,
-                         feedback_function feedback) {
+burke_2012_1d::state_type burke_2012_1d::advance(
+    const state_type& state, std::chrono::duration<double> goal,
+    const boundary_condition& boundary, feedback_function feedback) {
   return ::fub::hpx::advance(advective_solver, state, goal, boundary,
                              std::move(feedback));
 }

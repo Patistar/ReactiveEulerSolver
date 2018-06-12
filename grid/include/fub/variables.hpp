@@ -194,7 +194,6 @@ struct is_gettable
 template <typename V> auto flatten_variables(V) {
   if constexpr (is_detected<detail::variables_tuple_t, V>::value) {
     return typename V::variables_tuple{};
-
   } else {
     return std::tuple<V>{};
   }
@@ -247,10 +246,21 @@ template <typename V, typename... Vars> struct vector_variable {
     scalar_type* native;
     index stride;
 
-    operator bool() const noexcept { return native; }
+    explicit operator bool() const noexcept {
+      return static_cast<bool>(native);
+    }
 
     friend pointer operator+(pointer p, index offset) noexcept {
       return {p.native + offset, p.stride};
+    }
+
+
+    friend bool operator==(pointer p1, pointer p2) noexcept {
+      return p1.native == p2.native && p1.stride == p2.stride;
+    }
+
+    friend bool operator!=(pointer p1, pointer p2) noexcept {
+      return !(p1 == p2);
     }
   };
 
@@ -271,10 +281,20 @@ template <typename V, typename... Vars> struct vector_variable {
     const scalar_type* native;
     index stride;
 
-    operator bool() const noexcept { return native; }
+    explicit operator bool() const noexcept {
+      return static_cast<bool>(native);
+    }
 
     friend const_pointer operator+(const_pointer cp, index offset) noexcept {
       return {cp.native + offset, cp.stride};
+    }
+
+    friend bool operator==(const_pointer p1, const_pointer p2) noexcept {
+      return p1.native == p2.native && p1.stride == p2.stride;
+    }
+
+    friend bool operator!=(const_pointer p1, const_pointer p2) noexcept {
+      return !(p1 == p2);
     }
   };
 
@@ -379,8 +399,10 @@ template <typename... Vars> class quantities {
 
 public:
   quantities() noexcept = default;
+  quantities(const quantities&) = default;
 
-  quantities(typename variable_traits<Vars>::value_type... values) noexcept
+  explicit quantities(
+      typename variable_traits<Vars>::value_type... values) noexcept
       : m_values{std::move(values)...} {}
 
   template <typename... OtherVars>
@@ -413,6 +435,7 @@ public:
 template <> class quantities<> {};
 
 template <typename List> struct as_quantities : list_cast<quantities, List> {};
+
 template <typename List>
 using as_quantities_t = typename as_quantities<List>::type;
 

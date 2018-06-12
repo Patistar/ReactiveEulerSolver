@@ -99,9 +99,9 @@ template <typename RiemannSolver> struct muscl_hancock_method {
   static simd<T, Abi>
   compute_limited_slope(const simd<T, Abi>& left,
                         const nodeduce_t<simd<T, Abi>>& right) noexcept {
-    simd<T, Abi> central_difference = 0.5 * (right - left);
-    simd<T, Abi> one_sided = 2 * minmod(left, right);
-    simd<T, Abi> limited = minmod(central_difference, one_sided);
+    const simd<T, Abi> central_difference = 0.5 * (right - left);
+    const simd<T, Abi> one_sided = 2 * minmod(left, right);
+    const simd<T, Abi> limited = minmod(central_difference, one_sided);
     return limited;
   }
 

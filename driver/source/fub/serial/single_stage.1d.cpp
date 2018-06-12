@@ -32,8 +32,7 @@ namespace fub {
 namespace {
 const serial::single_stage_1d::equation_type equation{};
 
-const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
-    flux_method;
+const godunov_method<fub::euler::hlle_riemann_solver> flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;
 
@@ -49,13 +48,11 @@ serial::single_stage_1d::state_type serial::single_stage_1d::initialise(
                                                0.8);
 }
 
-serial::single_stage_1d::state_type
-serial::single_stage_1d::advance(const state_type& state,
-                                 std::chrono::duration<double> goal,
-                                 const boundary_condition& condition,
-                                 feedback_function feedback) {
-  return ::fub::serial::advance(advective_solver, state, goal,
-                                condition, std::move(feedback));
+serial::single_stage_1d::state_type serial::single_stage_1d::advance(
+    const state_type& state, std::chrono::duration<double> goal,
+    const boundary_condition& condition, feedback_function feedback) {
+  return ::fub::serial::advance(advective_solver, state, goal, condition,
+                                std::move(feedback));
 }
 
 } // namespace fub

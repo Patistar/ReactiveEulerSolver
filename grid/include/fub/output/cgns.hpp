@@ -162,10 +162,10 @@ void flow_solution_write(const zone_context& zone, const View& patch,
   throw_if_cg_error(cg_sol_write(zone.file, zone.base, zone.id, "FlowSolution",
                                  CellCenter, &solution));
   std::vector<double> buffer(patch.extents().size());
-  span<const double> view{buffer};
+  span<const double> view{buffer.data(), static_cast<index>(buffer.size())};
   for_each_tuple_element(
       [&](auto var) {
-        span<double> out{buffer};
+        span<double> out{buffer.data(), static_cast<index>(buffer.size())};
         for_each_row(
             [&](auto row) {
               std::transform(row.begin(), row.end(), out.begin(),

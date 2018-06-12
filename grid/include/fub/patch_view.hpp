@@ -576,7 +576,8 @@ load(const row_view<E, Vs...>& view, index shift = 0) noexcept {
       return pack;
     }
   };
-  return {load_(std::decay_t<Vs>{})...};
+  return add_simd_t<quantities<std::decay_t<Vs>...>, Abi>{
+      load_(std::decay_t<Vs>{})...};
 }
 
 template <index E, typename... Vs>

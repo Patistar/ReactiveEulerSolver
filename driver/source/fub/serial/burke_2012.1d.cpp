@@ -23,7 +23,8 @@
 #include "fub/serial/initialise.hpp"
 
 #include "fub/euler/hlle_riemann_solver.hpp"
-#include "fub/euler/muscl_hancock_method.hpp"
+//#include "fub/euler/muscl_hancock_method.hpp"
+#include "fub/godunov_method.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
@@ -33,8 +34,8 @@ namespace serial {
 namespace {
 const burke_2012_1d::equation_type equation{};
 
-const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
-    flux_method;
+// const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
+const fub::godunov_method<fub::euler::hlle_riemann_solver> flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;
 

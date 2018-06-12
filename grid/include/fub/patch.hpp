@@ -83,17 +83,6 @@ template <typename Allocator = std::allocator<void>> struct storage_descriptor {
     auto p = variable_traits<Holder>::get_pointer(variable_storage);
     return variable_traits<Holder>::view(Variable(), p, extents);
   }
-
-  // template <typename Variable, typename Extents, typename Variables>
-  // using view_type = decltype(
-  // view(std::declval<const Variable&>(),
-  // std::declval<storage_type<Extents, Variables>&>(),
-  // std::declval<const Extents&>(), std::declval<const Variables&>()));
-
-  // template <typename Variable, typename Extents, typename Variables>
-  // using const_view_type =
-  // decltype(view(std::declval<const Variable&>(),
-  // std::declval<const storage_type<Extents, Variables>&>()));
 };
 
 #ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR

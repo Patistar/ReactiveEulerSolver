@@ -135,7 +135,7 @@ template <typename G> struct grid_traits {
     }
     return initial;
   }
-}; // namespace fub
+};
 
 template <typename Eq, typename E> struct standard_grid_node_patch {
   using type = patch<as_tuple_t<complete_state_t<Eq>>, E>;
@@ -180,8 +180,9 @@ public:
 
   standard_grid() = default;
 
-  standard_grid(int depth, const extents_type& extents = extents_type(),
-                const equation_type& equation = equation_type())
+  explicit standard_grid(int depth,
+                         const extents_type& extents = extents_type(),
+                         const equation_type& equation = equation_type())
       : m_tree{}, m_patch_extents{extents}, m_equation{equation} {
     octant_type octant(depth, {{0}});
     octant_type last = octant_type::root().upper_descendant(depth);
@@ -255,7 +256,7 @@ public:
   template <typename... Args>
   std::pair<iterator, bool> emplace(const octant_type& octant, Args&&... args) {
     auto pointer = std::allocate_shared<node_type>(
-        allocator_type(), DataPatch(std::forward<Args>(args)...));
+        allocator_type(), patch_type(std::forward<Args>(args)...));
     return m_tree.insert(std::make_pair(octant, std::move(pointer)));
   }
 };

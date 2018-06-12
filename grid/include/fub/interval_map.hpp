@@ -22,6 +22,8 @@
 #define FUB_INTERVALMAP_HPP
 
 #include "fub/type_traits.hpp"
+#include "fub/functional.hpp"
+
 #include <limits>
 #include <map>
 
@@ -52,10 +54,8 @@ public:
 
   interval_map(const interval_map&) = default;
   interval_map& operator=(const interval_map&) = default;
-
-  interval_map(interval_map&&) = default;
-  interval_map& operator=(interval_map&&) = default;
-
+  interval_map(interval_map&&) noexcept = default;
+  interval_map& operator=(interval_map&&) noexcept = default;
   ~interval_map() = default;
 
   // MORE CONSTRUCTORS
@@ -100,7 +100,7 @@ public:
   /// @brief assigns a `value` to a given interval [lower, upper).
   void insert(Key lower, Key upper, T value) {
     // If an empty interval is specified, we do nothing.
-    if (!invoke(m_map.key_comp(), lower, upper)) {
+    if (!fub::invoke(m_map.key_comp(), lower, upper)) {
       return;
     }
     auto last = m_map.upper_bound(upper);
@@ -119,13 +119,13 @@ public:
 template <typename Key, typename T, typename Map>
 bool operator==(const interval_map<Key, T, Map>& lhs,
                 const interval_map<Key, T, Map>& rhs) {
-  return lhs.map() == rhs.map();
+  return lhs.get_map() == rhs.get_map();
 }
 
 template <typename Key, typename T, typename Map>
 bool operator!=(const interval_map<Key, T, Map>& lhs,
                 const interval_map<Key, T, Map>& rhs) {
-  return lhs.map() != rhs.map();
+  return lhs.get_map() != rhs.get_map();
 }
 
 } // namespace fub

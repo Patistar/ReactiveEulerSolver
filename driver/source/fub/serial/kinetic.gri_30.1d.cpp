@@ -36,7 +36,7 @@ namespace serial {
 namespace kinetic {
 namespace {
 const gri_30_1d::equation_type equation{};
-const euler::muscl_hancock_method<euler::hlle_riemann_solver> flux_method;
+const godunov_method<euler::hlle_riemann_solver> flux_method;
 const time_integrator::forward_euler time_integrator;
 const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
                                decltype(time_integrator)>

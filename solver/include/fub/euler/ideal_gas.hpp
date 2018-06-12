@@ -338,8 +338,8 @@ private:
                    nodeduce_t<species_span<simd<A, Abi>>> cps, simd<A, Abi> U_0,
                    species_span<const simd<A, Abi>> Y_0,
                    simd<A, Abi> T_0 = 300.,
-                   std::ptrdiff_t tolerance = 1000000000,
-                   std::ptrdiff_t max_iterations = 1000) const {
+                   std::ptrdiff_t tolerance = 10'000'000,
+                   std::ptrdiff_t max_iterations = 10000) const {
     // Prepare U evaluation
     const species_span<const A> Rs = get_specific_gas_constants();
     const simd<A, Abi> R = fub::transform_reduce(Rs, Y_0, simd<A, Abi>(0));
@@ -659,7 +659,8 @@ public:
     using namespace variables;
     add_flux_t<conservative_state> f;
     const auto u = q[momentum<Dim>] / q[density];
-    for_each_tuple_element([&](auto fq) { f[fq] = u * q[unflux(fq)]; },
+    for_each_tuple_element(
+        [&](auto fq) { f[fq] = u * q[unflux(fq)]; },
         fub::apply([](auto... vs) { return flatten_variables(vs...); },
                    get_variables(f)));
     f[flux(momentum<Dim>)] += q[pressure];
@@ -761,8 +762,8 @@ public:
     auto cps =
         get_specific_heat_capacities_at_constant_pressure(q[temperature]);
     auto mass_fractions = get_mass_fractions(q);
-    return transform_reduce(cps.begin(), cps.end(), mass_fractions.begin(),
-                            0.0);
+    return fub::transform_reduce(cps.begin(), cps.end(), mass_fractions.begin(),
+                                 0.0);
   }
   // }}}
 

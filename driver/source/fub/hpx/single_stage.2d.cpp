@@ -34,7 +34,7 @@ namespace hpx {
 namespace {
 const single_stage_2d::equation_type equation{};
 
-const fub::euler::muscl_hancock_method<fub::euler::hlle_riemann_solver>
+const godunov_method<fub::euler::hlle_riemann_solver> flux_method;
     flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;

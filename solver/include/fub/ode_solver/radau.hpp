@@ -96,7 +96,7 @@ struct Radau {
       span<double, Size> dydt(dydt_, Size);
       span<const double, Size> y(y_, Size);
       double t = *x_;
-      invoke(rhs, dydt, y, t);
+      fub::invoke(rhs, dydt, y, t);
     };
 
     // Set-up properties for the fortran code.

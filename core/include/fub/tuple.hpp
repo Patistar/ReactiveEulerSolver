@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_TUPLE_HPP
-#define FUB_TUPLE_HPP
+#ifndef FUB_CORE_TUPLE_HPP
+#define FUB_CORE_TUPLE_HPP
 
 #include "fub/algorithm.hpp"
 #include "fub/functional.hpp"
@@ -60,6 +60,7 @@ constexpr decltype(auto) apply(F&& fun, T&& tuple) {
 }
 } // namespace fub
 #endif
+
 namespace fub {
 template <typename Tuple, typename T, typename F>
 T foldl(Tuple&& tuple, T&& init, F&& fun) noexcept {

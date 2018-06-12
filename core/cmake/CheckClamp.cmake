@@ -1,24 +1,6 @@
-# This script checks whether an implementation for std::clamp is available.
+set(CMAKE_REQUIRED_FLAGS "-std=c++${FUB_CORE_CXX_STANDARD}")
+check_cxx_source_compiles("
+#include <algorithm>
+int main() { return std::clamp(0, 0, 0); }"
+        FUB_CORE_USE_STD_CLAMP)
 
-get_filename_component(_mod_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
-
-message(STATUS "Checking for std::clamp...")
-try_compile(_has_std_clamp
-  ${CMAKE_BINARY_DIR}
-  ${_mod_dir}/CheckStdClamp.cpp
-  CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-if (_has_std_clamp)
-  message(STATUS "Checking for std::clamp... Success")
-else()
-  message(STATUS "Checking for std::clamp... Failure")
-endif()
-
-if (_has_std_clamp)
-  set(FUB_CORE_USE_STD_CLAMP ON)
-else()
-  set(FUB_CORE_USE_STD_CLAMP OFF)
-endif()
-mark_as_advanced(FUB_CORE_USE_STD_CLAMP)
-
-unset(_mod_dir)
-unset(_has_std_clamp)

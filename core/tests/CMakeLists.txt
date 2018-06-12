@@ -11,6 +11,9 @@ target_include_directories(Catch2
   INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/../third-party/Catch2/single_include)
 
+add_executable(test.core.fancy_pointer test.core.fancy_poiner.cpp)
+target_link_libraries(test.core.fancy_pointer ReactiveEulerSolver_core Catch2)
+
 add_executable(test.core.array test.core.array.cpp)
 target_link_libraries(test.core.array ReactiveEulerSolver_core)
 

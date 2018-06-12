@@ -59,8 +59,8 @@ simd_mask<A, Abi> almost_equal(const simd<A, Abi>& x,
 
 template <typename T, typename Abi>
 std::ostream& operator<<(std::ostream& out, const simd<T, Abi>& v) {
-  constexpr std::size_t width = simd_size_v<simd<T, Abi>>;
-  constexpr std::size_t alignment = memory_alignment_v<simd<T, Abi>, T>;
+  constexpr int width = simd_size_v<simd<T, Abi>>;
+  constexpr int alignment = memory_alignment_v<simd<T, Abi>, T>;
   alignas(alignment) array<T, width> array;
   v.copy_to(array.data(), vector_alignment);
   out << "(" << array[0];

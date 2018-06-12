@@ -38,6 +38,11 @@ using std::array;
 #include <range/v3/algorithm/equal.hpp>
 
 namespace fub {
+/// @brief This is a constexpr-enabled drop-in version of `std::array` which
+/// should get compiled only if `std::array` is not constexpr-enabled.
+///
+/// @todo This template class does not implement all member functions of
+/// `std::array`.
 template <typename T, std::size_t N> struct array {
   using value_type = T;
   using pointer = T*;
@@ -51,7 +56,7 @@ template <typename T, std::size_t N> struct array {
 
   T m_array[N];
 
-  constexpr pointer data() noexcept { return &m_array[0]; }
+  pointer data() noexcept { return &m_array[0]; }
 
   constexpr const_pointer data() const noexcept { return &m_array[0]; }
 
@@ -59,18 +64,18 @@ template <typename T, std::size_t N> struct array {
 
   constexpr size_type size() const noexcept { return N; }
 
-  constexpr reference operator[](difference_type i) noexcept {
+  reference operator[](difference_type i) noexcept {
     return m_array[i];
   }
   constexpr const_reference operator[](difference_type i) const noexcept {
     return m_array[i];
   }
 
-  constexpr iterator begin() noexcept { return data(); }
+  iterator begin() noexcept { return data(); }
   constexpr const_iterator begin() const noexcept { return data(); }
   constexpr const_iterator cbegin() const noexcept { return data(); }
 
-  constexpr iterator end() noexcept { return data() + N; }
+  iterator end() noexcept { return data() + N; }
   constexpr const_iterator end() const noexcept { return data() + N; }
   constexpr const_iterator cend() const noexcept { return data() + N; }
 };

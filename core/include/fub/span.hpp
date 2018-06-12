@@ -22,219 +22,336 @@
 #define FUB_CORE_SPAN_HPP
 
 #include "fub/array.hpp"
+#include "fub/native_accessor.hpp"
 #include "fub/type_traits.hpp"
-#include <fmt/format.h>
-#include <vector>
 
 namespace fub {
-
-template <typename T, index N = dyn> class span {
+template <typename T, index N, typename Accessor>
+class basic_span_storage : private Accessor {
 public:
-  // Types
+  static_assert(N > 0, "N must be positive for statically sized spans.");
 
-  static_assert(N > 0);
-  using element_type = T;
-  using value_type = std::remove_const_t<T>;
-  using pointer = T*;
-  using reference = T&;
-  using iterator = pointer;
-  using const_iterator = const T*;
+  using pointer = typename Accessor::template pointer<T>;
+  using const_pointer = typename Accessor::template pointer<const T>;
+  using reference = typename Accessor::template reference<T>;
 
-  // Constructors
+  constexpr basic_span_storage() = delete;
 
-  constexpr span() = default;
+  constexpr explicit basic_span_storage(pointer p,
+                                        const Accessor& a = Accessor())
+      : Accessor(a), m_pointer{p} {}
 
-  template <std::size_t M, typename = std::enable_if_t<(N <= M)>>
-  constexpr span(element_type (&a)[M]) noexcept : m_pointer{a.data()} {}
+  index size() const noexcept { return N; }
 
-  span(pointer ptr, index size) : m_pointer{ptr} {
-    if (size < N) {
-      std::string what =
-          fmt::format("span::span: Attempted to create a span of length '{}' "
-                      "with a specified vector of length '{}'.",
-                      N, size);
-      throw std::out_of_range{what};
-    }
+  reference access(index n) const
+      noexcept(noexcept(Accessor::access(m_pointer, n))) {
+    return Accessor::access(m_pointer, n);
   }
 
-  template <
-      typename S, index M,
-      typename = std::enable_if_t<std::is_convertible<S*, pointer>::value>,
-      typename = std::enable_if_t<(N <= M)>>
-  constexpr span(const span<S, M>& other) noexcept : m_pointer{other.data()} {}
-
-  template <
-      typename S, index M,
-      typename = std::enable_if_t<std::is_convertible<S*, pointer>::value>,
-      typename = std::enable_if_t<(N <= M)>>
-  constexpr span operator=(const span<S, M>& other) noexcept {
-    m_pointer = other.data();
-    return *this;
-  }
-
-  template <std::size_t M, typename S = element_type,
-            typename = std::enable_if_t<std::is_const<S>::value && (N <= M)>>
-  constexpr span(const array<std::remove_const_t<element_type>, M>& a) noexcept
-      : m_pointer{a.data()} {}
-
-  template <std::size_t M, typename = std::enable_if_t<(N <= M)>>
-  constexpr span(array<std::remove_const_t<element_type>, M>& a) noexcept
-      : m_pointer{a.data()} {}
-
-  template <typename Alloc>
-  span(std::vector<std::remove_const_t<element_type>, Alloc>& v)
-      : m_pointer{v.data()} {
-    if (v.size() < N) {
-      std::string what =
-          fmt::format("span::span: Attempted to create a span of length '{}' "
-                      "with a specified vector of length '{}'.",
-                      N, v.size());
-      throw std::out_of_range{what};
-    }
-  }
-
-  template <typename Alloc, typename S = element_type,
-            typename = std::enable_if_t<std::is_const<S>::value>>
-  span(const std::vector<std::remove_const_t<element_type>, Alloc>& v)
-      : m_pointer{v.data()} {
-    if (v.size() < N) {
-      std::string what =
-          fmt::format("span::span: Attempted to create a span of length '{}' "
-                      "with a specified vector of length '{}'.",
-                      N, v.size());
-      throw std::out_of_range{what};
-    }
-  }
-
-  // Class Member Access
-
-  constexpr pointer data() const noexcept { return m_pointer; }
-  constexpr index size() const noexcept { return N; }
-
-  // Element Access
-
-  constexpr reference access(index n) const noexcept {
-    assert(0 <= n && n < N);
-    return *(m_pointer + n);
-  }
-
-  constexpr reference operator[](index n) const noexcept { return access(n); }
-
-  constexpr reference operator()(index n) const noexcept { return access(n); }
-  constexpr reference operator()(const array<index, 1>& n) const noexcept {
-    return access(n[0]);
-  }
-
-  // Iterators
-
-  constexpr iterator begin() const noexcept { return m_pointer; }
-  constexpr const_iterator cbegin() const noexcept { return m_pointer; }
-
-  constexpr iterator end() const noexcept { return m_pointer + N; }
-  constexpr const_iterator cend() const noexcept { return m_pointer + N; }
-
-  // Returns true if this span points to something different than nullptr.
-  constexpr operator bool() const noexcept { return m_pointer != nullptr; }
+  pointer get_pointer() const noexcept { return m_pointer; }
 
 private:
-  pointer m_pointer{nullptr};
+  pointer m_pointer;
 };
 
-/// Class specialisation for the dynamically sized case.
-template <typename T> class span<T, dyn> {
+template <typename T, typename Accessor>
+class basic_span_storage<T, dyn, Accessor> : private Accessor {
 public:
-  // Types
+  using pointer = typename Accessor::template pointer<T>;
+  using const_pointer = typename Accessor::template pointer<const T>;
+  using reference = typename Accessor::template reference<T>;
 
-  using element_type = T;
-  using pointer = T*;
-  using reference = T&;
-  using iterator = pointer;
-  using const_iterator = const T*;
+  constexpr basic_span_storage() = default;
 
-  // Constructors
+  constexpr explicit basic_span_storage(pointer p, index sz,
+                                        const Accessor& a = Accessor())
+      : Accessor(a), m_pointer{p}, m_size{sz} {}
 
-  constexpr span() = default;
+  index size() const noexcept { return m_size; }
 
-  template <
-      typename S, index M,
-      typename = std::enable_if_t<std::is_convertible<S*, pointer>::value>>
-  constexpr span(const span<S, M>& other) noexcept
-      : m_pointer{other.data()}, m_size{other.size()} {}
+  reference access(index n) const { return Accessor::access(m_pointer, n); }
 
-  template <
-      typename S, index M,
-      typename = std::enable_if_t<std::is_convertible<S*, pointer>::value>>
-  constexpr span operator=(const span<S, M>& other) noexcept {
-    m_pointer = other.data();
-    m_size = other.size();
-    return *this;
-  }
-
-  template <std::size_t N>
-  constexpr span(element_type (&a)[N]) noexcept
-      : m_pointer{a.data()}, m_size{static_cast<index>(N)} {}
-
-  constexpr span(pointer ptr, index size) noexcept
-      : m_pointer{ptr}, m_size{size} {}
-
-  template <std::size_t N, typename Alloc, typename S = element_type,
-            typename = std::enable_if_t<std::is_const<S>::value>>
-  constexpr span(const array<std::remove_const_t<element_type>, N>& a) noexcept
-      : m_pointer{a.data()}, m_size{static_cast<index>(N)} {}
-
-  template <std::size_t N>
-  constexpr span(array<std::remove_const_t<element_type>, N>& a) noexcept
-      : m_pointer{a.data()}, m_size{static_cast<index>(N)} {}
-
-  template <typename Alloc>
-  constexpr span(
-      std::vector<std::remove_const_t<element_type>, Alloc>& v) noexcept
-      : m_pointer{v.data()}, m_size{static_cast<index>(v.size())} {}
-
-  template <typename Alloc, typename S = element_type,
-            typename = std::enable_if_t<std::is_const<S>::value>>
-  constexpr span(
-      const std::vector<std::remove_const_t<element_type>, Alloc>& v) noexcept
-      : m_pointer{v.data()}, m_size{static_cast<index>(v.size())} {}
-
-  // Class Member Access
-
-  constexpr pointer data() const noexcept { return m_pointer; }
-  constexpr index size() const noexcept { return m_size; }
-
-  // Element Access
-
-  constexpr reference access(index n) const noexcept {
-    assert(0 <= n && n < m_size);
-    return *(m_pointer + n);
-  }
-
-  constexpr reference operator[](index n) const noexcept { return access(n); }
-
-  constexpr reference operator()(index n) const noexcept { return access(n); }
-  constexpr reference operator()(const array<index, 1>& n) const noexcept {
-    return access(n[0]);
-  }
-
-  // Iterators
-
-  constexpr iterator begin() const noexcept { return m_pointer; }
-  constexpr const_iterator cbegin() const noexcept { return m_pointer; }
-
-  constexpr iterator end() const noexcept { return m_pointer + m_size; }
-  constexpr const_iterator cend() const noexcept { return m_pointer + m_size; }
-
-  // Returns true if this span points to something different than nullptr.
-  constexpr operator bool() const noexcept { return m_pointer != nullptr; }
+  pointer get_pointer() const noexcept { return m_pointer; }
 
 private:
   pointer m_pointer{nullptr};
   index m_size{0};
 };
 
+template <typename R> using data_t = decltype(fub::data(std::declval<R>()));
+
+template <typename A> struct is_std_array : bool_constant<false> {};
+
+template <typename T, std::size_t N>
+struct is_std_array<array<T, N>> : bool_constant<true> {};
+
+template <typename T, index N, typename Accessor> class basic_span;
+
 template <typename T> struct is_span : std::false_type {};
-template <typename T, index N> struct is_span<span<T, N>> : std::true_type {};
+
+template <typename T, index N, typename A>
+struct is_span<basic_span<T, N, A>> : std::true_type {};
+
 template <typename T> static constexpr bool is_span_v = is_span<T>::value;
+
+template <typename T, index N, typename Accessor> class basic_span {
+public:
+  using element_type = T;
+  using storage_type = basic_span_storage<T, N, Accessor>;
+  using value_type = std::remove_cv_t<T>;
+  using pointer = typename storage_type::pointer;
+  using const_pointer = typename storage_type::const_pointer;
+  using reference = typename storage_type::reference;
+  using iterator = pointer;
+  using const_iterator = const_pointer;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using index_type = index;
+
+  static constexpr index_type extent = N;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Constructors
+
+  constexpr basic_span(pointer p, [[maybe_unused]] index_type size) noexcept
+      : m_storage{p} {
+    assert(N <= size);
+  }
+  constexpr basic_span(pointer first, [[maybe_unused]] pointer last) noexcept
+      : m_storage{first} {
+    assert(N <= (last - first));
+  }
+
+  template <std::size_t M, typename = std::enable_if_t<N <= M>>
+  constexpr basic_span(element_type (&arr)[M]) noexcept // NOLINT
+      : m_storage{&arr[0]} {}
+
+  template <typename S, std::size_t M,
+            typename = std::enable_if_t<std::is_convertible<
+                typename array<S, M>::const_pointer, pointer>::value>,
+            typename = std::enable_if_t<N <= M>>
+  constexpr basic_span(const array<S, M>& arr) noexcept // NOLINT
+      : m_storage{arr.data()} {}
+
+  template <typename S, std::size_t M,
+            typename = std::enable_if_t<std::is_convertible<
+                typename array<S, M>::pointer, pointer>::value>,
+            typename = std::enable_if_t<N <= M>>
+  constexpr basic_span(array<S, M>& arr) noexcept // NOLINT
+      : m_storage{arr.data()} {}
+
+  template <typename S, index_type M, typename A,
+            typename = std::enable_if_t<std::is_convertible<
+                typename basic_span<S, M, A>::pointer, pointer>::value>,
+            typename = std::enable_if_t<N <= M>>
+  constexpr basic_span(const basic_span<S, M, A>& s) noexcept // NOLINT
+      : m_storage{s.data()} {}
+
+  constexpr basic_span(const basic_span& s) noexcept = default;
+
+  template <
+      typename Container,
+      typename =
+          std::enable_if_t<!is_std_array<std::decay_t<Container>>::value>,
+      typename = std::enable_if_t<!is_span<std::decay_t<Container>>::value>,
+      typename = std::enable_if_t<
+          std::is_convertible<detected_t<data_t, Container>, pointer>::value>>
+  constexpr basic_span(Container&& container) noexcept // NOLINT
+      : m_storage{fub::data(container)} {
+    assert(N <= fub::size(container));
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Element Access
+
+  constexpr reference operator[](index_type n) const {
+    return m_storage.access(n);
+  }
+
+  constexpr reference operator()(index_type n) const {
+    return m_storage.access(n);
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Member Variable Accessors
+
+  constexpr index_type size() const noexcept { return m_storage.size(); }
+
+  constexpr pointer data() const noexcept { return m_storage.get_pointer(); }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Iterators
+
+  constexpr iterator begin() const noexcept { return m_storage.get_pointer(); }
+  constexpr const_iterator cbegin() const noexcept {
+    return m_storage.get_pointer();
+  }
+  constexpr reverse_iterator rbegin() const noexcept {
+    return {m_storage.get_pointer()};
+  }
+  constexpr const_reverse_iterator crbegin() const noexcept {
+    return {m_storage.get_pointer()};
+  }
+
+  constexpr iterator end() const noexcept {
+    return m_storage.get_pointer() + size();
+  }
+  constexpr iterator cend() const noexcept {
+    return m_storage.get_pointer() + size();
+  }
+  constexpr iterator rend() const noexcept {
+    return {m_storage.get_pointer() + size()};
+  }
+  constexpr iterator crend() const noexcept {
+    return {m_storage.get_pointer() + size()};
+  }
+
+  /// Returns always true since this span version can not be emtpy.
+  ///
+  /// @note This makes span<T, N> contextually convertible to bool.
+  ///
+  /// @example
+  ///     span<int, 3> s = ...;
+  ///     // ...
+  ///     if (s) {
+  ///         // s points to some valid array
+  ///     } else {
+  ///         // s is empty
+  ///     }
+  constexpr explicit operator bool() const noexcept { return true; }
+
+private:
+  storage_type m_storage;
+};
+
+template <typename T, typename Accessor> class basic_span<T, dyn, Accessor> {
+public:
+  using element_type = T;
+  using storage_type = basic_span_storage<T, dyn, Accessor>;
+  using value_type = std::remove_cv_t<T>;
+  using pointer = typename storage_type::pointer;
+  using const_pointer = typename storage_type::const_pointer;
+  using reference = typename storage_type::reference;
+  using iterator = pointer;
+  using const_iterator = const_pointer;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using index_type = index;
+
+  static constexpr index_type extent = dyn;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Constructors
+
+  constexpr basic_span() = default;
+
+  constexpr basic_span(pointer p, index_type size) noexcept
+      : m_storage{p, size} {}
+  constexpr basic_span(pointer first, pointer last) noexcept
+      : m_storage{first, last - first} {}
+
+  template <std::size_t M>
+  constexpr basic_span(element_type (&arr)[M]) noexcept // NOLINT
+      : m_storage{&arr[0], static_cast<index_type>(M)} {}
+
+  template <typename S, std::size_t M,
+            typename = std::enable_if_t<std::is_convertible<
+                typename array<S, M>::const_pointer, pointer>::value>>
+  constexpr basic_span(const array<S, M>& arr) noexcept // NOLINT
+      : m_storage{arr.data(), arr.size()} {}
+
+  template <typename S, std::size_t M,
+            typename = std::enable_if_t<std::is_convertible<
+                typename array<S, M>::pointer, pointer>::value>>
+  constexpr basic_span(array<S, M>& arr) noexcept // NOLINT
+      : m_storage{arr.data(), arr.size()} {}
+
+  template <
+      typename Container,
+      typename =
+          std::enable_if_t<!is_std_array<std::decay_t<Container>>::value>,
+      typename = std::enable_if_t<!is_span<std::decay_t<Container>>::value>,
+      typename = std::enable_if_t<
+          std::is_convertible<detected_t<data_t, Container>, pointer>::value>>
+  constexpr basic_span(Container&& container) noexcept // NOLINT
+      : m_storage{container.data(),
+                  static_cast<std::ptrdiff_t>(container.size())} {}
+
+  template <typename S, index_type M, typename A,
+            typename = std::enable_if_t<std::is_convertible<
+                typename basic_span<S, M, A>::pointer, pointer>::value>>
+  constexpr basic_span(const basic_span<S, M, A>& s) noexcept // NOLINT
+      : m_storage{s.data(), s.size()} {}
+
+  constexpr basic_span(const basic_span& s) noexcept = default;
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Element Access
+
+  constexpr reference operator[](index_type n) const {
+    return m_storage.access(n);
+  }
+
+  constexpr reference operator()(index_type n) const {
+    return m_storage.access(n);
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Member Variable Accessors
+
+  constexpr index_type size() const noexcept { return m_storage.size(); }
+
+  constexpr pointer data() const noexcept { return m_storage.get_pointer(); }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Iterators
+
+  constexpr iterator begin() const noexcept { return m_storage.get_pointer(); }
+  constexpr const_iterator cbegin() const noexcept {
+    return m_storage.get_pointer();
+  }
+  constexpr reverse_iterator rbegin() const noexcept {
+    return {m_storage.get_pointer()};
+  }
+  constexpr const_reverse_iterator crbegin() const noexcept {
+    return {m_storage.get_pointer()};
+  }
+
+  constexpr iterator end() const noexcept {
+    return m_storage.get_pointer() + size();
+  }
+  constexpr iterator cend() const noexcept {
+    return m_storage.get_pointer() + size();
+  }
+  constexpr iterator rend() const noexcept {
+    return {m_storage.get_pointer() + size()};
+  }
+  constexpr iterator crend() const noexcept {
+    return {m_storage.get_pointer() + size()};
+  }
+
+  /// Returns true if this span points to something different than nullptr.
+  ///
+  /// @note This makes span<T> contextually convertible to bool.
+  ///
+  /// @example
+  ///     span<int> s = nullptr;
+  ///     // ...
+  ///     if (s) {
+  ///         // s points to some valid array
+  ///     } else {
+  ///         // s is empty
+  ///     }
+  constexpr explicit operator bool() const noexcept {
+    return data() != nullptr;
+  }
+
+private:
+  storage_type m_storage;
+};
+
+template <typename T, index Extent = dyn>
+using span = basic_span<T, Extent, native_accessor>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // make_span
@@ -247,16 +364,6 @@ auto make_span(std::array<T, N>& array) noexcept {
 template <typename T, std::size_t N>
 auto make_span(const std::array<T, N>& array) noexcept {
   return span<const T, N>(array);
-}
-
-template <typename T, typename Alloc>
-auto make_span(std::vector<T, Alloc>& array) noexcept {
-  return span<T>(array);
-}
-
-template <typename T, typename Alloc>
-auto make_span(const std::vector<T, Alloc>& array) noexcept {
-  return span<const T>(array);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,20 +386,19 @@ take(span<T, Size> view) noexcept {
 
 template <index N, typename T> span<T> drop(span<T> view) {
   return span<T>(view.data() + std::min(view.size(), N),
-                 std::max(0, view.size() - N));
+                 std::max(index{}, view.size() - N));
 }
 
-template <typename T>
-span<T, dyn> drop(const span<T, dyn>& view, index n) noexcept {
+template <typename T> span<T> drop(const span<T>& view, index n) noexcept {
   return span<T>(view.data() + std::min(view.size(), n),
-                 std::max(0, view.size() - n));
+                 std::max(index{}, view.size() - n));
 }
 
 template <index N, typename T> span<T, N> take(span<T> view) {
   if (view.size() < N) {
     throw std::out_of_range{"take: span's length is smaller than than."};
   }
-  return span<T, N>(view.data());
+  return span<T, N>(view.data(), N);
 }
 
 } // namespace fub

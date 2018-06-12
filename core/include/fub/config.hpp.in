@@ -30,9 +30,6 @@
 // Whether to use <variant>
 #cmakedefine FUB_CORE_USE_STD_VARIANT
 
-// Whether to use <experimental/variant>
-#cmakedefine FUB_CORE_USE_STD_EXPERIMENTAL_VARIANT
-
 // Whether to use std::invoke
 #cmakedefine FUB_CORE_USE_STD_INVOKE
 

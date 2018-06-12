@@ -25,8 +25,9 @@
 #define FUB_TYPE_TRAITS_HPP
 
 #include <meta/meta.hpp>
+#include <range/v3/data.hpp>
+#include <range/v3/size.hpp>
 #include <range/v3/utility/functional.hpp>
-#include <range/v3/utility/tuple_algorithm.hpp>
 #include <tuple>
 #include <type_traits>
 
@@ -203,6 +204,9 @@ template <typename Var> struct value_type {
   using type = typename Var::value_type;
 };
 template <typename Var> using value_type_t = typename value_type<Var>::type;
+
+using ranges::data;
+using ranges::size;
 
 } // namespace fub
 

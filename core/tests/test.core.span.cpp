@@ -23,34 +23,35 @@
 #define CATCH_CONFIG_MAIN
 #include <catch.hpp>
 
-const int* take_const_span(fub::span<const int> x) {
-  return x.data();
+TEST_CASE("sizeof spans are small") {
+  REQUIRE(sizeof(fub::span<int>) == sizeof(int*) + sizeof(std::ptrdiff_t));
+  REQUIRE(sizeof(fub::span<int, 1>) == sizeof(int*));
 }
 
-int* take_span(fub::span<int> x) {
-  return x.data();
-}
-
-const int* take_const_span_1(fub::span<const int, 1> x) {
-  return x.data();
-}
-
-int* take_span_1(fub::span<int, 1> x) {
-  return x.data();
-}
-
-TEST_CASE("Create some empty spans")
+TEST_CASE("Create an empty span.")
 {
   fub::span<int> s;
-  fub::span<int, 1> t;
+  REQUIRE(s.data() == nullptr);
+  REQUIRE(s.size() == 0);
+}
 
-  REQUIRE(!s);
-  REQUIRE(!t);
-  REQUIRE(!take_const_span(s));
-  REQUIRE(!take_span(s));
-  REQUIRE(!take_const_span(t));
-  REQUIRE(!take_span(t));
-  REQUIRE(!take_const_span_1(t));
-  REQUIRE(!take_span_1(t));
+TEST_CASE("Is contextually convertible to bool.") {
+  SECTION("Dynamically-sized span") {
+    // Default construction creates an empty span.
+    fub::span<int> s;
+    REQUIRE(!s);
+
+    // After assignments the conversion returns true.
+    int array[1];
+    s = fub::span<int>{array};
+    REQUIRE(s);
+  }
+
+  SECTION("Fixed-sized span") {
+    // Fixed-sized spans can not be empty.
+    int array[1];
+    fub::span<int, 1> s{array};
+    REQUIRE(s);
+  }
 }
 

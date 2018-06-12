@@ -1,24 +1,7 @@
-# This script checks whether an implementation for std::invoke is available.
+set(CMAKE_REQUIRED_FLAGS "-std=c++${FUB_CORE_CXX_STANDARD}")
+check_cxx_source_compiles("
+#include <functional>
 
-get_filename_component(_mod_dir ${CMAKE_CURRENT_LIST_FILE} PATH)
-
-message(STATUS "Checking for std::invoke...")
-try_compile(_has_std_invoke
-  ${CMAKE_BINARY_DIR}
-  ${_mod_dir}/CheckStdInvoke.cpp
-  CXX_STANDARD ${FUB_CORE_CXX_STANDARD})
-if (_has_std_invoke)
-  message(STATUS "Checking for std::invoke... Success.")
-else()
-  message(STATUS "Checking for std::invoke... Failure.")
-endif()
-
-if (_has_std_invoke)
-  set(FUB_CORE_USE_STD_INVOKE ON)
-else()
-  set(FUB_CORE_USE_STD_INVOKE OFF)
-endif()
-mark_as_advanced(FUB_CORE_USE_STD_INVOKE)
-
-unset(_mod_dir)
-unset(_has_std_invoke)
+int f() { return 0; }
+int main() { return std::invoke(f); }"
+        FUB_CORE_USE_STD_CLAMP)

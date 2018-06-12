@@ -218,9 +218,7 @@ public:
   using base::get;
   using base::size;
 
-  constexpr explicit operator array<index, rank>() const noexcept {
-    return static_cast<array<index, rank>>(*static_cast<const base*>(this));
-  }
+  using base::operator array<index, rank>;
 };
 
 template <index... Es, index... Fs>

@@ -47,7 +47,7 @@ clamp(const T& v, const T& lo, const T& hi, Compare comp = Compare()) {
 /// @brief Constexpr version of std::accumulate.
 template <typename I, typename S, typename T, typename BinaryOp = std::plus<>>
 constexpr std::enable_if_t<
-    ranges::InputIterator<I>() && ranges::Sentinel<S, I>(), T>
+  conjunction<ranges::InputIterator<I>, ranges::Sentinel<S, I>>::value, T>
 accumulate(I first, S last, T init, BinaryOp binary_op = BinaryOp()) {
   while (first != last) {
     init = ranges::invoke(binary_op, init, *first++);
@@ -103,9 +103,9 @@ count(R&& rng, const T& needle, Pred pred = Pred()) {
 template <typename I, typename S, typename J, typename T,
           typename BinaryOp1 = std::plus<>,
           typename BinaryOp2 = std::multiplies<>>
-constexpr std::enable_if_t<ranges::InputIterator<I>() &&
-                               ranges::Sentinel<S, I>() &&
-                               ranges::InputIterator<J>(),
+constexpr std::enable_if_t<conjunction<ranges::InputIterator<I>,
+                               ranges::Sentinel<S, I>,
+                               ranges::InputIterator<J>>::value,
                            T>
 transform_reduce(I left, S last, J right, T initial,
                  BinaryOp1 binary_op1 = BinaryOp1(),
@@ -121,8 +121,8 @@ transform_reduce(I left, S last, J right, T initial,
 
 template <typename R, typename S, typename T, typename BinaryOp1 = std::plus<>,
           typename BinaryOp2 = std::multiplies<>>
-constexpr std::enable_if_t<ranges::InputRange<R>() && ranges::InputRange<S>(),
-                           T>
+constexpr std::enable_if_t<
+    conjunction<ranges::InputRange<R>, ranges::InputRange<S>>::value, T>
 transform_reduce(R&& left, S&& right, T initial,
                  BinaryOp1 binary_op1 = BinaryOp1(),
                  BinaryOp2 binary_op2 = BinaryOp2()) {

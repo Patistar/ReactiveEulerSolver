@@ -59,6 +59,8 @@ int main() {
   {
     constexpr fub::extents<2, dyn> e(2);
     constexpr auto e2 = fub::grow(e, fub::int_c<1>);
+    static_assert(
+        std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, dyn>>::value);
     static_assert(e2 == fub::extents<2, 3>());
   }
 }

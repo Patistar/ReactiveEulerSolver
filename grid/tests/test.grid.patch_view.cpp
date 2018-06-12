@@ -160,12 +160,13 @@ TEST_CASE("vector variables") {
   static constexpr Density density{};
   static constexpr Pressure pressure{};
   static constexpr Velocity velocity{};
-  fub::for_each_index(view.extents(), [&](auto index) {
+  fub::for_each_index(view.extents(), [&](auto idx_array) {
+    auto index = idx_array[0];
     REQUIRE(view[density](index) == 1.0);
     REQUIRE(view[pressure](index) == 2.0);
-    REQUIRE(view[velocity](index) == index[0]);
+    REQUIRE(view[velocity](index) == index);
     REQUIRE(view(index)[density] == 1.0);
     REQUIRE(view(index)[pressure] == 2.0);
-    REQUIRE(view(index)[velocity] == index[0]);
+    REQUIRE(view(index)[velocity] == index);
   });
 }

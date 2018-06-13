@@ -187,11 +187,13 @@ public:
     octant_type octant(depth, {{0}});
     octant_type last = octant_type::root().upper_descendant(depth);
     while (octant != last) {
-      auto pointer = std::allocate_shared<node_type>(allocator_type());
+      auto pointer = std::allocate_shared<node_type>(allocator_type(),
+                                                     patch_type(extents));
       m_tree.insert(m_tree.end(), {octant, std::move(pointer)});
       octant = octant.next();
     }
-    auto pointer = std::allocate_shared<node_type>(allocator_type());
+    auto pointer =
+        std::allocate_shared<node_type>(allocator_type(), patch_type(extents));
     m_tree.insert(m_tree.end(), {octant, std::move(pointer)});
   }
 

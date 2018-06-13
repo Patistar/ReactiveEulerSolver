@@ -34,7 +34,8 @@ State initialise(InitialCondition f,
                  int depth, double cfl = 0.5) {
   using grid_type = decltype(std::declval<State>().grid);
   using traits = grid_traits<grid_type>;
-  grid_type grid(depth, {});
+  typename grid_type::extents_type extents(coordinates.extents());
+  grid_type grid(depth, extents);
   for (auto& partition : grid) {
     auto octant = traits::octant(partition);
     partition.second = traits::dataflow(

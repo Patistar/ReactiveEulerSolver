@@ -60,7 +60,9 @@ constexpr auto make_row_extents(const E&, index len) noexcept {
   return make_row_extents_fn<E>()(len);
 }
 
-template <typename E> using row_extents_t = decltype(make_row_extents(E{}, 0));
+template <typename E> struct row_extents;
+template <index Size, index... Rest>
+struct row_extents<extents<Size, Rest...>> : index_constant<Size> {};
 
 template <index... Values>
 constexpr std::ptrdiff_t covolume(const extents<Values...>& e) noexcept {
@@ -103,16 +105,16 @@ public:
   template <index N>
   explicit row_cursor(const row_view<N, Vars...>& parent,
                       std::ptrdiff_t pos = 0)
-      : m_pointers{parent.m_pointers}, m_row_length{N}, m_position{pos} {
+      : m_pointers{parent.m_pointers}, m_row_length{parent.extents().size()},
+        m_position{pos} {
     std::ptrdiff_t n = m_row_length * pos;
     for_each_tuple_element([n](auto& ps) { ps = ps + n; }, m_pointers);
   }
 
-  row_view<row_extents_t<E>().size(), Vars...> read() const noexcept {
+  row_view<row_extents<E>::value, Vars...> read() const noexcept {
     const auto e = make_row_extents(E{}, m_row_length);
     const auto args = std::tuple_cat(std::make_tuple(e), m_pointers);
-    return fub::make_from_tuple<row_view<row_extents_t<E>().size(), Vars...>>(
-        args);
+    return fub::make_from_tuple<row_view<row_extents<E>::value, Vars...>>(args);
   }
 
   void next() noexcept {
@@ -188,10 +190,10 @@ public:
 template <typename... Vars>
 using patch_view_iterator = ranges::basic_iterator<view_cursor<Vars...>>;
 
-template <typename Extents> class base_patch_view : public Extents {
+template <typename Extents> class patch_view_base : public Extents {
 public:
-  base_patch_view() = default;
-  base_patch_view(const Extents& e) : Extents(e) {}
+  patch_view_base() = default;
+  patch_view_base(const Extents& e) : Extents(e) {}
 
   const Extents& extents() const noexcept { return *this; }
 };
@@ -200,8 +202,8 @@ public:
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
 template <typename Extents, typename... Vars>
-class patch_view : public detail::base_patch_view<Extents> {
-  using base_type = detail::base_patch_view<Extents>;
+class patch_view : public detail::patch_view_base<Extents> {
+  using base_type = detail::patch_view_base<Extents>;
   template <typename V>
   using pointer = std::conditional_t<
       std::is_const<V>::value,
@@ -272,9 +274,11 @@ public:
 
 /// \brief span over multiple variables with uniform extents and layout mapping.
 template <index Size, typename... Vars>
-class row_view : public detail::base_patch_view<extents<Size>> {
+class row_view : public detail::patch_view_base<extents<Size>> {
 public:
-  using base_type = detail::base_patch_view<extents<Size>>;
+  static_assert(Size == dyn || Size > 0, "Invalid Row Size");
+
+  using base_type = detail::patch_view_base<extents<Size>>;
 
   template <typename V>
   using pointer = std::conditional_t<
@@ -361,7 +365,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 // drop / take with static extents
 
-template <index N, index Len, typename... Vs>
+template <index N, index Len, typename... Vs,
+          typename = std::enable_if_t<(Len > 0) && (N < Len)>>
 auto drop(const row_view<Len, Vs...>& view) noexcept {
   return fub::apply(
       [](auto... pointers) {
@@ -370,7 +375,19 @@ auto drop(const row_view<Len, Vs...>& view) noexcept {
       view.m_pointers);
 }
 
-template <index N, index Len, typename... Vs>
+template <index N, typename... Vs>
+auto drop(const row_view<dyn, Vs...>& view) noexcept {
+  const index size = view.extents().size() - N;
+  assert(size > 0);
+  return fub::apply(
+      [=](auto... pointers) {
+        return row_view<dyn, Vs...>(extents<dyn>(size), (pointers + N)...);
+      },
+      view.m_pointers);
+}
+
+template <index N, index Len, typename... Vs,
+          typename = std::enable_if_t<(Len > 0) && (N <= Len)>>
 auto take(const row_view<Len, Vs...>& view) noexcept {
   return fub::apply(
       [](auto... pointers) {
@@ -379,14 +396,59 @@ auto take(const row_view<Len, Vs...>& view) noexcept {
       view.m_pointers);
 }
 
-template <index N, index Len, typename... Vs>
+template <index N, typename... Vs>
+auto take(const row_view<dyn, Vs...>& view) noexcept {
+  assert(N <= view.extents().size());
+  return fub::apply(
+      [](auto... pointers) {
+        return row_view<N, Vs...>(extents<N>(), pointers...);
+      },
+      view.m_pointers);
+}
+
+template <index N, index Len, typename... Vs,
+          typename = std::enable_if_t<(Len > 0) && (N <= Len)>>
 auto rtake(const row_view<Len, Vs...>& view) noexcept {
   return drop<Len - N>(view);
 }
 
-template <index N, index Len, typename... Vs>
+template <index N, typename... Vs>
+auto rtake(const row_view<dyn, Vs...>& view) noexcept {
+  const index offset = view.extents().size() - N;
+  assert(offset > 0);
+  return fub::apply(
+      [=](auto... pointers) {
+        return row_view<N, Vs...>(extents<N>(), (pointers + offset)...);
+      },
+      view.m_pointers);
+}
+
+template <typename... Vs>
+auto rtake(const row_view<dyn, Vs...>& view, index n) noexcept {
+  const index offset = view.extents().size() - n;
+  assert(offset > 0);
+  return fub::apply(
+      [=](auto... pointers) {
+        return row_view<dyn, Vs...>(extents<dyn>(n), (pointers + offset)...);
+      },
+      view.m_pointers);
+}
+
+template <index N, index Len, typename... Vs,
+          typename = std::enable_if_t<(Len > 0) && (N < Len)>>
 auto rdrop(const row_view<Len, Vs...>& view) noexcept {
   return take<Len - N>(view);
+}
+
+template <index N, typename... Vs>
+auto rdrop(const row_view<dyn, Vs...>& view) noexcept {
+  const index size = view.extents().size() - N;
+  assert(size > 0);
+  return fub::apply(
+      [=](auto... pointers) {
+        return row_view<dyn, Vs...>(extents<dyn>(size), pointers...);
+      },
+      view.m_pointers);
 }
 
 template <typename Extents, typename... Vars>
@@ -526,7 +588,9 @@ struct view_join_variables<row_view<E, Vars...>, Ts...> {
 template <typename... Vars>
 using view_join_variables_t = typename view_join_variables<Vars...>::type;
 
-template <typename... RowViews> auto join(const RowViews&... rows) {
+namespace detail {
+template <typename... RowViews>
+auto join_impl(std::true_type, const RowViews&... rows) {
   static_assert(conjunction<is_view<RowViews>...>::value,
                 "Only views can be joined.");
   static_assert(
@@ -538,13 +602,37 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
       "Only one-dimensional views an be joined.");
   static constexpr array<index, sizeof...(RowViews)> sizes{
       {view_static_extent<RowViews, 0>::value...}};
-  static constexpr int total_size = fub::accumulate(sizes, index(0));
+  static constexpr index total_size = fub::accumulate(sizes, index(0));
   patch<view_join_variables_t<RowViews...>, extents<total_size>> joined_row;
   auto view = make_view(joined_row);
   auto it = view.begin();
   (void)std::initializer_list<int>{
       ((void)(it = std::copy(rows.begin(), rows.end(), it)), 42)...};
   return joined_row;
+}
+template <typename... RowViews>
+auto join_impl(std::false_type, const RowViews&... rows) {
+  static_assert(conjunction<is_view<RowViews>...>::value,
+                "Only views can be joined.");
+  static_assert(
+      conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
+      "Only one-dimensional views an be joined.");
+  const array<index, sizeof...(RowViews)> sizes{{rows.extents().get(0)...}};
+  const extents<dyn> total_size{fub::accumulate(sizes, index(0))};
+  patch<view_join_variables_t<RowViews...>, extents<dyn>> joined_row(
+      total_size);
+  auto view = make_view(joined_row);
+  auto it = view.begin();
+  (void)std::initializer_list<int>{
+      ((void)(it = std::copy(rows.begin(), rows.end(), it)), 42)...};
+  return joined_row;
+}
+} // namespace detail
+template <typename... RowViews> auto join(const RowViews&... rows) {
+  return detail::join_impl(
+      conjunction<
+          bool_constant<view_extents_t<RowViews>::rank_dynamic == 0>...>(),
+      rows...);
 }
 
 /// \brief Loads all quantities which are refered by a specified view into simd
@@ -642,13 +730,54 @@ F for_each_simd_impl(index_constant<0>, F&& f, const Row&, const Rows&...) {
   return std::forward<F>(f);
 }
 
-template <index Size, typename F, typename Row, typename... Rows>
-F for_each_simd_impl(index_constant<Size>, F f, const Row& row,
+template <index Rest, typename F, typename Row, typename... Rows>
+F for_each_simd_impl(index_constant<Rest>, F f, const Row& row,
                      const Rows&... rows) {
-  using Extents = view_extents_t<Row>;
+  return for_each_simd_impl(simd_abi::scalar(), std::move(f), rtake<Rest>(row),
+                            rtake<Rest>(rows)...);
+}
+
+template <typename F, typename Row, typename... Rows>
+F for_each_simd_impl(index_constant<dyn>, index rest, F f, const Row& row,
+                     const Rows&... rows) {
+  if (rest > 0) {
+    return for_each_simd_impl(simd_abi::scalar(), std::move(f),
+                              rtake(row, rest), rtake(rows, rest)...);
+  }
+  return f;
+}
+
+template <typename Abi, typename F, typename FirstRow, typename... Rows>
+std::enable_if_t<is_simd_abi_v<Abi>, F>
+for_each_simd_impl(std::false_type, const Abi& abi, F f, const FirstRow& first,
+                   const Rows&... rows) {
+  const index width = simd<double, Abi>::size();
+  const index size = first.extents().size();
+  const index simd_size = size / width;
+  for (index simd_index = 0; simd_index < simd_size; ++simd_index) {
+    const index shift = simd_index * width;
+    fub::invoke(std::ref(f), abi, load_or_proxy<Abi>(first, shift),
+                load_or_proxy<Abi>(rows, shift)...);
+  }
+  const index rest = size % width;
+  return for_each_simd_impl(index_c<dyn>, rest, std::move(f), first, rows...);
+}
+
+template <typename Abi, typename F, typename FirstRow, typename... Rows>
+std::enable_if_t<is_simd_abi_v<Abi>, F>
+for_each_simd_impl(std::true_type, const Abi& abi, F f, const FirstRow& first,
+                   const Rows&... rows) {
+  using Extents = view_extents_t<FirstRow>;
+  static constexpr index width = simd<double, Abi>::size();
   static constexpr index size = Extents().size();
-  return for_each_simd_impl(simd_abi::scalar(), std::move(f),
-                            drop<size - Size>(row), drop<size - Size>(rows)...);
+  static constexpr index simd_size = size / width;
+  for (int simd_index = 0; simd_index < simd_size; ++simd_index) {
+    std::ptrdiff_t shift = simd_index * width;
+    fub::invoke(std::ref(f), abi, load_or_proxy<Abi>(first, shift),
+                load_or_proxy<Abi>(rows, shift)...);
+  }
+  static constexpr index rest = size % width;
+  return for_each_simd_impl(index_c<rest>, std::move(f), first, rows...);
 }
 
 template <typename Abi, typename F, typename FirstRow, typename... Rows>
@@ -661,20 +790,10 @@ for_each_simd_impl(const Abi& abi, F f, const FirstRow& first,
                                          view_extents_t<Rows>>...>::value,
                 "All parameters need to have the same size.");
   using Extents = view_extents_t<FirstRow>;
-  static_assert(Extents::rank_dynamic == 0,
-                "patch_view size needs to be a compile-time known.");
   static_assert(Extents::rank == 1,
                 "Only one-dimensional views are supported.");
-  static constexpr index width = simd<double, Abi>::size();
-  static constexpr index size = Extents().size();
-  static constexpr index simd_size = size / width;
-  for (int simd_index = 0; simd_index < simd_size; ++simd_index) {
-    std::ptrdiff_t shift = simd_index * width;
-    fub::invoke(std::ref(f), abi, load_or_proxy<Abi>(first, shift),
-                load_or_proxy<Abi>(rows, shift)...);
-  }
-  static constexpr index rest = size % width;
-  return for_each_simd_impl(index_c<rest>, std::move(f), first, rows...);
+  return for_each_simd_impl(bool_c<Extents::rank_dynamic == 0>, abi,
+                            std::move(f), first, rows...);
 }
 
 } // namespace detail
@@ -691,7 +810,8 @@ for_each_simd(F f, const Rows&... rows) {
   return for_each_simd(simd_abi::native<double>(), std::move(f), rows...);
 }
 
-//                                                     [function.permutate]
+////////////////////////////////////////////////////////////////////////////////
+//                                                          [function.permutate]
 
 template <int A, int B, index... Es>
 constexpr array<index, sizeof...(Es)>

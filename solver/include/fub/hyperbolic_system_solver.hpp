@@ -104,7 +104,7 @@ struct hyperbolic_system_solver {
             auto integrate_partition = [=, solver = *this](const auto &left,
                                                            const auto &middle,
                                                            const auto &right) {
-              typename grid_traits<Grid>::patch_type dest{};
+              typename grid_traits<Grid>::patch_type dest(middle.extents());
               solver.integrator.template integrate<Axis>(
                   make_view(dest), make_view(left), make_view(middle),
                   make_view(right), dt, coords, solver.flux_method,

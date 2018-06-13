@@ -168,8 +168,9 @@ void flow_solution_write(const zone_context& zone, const View& patch,
         span<double> out{buffer.data(), static_cast<index>(buffer.size())};
         for_each_row(
             [&](auto row) {
-              std::transform(row.begin(), row.end(), out.begin(),
-                             [&](auto q) { return equation.get(var, q); });
+              std::transform(
+                  row.begin(), row.end(), out.begin(),
+                  [&](const auto& q) { return equation.get(var, q); });
               out = span<double>{out.data() + row.size(),
                                  out.size() - row.size()};
             },

@@ -76,10 +76,12 @@ int main(int argc, char** argv) {
   po::options_description desc("Allowed Options");
   desc.add_options()("depth", po::value<int>()->default_value(0),
                      "Depth of tree.");
+  desc.add_options()("extents", po::value<fub::index>()->default_value(64),
+                     "Amount of cells per patch.");
   desc.add_options()("time", po::value<double>()->default_value(1e-4),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(1e-6),
+                     po::value<double>()->default_value(0.5),
                      "The time interval in which we write output files.");
 
   po::variables_map vm;
@@ -87,7 +89,7 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
+  const fub::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
 
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 

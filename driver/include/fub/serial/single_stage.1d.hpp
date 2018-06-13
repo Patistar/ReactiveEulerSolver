@@ -38,7 +38,7 @@ struct single_stage_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
-  using patch_extents_type = extents<64>;
+  using patch_extents_type = extents<dyn>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::single_stage::single_stage, rank>;
   using grid_type = standard_grid<equation_type, patch_extents_type>;

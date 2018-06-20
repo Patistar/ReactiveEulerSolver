@@ -238,12 +238,6 @@ struct kinetic_source_term {
   OdeSolver m_ode_solver{};
 };
 
-template <typename Mechanism, typename OdeSolver = ode_solver::Radau>
-constexpr auto make_kinetic_source_term(const ideal_gas<Mechanism>& eq,
-                                        OdeSolver solver = OdeSolver()) {
-  return kinetic_source_term<Mechanism, OdeSolver>{eq, std::move(solver)};
-}
-
 } // namespace euler
 } // namespace fub
 

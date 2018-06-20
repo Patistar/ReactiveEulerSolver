@@ -8,11 +8,11 @@ target_link_libraries(serial.kinetic.gri_30.sod ReactiveEulerSolver.driver.seria
 find_package(HPX)
 
 if (HPX_FOUND)
-add_executable(hpx.kinetic.gri_30.sod hpx.kinetic.gri_30.sod.cpp)
-target_link_libraries(hpx.kinetic.gri_30.sod ReactiveEulerSolver.driver.hpx.kinetic.gri_30.1d FortranRadauSolver)
-hpx_setup_target(hpx.kinetic.gri_30.sod)
+add_executable(parallel.kinetic.gri_30.sod parallel.kinetic.gri_30.sod.cpp)
+target_link_libraries(parallel.kinetic.gri_30.sod ReactiveEulerSolver.driver.parallel.kinetic.gri_30.1d FortranRadauSolver)
+hpx_setup_target(parallel.kinetic.gri_30.sod)
 
-add_executable(hpx.kinetic.gri_30.detonation hpx.kinetic.gri_30.detonation.cpp)
-target_link_libraries(hpx.kinetic.gri_30.detonation ReactiveEulerSolver.driver.hpx.kinetic.gri_30.1d FortranRadauSolver)
-hpx_setup_target(hpx.kinetic.gri_30.detonation)
+add_executable(parallel.kinetic.gri_30.detonation parallel.kinetic.gri_30.detonation.cpp)
+target_link_libraries(parallel.kinetic.gri_30.detonation ReactiveEulerSolver.driver.parallel.kinetic.gri_30.1d FortranRadauSolver)
+hpx_setup_target(parallel.kinetic.gri_30.detonation)
 endif()

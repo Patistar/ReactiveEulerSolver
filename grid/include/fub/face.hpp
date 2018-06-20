@@ -29,11 +29,9 @@ enum class direction { left = -1, right = +1 };
 
 enum class axis { x, y, z };
 
-template <axis A>
-using axis_constant = std::integral_constant<axis, A>;
+template <axis A> using axis_constant = std::integral_constant<axis, A>;
 
-template <axis A>
-static constexpr axis_constant<A> axis_c{};
+template <axis A> static constexpr axis_constant<A> axis_c{};
 
 struct face {
   axis dimension;
@@ -42,6 +40,24 @@ struct face {
 
 constexpr int as_int(axis dim) noexcept { return static_cast<int>(dim); }
 constexpr int sign(direction side) noexcept { return static_cast<int>(side); }
+
+template <typename Archive>
+void save(Archive& archive, const face& face, unsigned /* version */) {
+  int dim = static_cast<int>(face.dimension);
+  int side = static_cast<int>(face.side);
+  archive << dim;
+  archive << side;
+}
+
+template <typename Archive>
+void load(Archive& archive, face& face, unsigned /* version */) {
+  int dim;
+  int side;
+  archive << dim;
+  archive << side;
+  face.dimension = static_cast<axis>(dim);
+  face.side = static_cast<direction>(side);
+}
 
 } // namespace fub
 

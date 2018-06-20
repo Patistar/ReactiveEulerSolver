@@ -126,6 +126,11 @@ struct hllem_riemann_solver {
                              const Equation& equation) const noexcept {
     return invoke(m_signals, abi, left, right, equation);
   }
+
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned) {
+      ar & m_signals;
+  }
 };
 } // namespace euler
 } // namespace fub

@@ -1,26 +1,82 @@
-#include "hpx/hpx.hpp"
+// Copyright (c) 2018 Maikel Nadolski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
-class partition_data {
-public:
-  explicit partition_data(std::size_t size);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#endif
+#include <parallel/hpx.hpp>
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
-private:
-  std::vector<double> m_data;
+#include "fub/distributed/grid.hpp"
 
-  // Serialization support: even if all of the code below runs on one
-  // locality only, we need to provide an (empty) implementation for the
-  // serialization as all arguments passed to actions have to support this.
-  friend class hpx::serialization::access;
+#include "fub/extents.hpp"
+#include "fub/interval_map.hpp"
+#include "fub/variables.hpp"
 
-  template <typename Archive>
-  void serialize(Archive& ar, const unsigned int version) {
-    (void)(ar & m_data);
-  }
+#include <cassert>
+#include <fmt/format.h>
+
+struct Density {};
+
+struct Equation {
+  using complete_state = std::tuple<Density>;
 };
 
-partition_data::partition_data(std::size_t size)
-    : m_data(std::vector<double>(size, 0.0)) {}
+using Extents = ::fub::extents<fub::dyn>;
 
-int hpx_main() { return hpx::finalize(); }
+FUB_REGISTER_GRID_NODE_COMPONENT(Equation, Extents);
 
-int main(int argc, char** argv) { return hpx::init(argc, argv); }
+void print_distribution(
+    const fub::interval_map<fub::octant<Extents::rank>, hpx::id_type>& dist) {
+  const int depth = 3;
+  fub::octant<Extents::rank> o{depth, {0}};
+  const fub::octant<Extents::rank> last =
+      fub::octant<Extents::rank>().upper_descendant(depth);
+  while (o != last) {
+    std::bitset<64> morton(o.morton_index());
+    fmt::print("Ocant: {} -> hpx::id_type: {}\n", morton, dist[o]);
+    o = o.next();
+  }
+  std::bitset<64> morton(o.morton_index());
+  fmt::print("Ocant: {} -> hpx::id_type: {}\n", morton, dist[o]);
+}
+
+int hpx_main() {
+  // Make a distribution
+  static constexpr int rank = Extents::rank;
+  const int depth = 3;
+  const auto localities = hpx::find_all_localities();
+  const auto distribution = fub::distributed::make_uniform_distribution(
+      fub::int_c<rank>, depth, localities);
+
+  print_distribution(distribution);
+
+  // Make a grid
+  Extents extents{32};
+  Equation equation{};
+  const auto grid =
+      fub::distributed::make_grid(distribution, depth, extents, equation);
+  return hpx::finalize();
+}
+
+int main(int argc, char** argv) { hpx::init(argc, argv); }

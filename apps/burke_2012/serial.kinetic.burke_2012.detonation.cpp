@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 #include "fub/euler/boundary_condition/reflective.hpp"
-#include "fub/grid.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/run_simulation.hpp"
@@ -57,21 +56,17 @@ initial_value_function(const std::array<double, 1>& xs) {
 using state_type = fub::serial::kinetic::burke_2012_1d::state_type;
 
 struct write_cgns_file {
-  fub::print_cycle_timings print_cycle;
-
-  bool operator()(const state_type& state) {
-    bool ret = print_cycle(state);
+  void operator()(state_type state) const {
     fmt::print("[CGNS] Write output file...\n", state.cycle);
     std::string file_name = fmt::format("out_{}.cgns", state.cycle);
     auto file = fub::output::cgns::open(file_name.c_str(), 2);
     fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
     for (const Partition& partition : state.grid) {
       const auto& octant = fub::grid_traits<Grid>::octant(partition);
-      auto node = partition.second.get();
-      fub::output::cgns::write(file, octant, fub::make_view(node->patch),
-                               state.coordinates, Equation());
+      auto data = partition.second.get_patch_view().get();
+      fub::output::cgns::write(file, octant, data, state.coordinates,
+                               Equation());
     }
-    return ret;
   }
 };
 
@@ -85,14 +80,16 @@ int main(int argc, char** argv) {
   desc.add_options()("feedback_interval",
                      po::value<double>()->default_value(1e-6),
                      "The time interval in which we write output files.");
+  desc.add_options()("extents", po::value<fub::index>()->default_value(64),
+                     "Amount of cells per patch.");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
 
+  const fub::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 
   auto state = fub::serial::kinetic::burke_2012_1d::initialise(
@@ -100,11 +97,11 @@ int main(int argc, char** argv) {
   fub::euler::boundary_condition::reflective boundary_condition{};
   fub::simulation_options options{};
   options.feedback_interval =
-      std::chrono::duration<double>(std::numeric_limits<double>::infinity());
+      std::chrono::duration<double>(vm["feedback_interval"].as<double>());
   options.final_time = std::chrono::duration<double>(vm["time"].as<double>());
-  write_cgns_file write_cgns{fub::print_cycle_timings{options.final_time}};
+  write_cgns_file write_cgns;
   write_cgns(state);
   fub::run_simulation(fub::serial::kinetic::burke_2012_1d(), state,
                       boundary_condition, options, std::ref(write_cgns),
-                      std::ref(write_cgns));
+                      fub::print_cycle_timings{options.final_time});
 }

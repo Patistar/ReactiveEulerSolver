@@ -38,6 +38,8 @@ template <int Rank> class uniform_cartesian_coordinates {
   array<double, Rank> m_dx;
 
 public:
+  uniform_cartesian_coordinates() = default;
+
   constexpr uniform_cartesian_coordinates(const array<double, Rank>& lower,
                                           const array<double, Rank>& upper,
                                           const array<index, Rank>& extents)
@@ -91,6 +93,15 @@ private:
     std::transform(dx.begin(), dx.end(), extents.begin(), dx.begin(),
                    [](double dx, index e) { return dx / e; });
     return dx;
+  }
+
+  template <typename Archive>
+  friend void serialize(Archive& archive, uniform_cartesian_coordinates& coords,
+                        unsigned) {
+    archive & coords.m_extents;
+    archive & coords.m_lower;
+    archive & coords.m_upper;
+    archive & coords.m_dx;
   }
 };
 

@@ -190,6 +190,9 @@ struct Radau {
                              std::to_string(idid) + ")."};
     }
   }
+
+  template <typename Archive>
+  void serialize(Archive&, unsigned) {}
 };
 
 } // namespace ode_solver

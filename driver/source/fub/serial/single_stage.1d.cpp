@@ -30,15 +30,16 @@
 
 namespace fub {
 namespace {
-const serial::single_stage_1d::equation_type equation{};
-
 const godunov_method<fub::euler::hlle_riemann_solver> flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;
 
-const fub::hyperbolic_system_solver<decltype(equation), decltype(flux_method),
+const fub::hyperbolic_system_solver<serial::single_stage_1d::grid_type,
+                                    serial::single_stage_1d::boundary_condition,
+                                    uniform_cartesian_coordinates<1>,
+                                    decltype(flux_method),
                                     decltype(time_integrator)>
-    advective_solver{equation, flux_method, time_integrator};
+    advective_solver{flux_method, time_integrator};
 } // namespace
 
 serial::single_stage_1d::state_type serial::single_stage_1d::initialise(

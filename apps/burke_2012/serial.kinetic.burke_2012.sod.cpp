@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid.hpp"
+#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/run_simulation.hpp"
 #include "fub/serial/kinetic.burke_2012.1d.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
@@ -45,7 +44,7 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
 }
 
 Equation::complete_state
-initial_value_function(const std::array<double, 1> &xs) {
+initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
   if (xs[0] < 0.1) {
     return states[0];
@@ -64,9 +63,9 @@ struct write_cgns_file {
     fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
     for (const Partition& partition : state.grid) {
       const auto& octant = fub::grid_traits<Grid>::octant(partition);
-      auto node = partition.second.get();
-      fub::output::cgns::write(file, octant, fub::make_view(node->patch),
-                               state.coordinates, Equation());
+      auto data = partition.second.get_patch_view().get();
+      fub::output::cgns::write(file, octant, data, state.coordinates,
+                               Equation());
     }
   }
 };

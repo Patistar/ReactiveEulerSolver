@@ -22,9 +22,9 @@
 #define FUB_EULER_KINETICSOURCETERM_HPP
 
 #include "fub/euler/ideal_gas.hpp"
-#include "fub/grid.hpp"
 #include "fub/ode_solver/radau.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/serial/grid.hpp"
 #include "fub/variables.hpp"
 
 #include <array>
@@ -34,16 +34,27 @@
 namespace fub {
 namespace euler {
 
-template <typename Mechanism, typename OdeSolver = ode_solver::Radau>
+template <typename Grid, typename OdeSolver = ode_solver::Radau>
 struct kinetic_source_term {
-  ideal_gas<Mechanism> equation{};
-  OdeSolver m_ode_solver{};
+  using traits = grid_traits<Grid>;
+  using equation_type = typename traits::equation_type;
+  using partition_type = typename traits::partition_type;
+  using const_patch_view = typename traits::const_patch_view_type;
+  using patch_type = typename traits::patch_type;
+  using node_type = typename traits::node_type;
+
+  template <typename T> using future = typename traits::template future<T>;
+  using location_type = typename traits::location_type;
+
+  using complete_state = typename equation_type::complete_state;
+
+  using duration = std::chrono::duration<double>;
 
   static constexpr int Size =
-      std::tuple_size<typename ideal_gas<Mechanism>::species_tuple>::value;
+      std::tuple_size<typename equation_type::species_tuple>::value;
 
   struct ode_system {
-    ideal_gas<Mechanism> equation{};
+    equation_type equation{};
 
     void operator()(span<double, Size + 1> dTdt_and_dcdt,
                     span<const double, Size + 1> T_and_c, double /* t */) const
@@ -85,7 +96,8 @@ struct kinetic_source_term {
   };
 
   template <typename State>
-  auto retrieve_T_and_c(const State& state) const noexcept {
+  auto retrieve_T_and_c(const equation_type& equation, const State& state) const
+      noexcept {
     using namespace variables;
     std::array<double, Size + 1> T_and_c;
     T_and_c[0] = equation.get(temperature, state);
@@ -98,14 +110,13 @@ struct kinetic_source_term {
     return T_and_c;
   }
 
-  typename ideal_gas<Mechanism>::complete_state
-  advance_state(const typename ideal_gas<Mechanism>::complete_state& state,
-                std::chrono::duration<double> dt) const {
+  complete_state advance_state(const equation_type& equation,
+                               const complete_state& state, duration dt) const {
     using namespace variables;
 
     // Solve the above ODE here by calling an ode solver.
     ode_system system{equation};
-    std::array<double, Size + 1> T_and_c = retrieve_T_and_c(state);
+    std::array<double, Size + 1> T_and_c = retrieve_T_and_c(equation, state);
     m_ode_solver.integrate(system, make_span(T_and_c), dt);
 
     /// Make a new state from the T and Y values.
@@ -125,45 +136,62 @@ struct kinetic_source_term {
                                  equation.get_momentum(state));
   }
 
-  template <typename Grid>
-  Grid step(const Grid& grid, std::chrono::duration<double> dt) const {
-    using Patch = typename grid_traits<Grid>::patch_type;
-    Grid next{};
-    auto advance_data = [=, solver = *this](Patch data) {
-      auto view = make_view(data);
-      std::transform(
-          view.begin(), view.end(), view.begin(),
-          [=](const auto& state) { return solver.advance_state(state, dt); });
-      return data;
+  Grid step(const Grid& grid, duration dt) const {
+    using node_type = typename traits::node_type;
+    Grid next{grid.equation(), grid.patch_extents()};
+    auto advance_data = [](node_type node, kinetic_source_term solver,
+                           equation_type equation, duration dt) {
+      future<const_patch_view> view = node.get_patch_view();
+      future<location_type> where = node.get_locality();
+      node_type result = traits::dataflow(
+          [node, solver, equation, dt](future<const_patch_view> future_view,
+                                       future<location_type> future_where) {
+            location_type where = future_where.get();
+            const_patch_view view = future_view.get();
+            patch_type result(view.extents());
+            patch_view dest = make_view(result);
+            std::transform(view.begin(), view.end(), dest.begin(),
+                           [&](const auto& state) {
+                             return solver.advance_state(equation, state, dt);
+                           });
+            return node_type(where, std::move(result));
+          },
+          std::move(view), std::move(where));
+      return result;
     };
-    for (const typename grid_traits<Grid>::partition_type& partition : grid) {
-      const auto& octant = grid_traits<Grid>::octant(partition);
-      next.insert(octant, grid_traits<Grid>::dataflow(advance_data, partition));
+    for (const partition_type& partition : grid) {
+      const auto& octant = traits::octant(partition);
+      auto where = traits::locality(partition);
+      node_type node = traits::node(partition);
+      equation_type equation = grid.equation();
+      next.insert(next.end(), octant,
+                  traits::dataflow_action(advance_data, std::move(where),
+                                          std::move(node), *this, equation,
+                                          dt));
     }
     return next;
   }
 
-  template <typename Grid, typename Coordinates, typename BoundaryCondition>
-  Grid step(const Grid& grid, std::chrono::duration<double> dt,
-            const Coordinates&, const BoundaryCondition&) const {
+  template <typename Coordinates, typename BoundaryCondition>
+  Grid step(const Grid& grid, duration dt, const Coordinates&,
+            const BoundaryCondition&) const {
     return step(grid, dt);
   }
 
-  template <typename Grid, typename Coordinates, typename BoundaryCondition>
+  template <typename Coordinates, typename BoundaryCondition>
   auto get_time_step_size(const Grid& grid, const Coordinates&,
                           const BoundaryCondition&) const {
-    std::chrono::duration<double> initial{
+    const std::chrono::duration<double> initial{
         std::numeric_limits<double>::infinity()};
-    return grid_traits<Grid>::reduce(
-        grid, initial, [](auto x, auto y) { return std::min(x, y); },
-        [&](const typename grid_traits<Grid>::partition_type& partition) {
-          auto get_dt =
-              [=, solver = *this](
-                  const auto& patch) -> std::chrono::duration<double> {
-            const auto view = make_view(patch);
+    return traits::reduce(
+        grid, initial, [](duration x, auto&& y) { return std::min(x, y.get()); },
+        [&](const partition_type& partition) {
+          auto get_dt = [](node_type, future<const_patch_view> data,
+                           kinetic_source_term solver, equation_type equation) {
+            const_patch_view view = data.get();
             auto get_max_dt = [=](auto& state) {
-              ode_system system{solver.equation};
-              auto T_and_c = retrieve_T_and_c(state);
+              ode_system system{equation};
+              auto T_and_c = solver.retrieve_T_and_c(equation, state);
               decltype(T_and_c) dTdt_and_dcdt;
               /// Compute derivatives and retrieve them
               system(dTdt_and_dcdt, T_and_c, 0);
@@ -190,14 +218,24 @@ struct kinetic_source_term {
                                 [=](double dt, const auto& state) {
                                   return std::min(dt, get_max_dt(state));
                                 });
-            max_dt = std::max(max_dt, 1e-7);
+            max_dt = std::max(max_dt, 1e-3);
             assert(max_dt > 0);
             return std::chrono::duration<double>(max_dt);
           };
-          return grid_traits<Grid>::dataflow(std::move(get_dt),
-                                             std::move(partition));
+          node_type node = traits::node(partition);
+          auto view = node.get_patch_view();
+          auto where = traits::locality(partition);
+          return traits::dataflow_action(get_dt, std::move(where),
+                                         std::move(node), std::move(view),
+                                         *this, grid.equation());
         });
   }
+
+  template <typename Archive> void serialize(Archive& archive, unsigned) {
+    archive& m_ode_solver;
+  }
+
+  OdeSolver m_ode_solver{};
 };
 
 template <typename Mechanism, typename OdeSolver = ode_solver::Radau>

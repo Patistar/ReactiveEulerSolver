@@ -26,8 +26,8 @@
 #include "fub/equation.hpp"
 #include "fub/euler/variables.hpp"
 #include "fub/face.hpp"
-#include "fub/grid.hpp"
 #include "fub/patch_view.hpp"
+#include "fub/serial/grid.hpp"
 
 #include <cassert>
 
@@ -85,16 +85,36 @@ public:
   static auto
   get_face_neighbor(const typename grid_traits<Grid>::partition_type& partition,
                     const Grid& grid, const Coordinates& /* coordinates */) {
-    using B = typename grid_traits<Grid>::patch_type;
-    using Variables = typename B::variables_tuple;
-    auto reflect_data = [equation = grid.equation()](const B& left) {
-      auto reduced_extents =
-          replace_extent(left.extents(), int_c<as_int(Axis)>, int_c<Width>);
-      auto right = make_patch(Variables(), reduced_extents, left.descriptor());
-      apply<Axis, Dir>(make_view(left), make_view(right), equation);
-      return right;
+    using traits = grid_traits<Grid>;
+    using node_type = typename traits::node_type;
+    using patch_type = typename traits::patch_type;
+    using variables_tuple = typename patch_type::variables_tuple;
+    using equation_type = typename traits::equation_type;
+    using extents_type = typename traits::extents_type;
+    using result_extents_type =
+        replace_extent_t<extents_type, as_int(Axis), int_c<Width>>;
+    using result_node_type =
+        typename traits::template bind_node<equation_type, result_extents_type>;
+    auto where = traits::locality(partition);
+    node_type node = traits::node(partition);
+    auto reflect_data = [](const node_type& left,
+                           const equation_type& equation) {
+      result_node_type result = grid_traits<Grid>::dataflow(
+          [](auto view, auto where, const equation_type& equation) {
+            auto left = view.get();
+            result_extents_type reduced_extents = replace_extent(
+                left.extents(), int_c<as_int(Axis)>, int_c<Width>);
+            auto right = make_patch(variables_tuple(), reduced_extents);
+            apply<Axis, Dir>(left, make_view(right), equation);
+            return result_node_type(where.get(), std::move(right));
+          },
+          left.get_patch_view(), left.get_locality(),
+          equation);
+      return result;
     };
-    return grid_traits<Grid>::dataflow(reflect_data, partition);
+    result_node_type result = grid_traits<Grid>::dataflow_action(
+        reflect_data, std::move(where), node, grid.equation());
+    return result;
   }
 };
 

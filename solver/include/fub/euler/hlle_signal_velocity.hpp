@@ -69,6 +69,11 @@ public:
                   const ideal_gas<M, Rank>&) const noexcept {
     return do_simd_computation(abi, left, right);
   }
+
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned) {
+    ar & m_beta;
+  }
 };
 
 } // namespace euler

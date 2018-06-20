@@ -103,6 +103,8 @@ public:
     constexpr array<index, rank> es{{Es...}};
     return es[dim];
   }
+
+  template <typename Archive> void serialize(Archive&, unsigned) {}
 };
 
 /// @brief Extents implementation if all extents are runtime known.
@@ -135,6 +137,10 @@ public:
   }
 
   constexpr index get(int dim) const noexcept { return m_extents[dim]; }
+
+  template <typename Archive> void serialize(Archive& ar, unsigned) {
+    ar& m_extents;
+  }
 };
 
 /// @brief Extents implementation for the case where we have mixed
@@ -202,6 +208,10 @@ public:
     auto es = static_cast<array<index, rank>>(*this);
     return fub::accumulate(es, index(1), std::multiplies<>());
   }
+
+  template <typename Archive> void serialize(Archive& ar, unsigned) {
+    ar& m_dynamic_extents;
+  }
 };
 
 } // namespace detail
@@ -216,6 +226,7 @@ public:
 
   using base::base;
   using base::get;
+  using base::serialize;
   using base::size;
 
   using base::operator array<index, rank>;
@@ -318,6 +329,10 @@ constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
   return detail::replace_extent(e, dim, value,
                                 std::make_index_sequence<sizeof...(Es)>());
 }
+
+template <typename E, int Dim, int V>
+using replace_extent_t =
+    decltype(replace_extent(std::declval<E>(), int_c<Dim>, int_c<V>));
 // }}}
 
 } // namespace fub

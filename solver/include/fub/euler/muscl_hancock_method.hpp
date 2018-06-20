@@ -363,6 +363,11 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return m_godunov_method.get_stable_time_step(equation, left, middle, right,
                                                  coordinates);
   }
+
+  template <typename Archive>
+  void serialize(Archive& ar, unsigned) {
+      ar & m_godunov_method;
+  }
 };
 
 } // namespace euler

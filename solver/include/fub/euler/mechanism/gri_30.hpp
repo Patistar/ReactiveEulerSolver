@@ -337,6 +337,8 @@ static constexpr int Index_v =
 
 template <typename T> constexpr int as_index(T) noexcept { return Index_v<T>; }
 
+template <typename Archive> void serialize(Archive&, gri_30&, unsigned) {}
+
 } // namespace gri_30
 } // namespace mechanism
 } // namespace euler

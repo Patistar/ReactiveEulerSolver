@@ -96,11 +96,11 @@ using pmr_storage_descriptor =
 //                                                                 [class.patch]
 // {{{
 template <typename Variables, typename Extents,
-#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
-          typename Descriptor = pmr_storage_descriptor>
-#else
+          // #ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
+          //           typename Descriptor = pmr_storage_descriptor>
+          // #else
           typename Descriptor = storage_descriptor<>>
-#endif
+// #endif
 class patch {
 public:
   using extents_type = Extents;
@@ -199,6 +199,14 @@ public:
     std::swap(b1.m_extents, b2.m_extents);
     std::swap(b1.m_descriptor, b2.m_descriptor);
     std::swap(b1.m_storage, b2.m_storage);
+  }
+
+private:
+  template <typename Archive>
+  friend void serialize(Archive& archive, patch& p, unsigned) {
+    archive& p.m_extents;
+    for_each_tuple_element([&](auto& storage) { archive& storage; },
+                           p.m_storage);
   }
 };
 

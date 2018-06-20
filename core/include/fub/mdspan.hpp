@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Maikel Nadolski
+// Copyright (c) 2018 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -90,7 +90,7 @@ public:
   using layout_mapping = typename layout::template mapping<extents_type>;
 
 private:
-  detail::mdspan_storage<element_type, layout_mapping> m_storage;
+  detail::mdspan_storage<element_type, layout_mapping> m_storage{};
 
 public:
   static constexpr index rank = extents_type::rank;

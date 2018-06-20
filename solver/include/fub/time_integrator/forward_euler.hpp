@@ -142,6 +142,9 @@ public:
     auto grown = grow(extents, int_c<Dim>);
     return make_patch(as_tuple_t<flux_type_t<Equation>>(), grown);
   }
+
+  template <typename Archive>
+  void serialize(Archive&, unsigned) {}
 };
 
 } // namespace time_integrator

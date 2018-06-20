@@ -80,6 +80,14 @@ public:
     return std::prev(m_map.end())->second;
   }
 
+  void set_default_value(const T& value) {
+    std::prev(m_map.end())->second = value;
+  }
+
+  void set_default_value(T&& value) {
+    std::prev(m_map.end())->second = std::move(value);
+  }
+
   // ACCESSORS
 
   const T& operator[](const Key& key) const noexcept {

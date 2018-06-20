@@ -650,6 +650,8 @@ public:
     return fub::max(simd<double, Abi>(0), implicit_fraction);
   }
   // }}}
+
+  template <typename Archive> void serialize(Archive&, unsigned) {}
 };
 
 /// @brief We assume a constant heat capacity ratio of 1.28

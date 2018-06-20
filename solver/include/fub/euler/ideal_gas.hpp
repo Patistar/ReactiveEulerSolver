@@ -726,9 +726,10 @@ public:
           mass_fractions[as_index(species)] = q[species] / q[density];
         },
         tail_t<species_tuple>());
-    mass_fractions[as_index(head_t<species_tuple>())] = fub::max(
-        A(0), 1 - std::accumulate(mass_fractions.begin() + 1,
-                                  mass_fractions.end(), simd<A, Abi>(0)));
+    mass_fractions[as_index(head_t<species_tuple>())] =
+        fub::max(simd<A, Abi>(A(0)),
+                 1 - std::accumulate(mass_fractions.begin() + 1,
+                                     mass_fractions.end(), simd<A, Abi>(0)));
     return mass_fractions;
   }
   // }}}
@@ -852,6 +853,10 @@ public:
     return fub::max(simd<A, Abi>(0), implicit_fraction);
   }
   // }}}
+
+  template <typename Archive> void serialize(Archive& archive, unsigned) {
+    archive& m_mechanism;
+  }
 };
 
 } // namespace euler

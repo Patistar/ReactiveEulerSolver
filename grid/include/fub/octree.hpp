@@ -65,7 +65,7 @@ public:
 
   /// @brief Constructs a morton index pointing to the octact with specified
   /// depth and coordinates.
-  constexpr basic_octant(int depth, const array<Integral, Rank> &coordinates);
+  constexpr basic_octant(int depth, const array<Integral, Rank>& coordinates);
 
   // Accessors
 
@@ -100,6 +100,13 @@ public:
   constexpr basic_octant next() const;
 
   static constexpr basic_octant root() noexcept { return {}; }
+
+private:
+  template <typename Archive>
+  friend void serialize(Archive& archive, basic_octant& o, unsigned) {
+    archive & o.m_depth;
+    archive & o.m_morton_index;
+  }
 };
 
 template <int Rank> using octant = basic_octant<std::uint64_t, Rank>;
@@ -107,8 +114,8 @@ template <int Rank> using octant = basic_octant<std::uint64_t, Rank>;
 #define FUB_DEFINE_OCTANT_OPERATOR(op)                                         \
   template <typename Integral, int Rank>                                       \
   constexpr bool operator op(                                                  \
-      const basic_octant<Integral, Rank> &o1,                                  \
-      const basic_octant<Integral, Rank> &o2) noexcept {                       \
+      const basic_octant<Integral, Rank>& o1,                                  \
+      const basic_octant<Integral, Rank>& o2) noexcept {                       \
     return o1.morton_index() op o2.morton_index();                             \
   }
 
@@ -120,15 +127,26 @@ FUB_DEFINE_OCTANT_OPERATOR(>=);
 #undef FUB_DEFINE_OCTANT_OPERATOR
 
 template <typename Integral, int Rank>
-constexpr bool operator==(const basic_octant<Integral, Rank> &o1,
-                          const basic_octant<Integral, Rank> &o2) noexcept {
+constexpr bool operator==(const basic_octant<Integral, Rank>& o1,
+                          const basic_octant<Integral, Rank>& o2) noexcept {
   return o1.depth() == o2.depth() && o1.morton_index() == o2.morton_index();
 }
 
 template <typename Integral, int Rank>
-constexpr bool operator!=(const basic_octant<Integral, Rank> &o1,
-                          const basic_octant<Integral, Rank> &o2) noexcept {
+constexpr bool operator!=(const basic_octant<Integral, Rank>& o1,
+                          const basic_octant<Integral, Rank>& o2) noexcept {
   return !(o1 == o2);
+}
+
+template <typename Integral, int Rank>
+constexpr basic_octant<Integral, Rank>
+advance(const basic_octant<Integral, Rank>& o, std::ptrdiff_t n) {
+  basic_octant<Integral, Rank> advanced_octant = o;
+  while (n > 0) {
+    advanced_octant = advanced_octant.next();
+    --n;
+  }
+  return advanced_octant;
 }
 
 // }}}
@@ -150,7 +168,7 @@ struct level_mask
 
 template <typename Integral, std::size_t Rank>
 Integral interleave_bits(int depth, Integral bit_position,
-                         const array<Integral, Rank> &xs) noexcept {
+                         const array<Integral, Rank>& xs) noexcept {
   constexpr int max_depth = basic_octant<Integral, Rank>::max_depth;
   Integral interleaved{};
   for (std::size_t i = 0; i < Rank; ++i) {
@@ -166,7 +184,7 @@ Integral interleave_bits(int depth, Integral bit_position,
 // Constrcutor {{{
 template <typename Integral, int Rank>
 constexpr basic_octant<Integral, Rank>::basic_octant(
-    int depth, const array<Integral, Rank> &coords)
+    int depth, const array<Integral, Rank>& coords)
     : m_depth{depth}, m_morton_index{} {
   // Check for valid input
   if (depth < 0 || max_depth < depth) {
@@ -203,7 +221,7 @@ constexpr Integral basic_octant<Integral, Rank>::morton_index() const noexcept {
 // Observers {{{
 template <int Dim, typename Integral, int Rank>
 constexpr std::enable_if_t<(Dim < Rank), Integral>
-coordinate(const basic_octant<Integral, Rank> &o) noexcept {
+coordinate(const basic_octant<Integral, Rank>& o) noexcept {
   if (o.depth() == 0) {
     return 0;
   }
@@ -223,7 +241,7 @@ coordinate(const basic_octant<Integral, Rank> &o) noexcept {
 
 template <typename Integral, int Rank>
 constexpr array<Integral, Rank>
-coordinates(const basic_octant<Integral, Rank> &o) noexcept {
+coordinates(const basic_octant<Integral, Rank>& o) noexcept {
   constexpr int max_depth = basic_octant<Integral, Rank>::max_depth;
   constexpr Integral first = octant_detail::level_mask<Integral, Rank>::value
                              << (Rank * (max_depth - 1));
@@ -343,8 +361,8 @@ basic_octant<Integral, Rank>::next() const {
 
 template <typename Integral, int Rank>
 constexpr optional<basic_octant<Integral, Rank>>
-face_neighbor(const basic_octant<Integral, Rank> &octant,
-              const face &face) noexcept {
+face_neighbor(const basic_octant<Integral, Rank>& octant,
+              const face& face) noexcept {
   array<Integral, Rank> xs = coordinates(octant);
   const int dim = as_int(face.dimension);
   const Integral max = (1 << octant.depth()) - 1;
@@ -425,23 +443,23 @@ public:
 
   // Modifiers
 
-  iterator insert(const_iterator hint, const value_type &value);
-  iterator insert(const_iterator hint, value_type &&value);
-  std::pair<iterator, bool> insert(const value_type &value);
-  std::pair<iterator, bool> insert(value_type &&value);
+  iterator insert(const_iterator hint, const value_type& value);
+  iterator insert(const_iterator hint, value_type&& value);
+  std::pair<iterator, bool> insert(const value_type& value);
+  std::pair<iterator, bool> insert(value_type&& value);
 
   void erase(const_iterator pos);
 
   // Observers
 
-  iterator find(const octant<Rank> &octant) noexcept;
-  const_iterator find(const octant<Rank> &octant) const noexcept;
+  iterator find(const octant<Rank>& octant) noexcept;
+  const_iterator find(const octant<Rank>& octant) const noexcept;
 
-  iterator lower_bound(const octant<Rank> &octant) noexcept;
-  const_iterator lower_bound(const octant<Rank> &octant) const noexcept;
+  iterator lower_bound(const octant<Rank>& octant) noexcept;
+  const_iterator lower_bound(const octant<Rank>& octant) const noexcept;
 
-  iterator upper_bound(const octant<Rank> &octant) noexcept;
-  const_iterator upper_bound(const octant<Rank> &octant) const noexcept;
+  iterator upper_bound(const octant<Rank>& octant) noexcept;
+  const_iterator upper_bound(const octant<Rank>& octant) const noexcept;
 };
 
 // }}}
@@ -514,25 +532,25 @@ octree<T, Rank, Allocator>::cend() const noexcept {
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::iterator
 octree<T, Rank, Allocator>::insert(const_iterator hint,
-                                   const value_type &value) {
+                                   const value_type& value) {
   return m_octants.insert(hint, value);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::iterator
-octree<T, Rank, Allocator>::insert(const_iterator hint, value_type &&value) {
+octree<T, Rank, Allocator>::insert(const_iterator hint, value_type&& value) {
   return m_octants.insert(hint, std::move(value));
 }
 
 template <typename T, int Rank, typename Allocator>
 std::pair<typename octree<T, Rank, Allocator>::iterator, bool>
-octree<T, Rank, Allocator>::insert(const value_type &value) {
+octree<T, Rank, Allocator>::insert(const value_type& value) {
   return m_octants.insert(value);
 }
 
 template <typename T, int Rank, typename Allocator>
 std::pair<typename octree<T, Rank, Allocator>::iterator, bool>
-octree<T, Rank, Allocator>::insert(value_type &&value) {
+octree<T, Rank, Allocator>::insert(value_type&& value) {
   return m_octants.insert(std::move(value));
 }
 
@@ -545,38 +563,38 @@ void octree<T, Rank, Allocator>::erase(const_iterator pos) {
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::iterator
-octree<T, Rank, Allocator>::find(const octant<Rank> &octant) noexcept {
+octree<T, Rank, Allocator>::find(const octant<Rank>& octant) noexcept {
   return m_octants.find(octant);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::const_iterator
-octree<T, Rank, Allocator>::find(const octant<Rank> &octant) const noexcept {
+octree<T, Rank, Allocator>::find(const octant<Rank>& octant) const noexcept {
   return m_octants.find(octant);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::iterator
-octree<T, Rank, Allocator>::lower_bound(const octant<Rank> &octant) noexcept {
+octree<T, Rank, Allocator>::lower_bound(const octant<Rank>& octant) noexcept {
   return m_octants.lower_bound(octant);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::const_iterator
-octree<T, Rank, Allocator>::lower_bound(const octant<Rank> &octant) const
+octree<T, Rank, Allocator>::lower_bound(const octant<Rank>& octant) const
     noexcept {
   return m_octants.lower_bound(octant);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::iterator
-octree<T, Rank, Allocator>::upper_bound(const octant<Rank> &octant) noexcept {
+octree<T, Rank, Allocator>::upper_bound(const octant<Rank>& octant) noexcept {
   return m_octants.upper_bound(octant);
 }
 
 template <typename T, int Rank, typename Allocator>
 typename octree<T, Rank, Allocator>::const_iterator
-octree<T, Rank, Allocator>::upper_bound(const octant<Rank> &octant) const
+octree<T, Rank, Allocator>::upper_bound(const octant<Rank>& octant) const
     noexcept {
   return m_octants.upper_bound(octant);
 }

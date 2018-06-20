@@ -119,6 +119,11 @@ template <typename RiemannSolver> struct godunov_method {
     double dx = coordinates.dx()[0];
     return std::chrono::duration<double>(0.5 * dx / max_S);
   }
+
+  template <typename Archive>
+  void serialize(Archive& archive, unsigned) {
+    archive & m_riemann_solver;
+  }
 };
 
 } // namespace fub

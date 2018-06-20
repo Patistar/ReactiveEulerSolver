@@ -24,28 +24,33 @@
 
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
-#include "fub/euler/muscl_hancock_method.hpp"
-// #include "fub/godunov_method.hpp"
+#include "fub/godunov_method.hpp"
+#include "fub/godunov_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/patch_view.hpp"
-#include "fub/strang_splitting.hpp"
-//#include "fub/godunov_splitting.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
 namespace fub {
 namespace serial {
 namespace kinetic {
 namespace {
-const burke_2012_1d::equation_type equation{};
 const godunov_method<euler::hlle_riemann_solver> flux_method;
+
 const time_integrator::forward_euler time_integrator;
-const hyperbolic_system_solver<decltype(equation), decltype(flux_method),
-                               decltype(time_integrator)>
-    advective_solver{equation, flux_method, time_integrator};
-const auto kinetic_source_term = euler::make_kinetic_source_term(equation);
+
+const fub::hyperbolic_system_solver<kinetic::burke_2012_1d::grid_type,
+                                    kinetic::burke_2012_1d::boundary_condition,
+                                    uniform_cartesian_coordinates<1>,
+                                    std::decay_t<decltype(flux_method)>,
+                                    std::decay_t<decltype(time_integrator)>>
+    advective_solver{flux_method, time_integrator};
+
+const fub::euler::kinetic_source_term<kinetic::burke_2012_1d::grid_type>
+    kinetic_source_term{};
+
 const auto solver = make_hyperbolic_system_source_solver(
-    strang_splitting(), advective_solver, kinetic_source_term);
+    godunov_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(

@@ -21,7 +21,7 @@
 #ifndef FUB_SOLVER_SINGLE_STAGE_HPP
 #define FUB_SOLVER_SINGLE_STAGE_HPP
 
-#include "fub/grid.hpp"
+#include "fub/serial/grid.hpp"
 
 #include "fub/euler/mechanism/single_stage.hpp"
 #include "fub/polymorphic_boundary_condition.hpp"
@@ -41,7 +41,7 @@ struct single_stage_1d {
   using patch_extents_type = extents<dyn>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::single_stage::single_stage, rank>;
-  using grid_type = standard_grid<equation_type, patch_extents_type>;
+  using grid_type = serial::grid<equation_type, patch_extents_type>;
   using partition_type = grid_type::partition_type;
   using patch_type = grid_type::patch_type;
   using equation_state_t = complete_state_t<equation_type>;

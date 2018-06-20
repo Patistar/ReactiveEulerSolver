@@ -22,6 +22,7 @@
 #define FUB_HYPERBOLICSYSTEMSOURCESOLVER_HPP
 
 #include <chrono>
+#include <type_traits>
 #include <utility>
 
 namespace fub {
@@ -41,25 +42,25 @@ struct HyperbolicSystemSourceSolver {
         grid, coordinates, boundary_condition);
     auto stable_dt_kin = m_source_solver.get_time_step_size(grid, coordinates,
                                                             boundary_condition);
-    auto advance_grid =
-        [=, solver = *this](std::chrono::duration<double> stable_dt_adv,
-                            std::chrono::duration<double> stable_dt_kin) {
-          std::chrono::duration<double> actual_dt =
-              std::min({limited_dt, cfl * stable_dt_adv, stable_dt_kin});
-          auto next = solver.m_splitting.step(
-              grid, actual_dt, coordinates, boundary_condition,
-              solver.m_source_solver, solver.m_hyperbolic_solver);
-          return std::make_pair(std::move(next), actual_dt);
-        };
+    auto advance_grid = [=, solver = *this](auto stable_dt_adv,
+                                            auto stable_dt_kin) {
+      std::chrono::duration<double> actual_dt = std::min(
+          {limited_dt, cfl * stable_dt_adv.get(), stable_dt_kin.get()});
+      Grid next = solver.m_splitting.step(
+          grid, actual_dt, coordinates, boundary_condition,
+          solver.m_source_solver, solver.m_hyperbolic_solver);
+      return std::make_pair(std::move(next), actual_dt);
+    };
     return grid_traits<Grid>::dataflow(advance_grid, std::move(stable_dt_adv),
                                        std::move(stable_dt_kin));
   }
 };
 
 template <typename Split, typename Adv, typename Source>
-constexpr auto make_hyperbolic_system_source_solver(Split split, Adv adv,
-                                                    Source source) {
-  return HyperbolicSystemSourceSolver<Split, Adv, Source>{
+constexpr auto make_hyperbolic_system_source_solver(Split&& split, Adv&& adv,
+                                                    Source&& source) {
+  return HyperbolicSystemSourceSolver<std::decay_t<Split>, std::decay_t<Adv>,
+                                      std::decay_t<Source>>{
       std::move(split), std::move(adv), std::move(source)};
 }
 

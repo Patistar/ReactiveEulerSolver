@@ -28,27 +28,25 @@
 
 namespace fub {
 namespace detail {
-template <typename Grid, int Width, axis Axis> struct future_result {
-  using partition_type = typename grid_traits<Grid>::partition_type;
-  using patch_type = typename grid_traits<Grid>::patch_type;
-  using descriptor_type = typename patch_type::descriptor_type;
-  using variables_tuple = typename patch_type::variables_tuple;
+
+/// This type trait
+template <typename Grid, int Width, axis Axis>
+struct boundary_condition_result {
+  using equation_type = typename grid_traits<Grid>::equation_type;
   using extents_type = typename grid_traits<Grid>::extents_type;
+  using node_type = typename grid_traits<Grid>::node_type;
   using reduced_extents_type = decltype(
       replace_extent(extents_type(), int_c<as_int(Axis)>, int_c<Width>));
-  using result_type = decltype(
-      make_patch(variables_tuple(), reduced_extents_type(), descriptor_type()));
+  using result_type =
+      typename grid_traits<Grid>::template bind_node<equation_type,
+                                                     reduced_extents_type>;
 
-  struct impl {
-    result_type operator()(const patch_type&);
-  };
-
-  using type = decltype(
-      grid_traits<Grid>::dataflow(impl{}, std::declval<partition_type&&>()));
+  using type = result_type;
 };
 
 template <typename Grid, int Width, axis Axis>
-using future_result_t = typename future_result<Grid, Width, Axis>::type;
+using boundary_condition_result_t =
+    typename boundary_condition_result<Grid, Width, Axis>::type;
 
 template <typename Grid, int Width, axis...> struct boundary_condition;
 
@@ -56,7 +54,7 @@ template <typename Grid, int Width, axis Axis>
 struct boundary_condition<Grid, Width, Axis> {
   using partition_type = typename grid_traits<Grid>::partition_type;
 
-  virtual future_result_t<Grid, Width, Axis> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, Axis> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<Axis>) const = 0;
@@ -69,12 +67,12 @@ template <typename Grid, int Width>
 struct boundary_condition<Grid, Width, axis::x, axis::y> {
   using partition_type = typename grid_traits<Grid>::partition_type;
 
-  virtual future_result_t<Grid, Width, axis::x> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::x>) const = 0;
 
-  virtual future_result_t<Grid, Width, axis::y> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::y> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::y>) const = 0;
@@ -87,17 +85,17 @@ template <typename Grid, int Width>
 struct boundary_condition<Grid, Width, axis::x, axis::y, axis::z> {
   using partition_type = typename grid_traits<Grid>::partition_type;
 
-  virtual future_result_t<Grid, Width, axis::x> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::x>) const = 0;
 
-  virtual future_result_t<Grid, Width, axis::y> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::y> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::y>) const = 0;
 
-  virtual future_result_t<Grid, Width, axis::z> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::z> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::z>) const = 0;
@@ -119,7 +117,7 @@ struct boundary_condition_facade<BC, Grid, Width, Axis>
   boundary_condition_facade(const BC& bc) : m_boundary_condition{bc} {}
   boundary_condition_facade(BC&& bc) : m_boundary_condition{std::move(bc)} {}
 
-  virtual future_result_t<Grid, Width, Axis> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, Axis> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<Axis>) const override {
@@ -158,7 +156,7 @@ struct boundary_condition_facade<BC, Grid, Width, axis::x, axis::y>
   boundary_condition_facade(const BC& bc) : m_boundary_condition{bc} {}
   boundary_condition_facade(BC&& bc) : m_boundary_condition{std::move(bc)} {}
 
-  virtual future_result_t<Grid, Width, axis::x> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::x>) const override {
@@ -173,7 +171,7 @@ struct boundary_condition_facade<BC, Grid, Width, axis::x, axis::y>
     }
   }
 
-  virtual future_result_t<Grid, Width, axis::y> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::y> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::y>) const override {
@@ -213,7 +211,7 @@ struct boundary_condition_facade<BC, Grid, Width, axis::x, axis::y, axis::z>
   boundary_condition_facade(const BC& bc) : m_boundary_condition{bc} {}
   boundary_condition_facade(BC&& bc) : m_boundary_condition{std::move(bc)} {}
 
-  virtual future_result_t<Grid, Width, axis::x> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::x>) const override {
@@ -228,7 +226,7 @@ struct boundary_condition_facade<BC, Grid, Width, axis::x, axis::y, axis::z>
     }
   }
 
-  virtual future_result_t<Grid, Width, axis::y> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::y> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::y>) const override {
@@ -243,7 +241,7 @@ struct boundary_condition_facade<BC, Grid, Width, axis::x, axis::y, axis::z>
     }
   }
 
-  virtual future_result_t<Grid, Width, axis::z> get_face_neighbor(
+  virtual boundary_condition_result_t<Grid, Width, axis::z> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
       direction dir, axis_constant<axis::z>) const override {
@@ -312,7 +310,7 @@ public:
 
   template <int W, axis A, direction Direction>
   std::enable_if_t<(W == Width && A == Axis),
-                   detail::future_result_t<Grid, Width, Axis>>
+                   detail::boundary_condition_result_t<Grid, Width, Axis>>
   get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates) const {
@@ -374,7 +372,8 @@ public:
             std::forward<BC>(condition))} {}
 
   template <int W, axis Axis, direction Direction>
-  std::enable_if_t<(W == Width), detail::future_result_t<Grid, Width, Axis>>
+  std::enable_if_t<(W == Width),
+                   detail::boundary_condition_result_t<Grid, Width, Axis>>
   get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates) const {

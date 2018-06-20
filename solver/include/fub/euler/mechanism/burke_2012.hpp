@@ -174,6 +174,8 @@ struct Burke2012 {
 #endif
 };
 
+template <typename Archive> void serialize(Archive&, Burke2012&, unsigned) {}
+
 template <typename T>
 static constexpr int Index_v =
     variable_find_index<T, Burke2012::species_tuple>::value;

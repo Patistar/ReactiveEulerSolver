@@ -54,6 +54,8 @@ template <typename Grid, int Width, axis Axis>
 struct boundary_condition<Grid, Width, Axis> {
   using partition_type = typename grid_traits<Grid>::partition_type;
 
+  virtual ~boundary_condition() = default;
+
   virtual boundary_condition_result_t<Grid, Width, Axis> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
       const uniform_cartesian_coordinates<Grid::rank>& coordinates,
@@ -66,6 +68,8 @@ struct boundary_condition<Grid, Width, Axis> {
 template <typename Grid, int Width>
 struct boundary_condition<Grid, Width, axis::x, axis::y> {
   using partition_type = typename grid_traits<Grid>::partition_type;
+
+  virtual ~boundary_condition() = default;
 
   virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,
@@ -84,6 +88,8 @@ struct boundary_condition<Grid, Width, axis::x, axis::y> {
 template <typename Grid, int Width>
 struct boundary_condition<Grid, Width, axis::x, axis::y, axis::z> {
   using partition_type = typename grid_traits<Grid>::partition_type;
+
+  virtual ~boundary_condition() = default;
 
   virtual boundary_condition_result_t<Grid, Width, axis::x> get_face_neighbor(
       const partition_type& partition, const Grid& grid,

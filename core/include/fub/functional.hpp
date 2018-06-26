@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -21,16 +21,55 @@
 #ifndef FUB_CORE_FUNCTIONAL_HPP
 #define FUB_CORE_FUNCTIONAL_HPP
 
-#ifdef  FUB_CORE_USE_STD_INVOKE
+#include "fub/type_traits.hpp"
+
+#ifdef FUB_CORE_USE_STD_INVOKE
 #include <functional>
 namespace fub {
-  using std::invoke;
+using std::invoke;
 }
 #else
 #include <range/v3/utility/invoke.hpp>
 namespace fub {
-  using ranges::invoke;
+using ranges::invoke;
 }
 #endif
+
+namespace fub {
+
+template <typename> class function_ref;
+
+template <typename R, typename... Args> class function_ref<R(Args...)> {
+public:
+  function_ref(R (*function_pointer)(Args...))
+      : m_data{function_pointer},
+        m_erased_function_pointer{[](void* function_pointer, Args... args) {
+          return invoke(static_cast<R (*)(Args...)>(function_pointer),
+                        std::forward<Args>(args)...);
+        }} {}
+
+  template <typename F,
+            typename = std::enable_if_t<!std::is_same<F, function_ref>::value>,
+            typename = std::enable_if_t<is_invocable<F, Args...>::value>>
+  function_ref(F& function_object)
+      : m_data{std::addressof(function_object)},
+        m_erased_function_pointer{[](void* function, Args... args) -> R {
+          return invoke(*static_cast<F*>(function), std::forward<Args>(args)...);
+        }} {}
+
+  R operator()(Args... args) const {
+    return invoke(m_erased_function_pointer, m_data,
+                  std::forward<Args>(args)...);
+  }
+
+private:
+  using function_pointer = R (*)(Args...);
+  using erased_pointer = R (*)(void*, Args...);
+
+  void* m_data{nullptr};
+  erased_pointer m_erased_function_pointer;
+};
+
+} // namespace fub
 
 #endif

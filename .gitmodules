@@ -13,3 +13,6 @@
 [submodule "grid/third-party/eigen-git-mirror"]
 	path = grid/third-party/eigen-git-mirror
 	url = https://github.com/eigenteam/eigen-git-mirror.git
+[submodule "solver/third-party/blaze"]
+	path = solver/third-party/blaze
+	url = https://bitbucket.org/blaze-lib/blaze.git

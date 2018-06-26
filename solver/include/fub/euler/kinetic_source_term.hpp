@@ -178,58 +178,63 @@ struct kinetic_source_term {
     return step(grid, dt);
   }
 
-  template <typename Coordinates, typename BoundaryCondition>
-  auto get_time_step_size(const Grid& grid, const Coordinates&,
-                          const BoundaryCondition&) const {
-    const std::chrono::duration<double> initial{
-        std::numeric_limits<double>::infinity()};
-    return traits::reduce(
-        grid, initial, [](duration x, auto&& y) { return std::min(x, y.get()); },
-        [&](const partition_type& partition) {
-          auto get_dt = [](node_type, future<const_patch_view> data,
-                           kinetic_source_term solver, equation_type equation) {
-            const_patch_view view = data.get();
-            auto get_max_dt = [=](auto& state) {
-              ode_system system{equation};
-              auto T_and_c = solver.retrieve_T_and_c(equation, state);
-              decltype(T_and_c) dTdt_and_dcdt;
-              /// Compute derivatives and retrieve them
-              system(dTdt_and_dcdt, T_and_c, 0);
-              auto c = drop<1>(make_span(T_and_c));
-              auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
-              const double T = T_and_c[0];
-              const double dTdt = dTdt_and_dcdt[0];
-              /// Compute max dt for each component and take the minimum
-              // auto molar_masses = solver.equation.get_molar_masses();
-              // const double rho = solver.equation.get(Density(), state);
-              const double max_dt = fub::transform_reduce(
-                  dcdt.begin(), dcdt.end(), c.begin(),
-                  std::numeric_limits<double>::infinity(),
-                  [](double t1, double t2) { return std::min(t1, t2); },
-                  [=](double dc_dt, double c) {
-                    return dc_dt < 0 ? std::abs(c / dc_dt)
-                                     : std::numeric_limits<double>::infinity();
-                  });
-              return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) : max_dt;
-            };
-            double max_dt =
-                std::accumulate(view.begin(), view.end(),
-                                std::numeric_limits<double>::infinity(),
-                                [=](double dt, const auto& state) {
-                                  return std::min(dt, get_max_dt(state));
-                                });
-            max_dt = std::max(max_dt, 1e-3);
-            assert(max_dt > 0);
-            return std::chrono::duration<double>(max_dt);
-          };
-          node_type node = traits::node(partition);
-          auto view = node.get_patch_view();
-          auto where = traits::locality(partition);
-          return traits::dataflow_action(get_dt, std::move(where),
-                                         std::move(node), std::move(view),
-                                         *this, grid.equation());
-        });
-  }
+  // template <typename Coordinates, typename BoundaryCondition>
+  // auto get_time_step_size(const Grid& grid, const Coordinates&,
+  //                         const BoundaryCondition&) const {
+  //   const std::chrono::duration<double> initial{
+  //       std::numeric_limits<double>::infinity()};
+    // return traits::reduce(
+    //     grid, initial, [](duration x, auto&& y) { return std::min(x,
+    //     y.get()); },
+    //     [&](const partition_type& partition) {
+    //       auto get_dt = [](node_type node, future<const_patch_view> /* data
+    //       */,
+    //                        kinetic_source_term solver, equation_type
+    //                        equation) {
+    //         const_patch_view view = node.get_patch_view().get();
+    //         auto get_max_dt = [=](auto& state) {
+    //           ode_system system{equation};
+    //           auto T_and_c = solver.retrieve_T_and_c(equation, state);
+    //           decltype(T_and_c) dTdt_and_dcdt;
+    //           /// Compute derivatives and retrieve them
+    //           system(dTdt_and_dcdt, T_and_c, 0);
+    //           auto c = drop<1>(make_span(T_and_c));
+    //           auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
+    //           const double T = T_and_c[0];
+    //           const double dTdt = dTdt_and_dcdt[0];
+    //           /// Compute max dt for each component and take the minimum
+    //           // auto molar_masses = solver.equation.get_molar_masses();
+    //           // const double rho = solver.equation.get(Density(), state);
+    //           const double max_dt = fub::transform_reduce(
+    //               dcdt.begin(), dcdt.end(), c.begin(),
+    //               std::numeric_limits<double>::infinity(),
+    //               [](double t1, double t2) { return std::min(t1, t2); },
+    //               [=](double dc_dt, double c) {
+    //                 return dc_dt < 0 ? std::abs(c / dc_dt)
+    //                                  :
+    //                                  std::numeric_limits<double>::infinity();
+    //               });
+    //           return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) :
+    //           max_dt;
+    //         };
+    //         double max_dt =
+    //             std::accumulate(view.begin(), view.end(),
+    //                             std::numeric_limits<double>::infinity(),
+    //                             [=](double dt, const auto& state) {
+    //                               return std::min(dt, get_max_dt(state));
+    //                             });
+    //         max_dt = std::max(max_dt, 1e-3);
+    //         assert(max_dt > 0);
+    //         return std::chrono::duration<double>(max_dt);
+    //       };
+    //       node_type node = traits::node(partition);
+    //       auto view = node.get_patch_view();
+    //       auto where = traits::locality(partition);
+    //       return traits::dataflow_action(get_dt, std::move(where),
+    //                                      std::move(node), std::move(view),
+    //                                      *this, grid.equation());
+    //     });
+  // }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {
     archive& m_ode_solver;

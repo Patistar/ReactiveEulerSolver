@@ -18,37 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/euler/kinetic_source_term.hpp"
-#include "fub/euler/mechanism/burke_2012.hpp"
 #include "fub/ode_solver/cradau.hpp"
+#include "fub/ode_solver/radau.hpp"
+#include "fub/span.hpp"
 
-#include <iostream>
-#include <vector>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 
 int main() {
-  using namespace fub::euler::mechanism::burke2012;
-  const int n_species = std::tuple_size<Burke2012::species_tuple>::value;
-  std::vector<double> x(n_species);
-  // const std::ptrdiff_t h2 = Index_v<H2>;
-  // const std::ptrdiff_t o2 = Index_v<O2>;
-  x[Index_v<H2>] = 2.0;
-  x[Index_v<O2>] = 1.0;
-  fub::euler::ideal_gas<Burke2012> eq{};
-  auto state = eq.set_TPX(1100, 4e5, x);
-  using grid_t = fub::serial::grid<fub::euler::ideal_gas<Burke2012>,
-                                   fub::extents<fub::dyn>>;
-  using kinetic_source_term_t =
-      fub::euler::kinetic_source_term<grid_t, fub::ode_solver::radau5>;
-  kinetic_source_term_t source_term{};
-  using namespace std::chrono_literals;
-  auto next = source_term.advance_state(eq, state, 0.001s);
-  fub::apply(
-      [&](auto... vars) {
-        fub::for_each_tuple_element(
-            [&](auto var) {
-              std::cout << var.name() << ": " << next[var] << '\n';
-            },
-            flatten_variables(vars...));
-      },
-      get_variables(next));
+  fub::index counter{0};
+  auto ode_system = [&](double /* x */, fub::span<const double> y,
+                        fub::span<double> dydx) {
+    static constexpr double eps = 1.0e-6;
+    dydx[0] = y[1];
+    dydx[1] = ((1 - y[0] * y[0]) * y[1] - y[0]) / eps;
+    ++counter;
+  };
+  auto print = [&](double x, fub::span<const double> y,
+                   const fub::ode_solver::radau5::integration_info&) {
+    fmt::print("{} {} {} {}\n", counter, x, y[0], y[1]);
+  };
+  std::vector<char> buffer(1000);
+  std::array<double, 2> y{{2., 0.}};
+  fub::ode_solver::radau5 radau{};
+  radau.initial_step_size = 1E-6;
+  radau.max_newton_iteration_count = 10;
+  radau.max_restart_count = 20;
+  radau.absolute_tolerance = 1e-5;
+  radau.relative_tolerance = 1e-4;
+  radau.integrate(print, ode_system, {0, 11.}, fub::make_span(y), buffer);
 }

@@ -264,10 +264,6 @@ struct grid_traits<parallel::grid<Equation, Extents>> {
           auto projected_ = ps.get();
           return std::accumulate(projected_.begin(), projected_.end(), initial,
                                  binary_op);
-          // [binary_op = std::move(binary_op)](auto&& x, auto&& y) {
-          //   return fub::invoke(binary_op, std::forward<decltype(x)>(x),
-          //                      std::forward<decltype(y)>(y));
-          // });
         });
   }
 }; // namespace fub

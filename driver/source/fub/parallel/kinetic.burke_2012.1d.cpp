@@ -29,6 +29,7 @@
 #include "fub/godunov_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
+#include "fub/ode_solver/cradau.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
@@ -47,7 +48,8 @@ const fub::hyperbolic_system_solver<kinetic::burke_2012_1d::grid_type,
                                     std::decay_t<decltype(time_integrator)>>
     advective_solver{flux_method, time_integrator};
 
-const fub::euler::kinetic_source_term<kinetic::burke_2012_1d::grid_type>
+const fub::euler::kinetic_source_term<kinetic::burke_2012_1d::grid_type,
+                                      fub::ode_solver::radau5>
     kinetic_source_term{};
 
 const auto solver = make_hyperbolic_system_source_solver(

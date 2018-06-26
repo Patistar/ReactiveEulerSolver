@@ -398,6 +398,14 @@ template <index N, typename T> span<T, N> take(span<T> view) {
   return span<T, N>(view.data(), N);
 }
 
+template <typename T>
+span<T> take(span<T> view, index n) noexcept {
+  if (view.size() < n) {
+    return {};
+  }
+  return span<T>(view.data(), n);
+}
+
 } // namespace fub
 
 #endif // !SPAN_HPP

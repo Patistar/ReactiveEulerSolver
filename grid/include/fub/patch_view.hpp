@@ -635,6 +635,33 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
       rows...);
 }
 
+namespace detail {
+template <typename Abi, typename V, index E, typename... Vs>
+auto load_impl(std::true_type, const Abi&, V, const row_view<E, Vs...>& view,
+               index shift) {
+  using T = typename V::scalar_type;
+  using Vt = typename V::variables_tuple;
+  static constexpr std::size_t size = std::tuple_size<Vt>::value;
+  std::array<simd<T, Abi>, size> packs;
+  int i = 0;
+  for_each_tuple_element(
+      [&](auto var) {
+        packs[i++].copy_from(view[var].data() + shift, element_alignment);
+      },
+      Vt{});
+  return packs;
+}
+
+template <typename Abi, typename V, index E, typename... Vs>
+auto load_impl(std::false_type, const Abi&, V x, const row_view<E, Vs...>& view,
+               index shift) {
+  using T = typename variable_traits<V>::value_type;
+  simd<T, Abi> pack;
+  pack.copy_from(view[x].data() + shift, element_alignment);
+  return pack;
+}
+} // namespace detail
+
 /// \brief Loads all quantities which are refered by a specified view into simd
 /// registers.
 ///
@@ -643,29 +670,9 @@ template <typename... RowViews> auto join(const RowViews&... rows) {
 template <typename Abi, index E, typename... Vs>
 add_simd_t<quantities<std::decay_t<Vs>...>, Abi>
 load(const row_view<E, Vs...>& view, index shift = 0) noexcept {
-  auto load_ = [=](auto x) {
-    using V = std::decay_t<decltype(x)>;
-    if constexpr (is_vector_variable<V>::value) {
-      using T = typename V::scalar_type;
-      using Vt = typename V::variables_tuple;
-      static constexpr std::size_t size = std::tuple_size<Vt>::value;
-      std::array<simd<T, Abi>, size> packs;
-      int i = 0;
-      for_each_tuple_element(
-          [&](auto var) {
-            packs[i++].copy_from(view[var].data() + shift, element_alignment);
-          },
-          Vt{});
-      return packs;
-    } else {
-      using T = typename variable_traits<V>::value_type;
-      simd<T, Abi> pack;
-      pack.copy_from(view[x].data() + shift, element_alignment);
-      return pack;
-    }
-  };
   return add_simd_t<quantities<std::decay_t<Vs>...>, Abi>{
-      load_(std::decay_t<Vs>{})...};
+      detail::load_impl(is_vector_variable<std::decay_t<Vs>>{}, Abi{},
+                        std::decay_t<Vs>{}, view, shift)...};
 }
 
 template <index E, typename... Vs>

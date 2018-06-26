@@ -38,6 +38,8 @@ namespace fub {
 //                                                       [class.variable_traits]
 // {{{
 
+template <typename T> struct is_vector_variable;
+
 template <typename V> using equal_to_typedef = typename V::equal_to;
 
 template <typename V> struct is_equal_fn {
@@ -66,6 +68,93 @@ using variable_access_memfn_t = decltype(V::access(W(), std::declval<T>()));
 
 template <typename V, typename W, typename P, typename E>
 using variable_view_memfn_t = decltype(V::view(W(), P(), std::declval<E>()));
+
+template <typename V, typename Extents>
+constexpr std::ptrdiff_t size_impl(std::true_type, V,
+                                   const Extents& extents) noexcept {
+  return V::size(extents);
+}
+
+template <typename V, typename Extents>
+constexpr std::ptrdiff_t size_impl(std::false_type, V,
+                                   const Extents& extents) noexcept {
+  return extents.size();
+}
+
+template <typename V, typename W, typename T>
+static constexpr decltype(auto) access_impl(std::true_type, V, W w,
+                                            T&& x) noexcept {
+  return V::access(w, std::forward<T>(x));
+}
+
+template <typename V, typename W, typename T>
+constexpr decltype(auto) access_impl(std::false_type, V, W, T* x) noexcept {
+  return (*x);
+}
+
+template <typename V, typename W, typename T>
+constexpr decltype(auto) access_impl(std::false_type, V, W, T& x) noexcept {
+  return (x);
+}
+
+template <typename V, typename W, typename T>
+constexpr decltype(auto) access_impl(std::false_type, V, W,
+                                     const T& x) noexcept {
+  return (x);
+}
+
+template <typename V, typename W, typename E>
+constexpr decltype(auto)
+view_impl(std::true_type, V, W w,
+          typename detected_or<
+              typename detected_or<double, detail::value_type_t, V>::type*,
+              detail::pointer_t, V>::type ptr,
+          const E& extents) noexcept {
+  return V::view(w, ptr, extents);
+}
+
+template <typename V, typename W, typename E>
+constexpr decltype(auto) view_impl(
+    std::true_type, V, W w,
+    typename detected_or<
+        const typename detected_or<double, detail::value_type_t, V>::type*,
+        detail::const_pointer_t, V>::type ptr,
+    const E& extents) noexcept {
+  return V::view(w, ptr, extents);
+}
+
+template <typename V, typename S>
+constexpr auto get_pointer_impl(std::true_type, V, S&& storage, index i = 0) {
+  return V::get_pointer(std::forward<S>(storage), i);
+}
+
+template <typename V, typename W, typename E>
+constexpr decltype(auto)
+view_impl(std::false_type, V, W,
+          typename detected_or<
+              typename detected_or<double, detail::value_type_t, V>::type*,
+              detail::pointer_t, V>::type ptr,
+          const E& extents) noexcept {
+  return mdspan<typename detected_or<double, detail::value_type_t, V>::type, E>{
+      ptr, extents};
+}
+
+template <typename V, typename W, typename E>
+constexpr decltype(auto) view_impl(
+    std::false_type, V, W,
+    typename detected_or<
+        const typename detected_or<double, detail::value_type_t, V>::type*,
+        detail::const_pointer_t, V>::type ptr,
+    const E& extents) noexcept {
+  return mdspan<
+      const typename detected_or<double, detail::value_type_t, V>::type, E>{
+      ptr, extents};
+}
+
+template <typename V, typename S>
+constexpr auto get_pointer_impl(std::false_type, V, S&& storage, index i = 0) {
+  return storage.data() + i;
+}
 
 } // namespace detail
 
@@ -101,55 +190,38 @@ template <typename V> struct variable_traits {
   /// specified extents.
   template <typename Extents>
   static constexpr std::ptrdiff_t size(const Extents& extents) noexcept {
-    if constexpr (is_detected<detail::variable_size_memfn_t, V>::value) {
-      return V::size(extents);
-    } else {
-      return extents.size();
-    }
+    return detail::size_impl(is_detected<detail::variable_size_memfn_t, V>(),
+                             V{}, extents);
   }
 
   template <typename W, typename T>
   static constexpr decltype(auto) access(W w, T&& x) noexcept {
-    if constexpr (is_detected<detail::variable_access_memfn_t, V, W,
-                              T>::value) {
-      return V::access(w, x);
-    } else if constexpr (std::is_pointer<std::remove_reference_t<T>>::value) {
-      return (*x);
-    } else {
-      return std::forward<T>(x);
-    }
+    return detail::access_impl(
+        is_detected<detail::variable_access_memfn_t, V, W, T>(), V{}, w,
+        std::forward<T>(x));
   }
 
   template <typename W, typename E>
   static constexpr decltype(auto) view(W w, pointer ptr,
                                        const E& extents) noexcept {
-    if constexpr (is_detected<detail::variable_view_memfn_t, V, W, pointer,
-                              const E&>::value) {
-      return V::view(w, ptr, extents);
-    } else {
-      return mdspan<value_type, E>{ptr, extents};
-    }
+    return detail::view_impl(
+        is_detected<detail::variable_view_memfn_t, V, W, pointer, const E&>(),
+        V{}, w, ptr, extents);
   }
 
   template <typename W, typename E>
   static constexpr decltype(auto) view(W w, const_pointer ptr,
                                        const E& extents) noexcept {
-    if constexpr (is_detected<detail::variable_view_memfn_t, V, W,
-                              const_pointer, const E&>::value) {
-      return V::view(w, ptr, extents);
-    } else {
-      return mdspan<const value_type, E>{ptr, extents};
-    }
+    return detail::view_impl(is_detected<detail::variable_view_memfn_t, V, W,
+                                         const_pointer, const E&>(),
+                             V{}, w, ptr, extents);
   }
 
   template <typename S>
   static constexpr auto get_pointer(S&& storage, index i = 0) {
-    if constexpr (is_detected<detail::variable_get_pointer_memfn_t, V,
-                              S>::value) {
-      return V::get_pointer(std::forward<S>(storage), i);
-    } else {
-      return storage.data() + i;
-    }
+    return detail::get_pointer_impl(
+        is_detected<detail::variable_get_pointer_memfn_t, V, S>(), V{},
+        std::forward<S>(storage), i);
   }
 };
 
@@ -191,29 +263,45 @@ struct is_gettable
 ////////////////////////////////////////////////////////////////////////////////
 //                                                  [function.flatten_variables]
 // {{{
+namespace detail {
+template <typename V> auto flatten_variables_impl(std::true_type, V) {
+  return typename V::variables_tuple{};
+}
+template <typename V> auto flatten_variables_impl(std::false_type, V) {
+  return std::tuple<V>{};
+}
+} // namespace detail
+
 template <typename V> auto flatten_variables(V) {
-  if constexpr (is_detected<detail::variables_tuple_t, V>::value) {
-    return typename V::variables_tuple{};
-  } else {
-    return std::tuple<V>{};
-  }
+  return detail::flatten_variables_impl(
+      is_detected<detail::variables_tuple_t, V>(), V{});
 }
 
 template <typename Var> struct flux_variable;
+
+template <typename V, typename... Vars> auto flatten_variables(V, Vars...);
 
 template <typename V, typename... Vars>
 auto flatten_variables(flux_variable<V>, Vars... vars) {
   return flatten_variables(V{}, vars...);
 }
 
-template <typename V, typename... Vars> auto flatten_variables(V, Vars...) {
-  if constexpr (is_detected<detail::variables_tuple_t, V>::value) {
-    return std::tuple_cat(typename V::variables_tuple{},
-                          flatten_variables(Vars{}...));
+namespace detail {
+template <typename V, typename... Vars>
+auto flatten_variables_impl(std::true_type, V, Vars...) {
+  return std::tuple_cat(typename V::variables_tuple{},
+                        flatten_variables(Vars{}...));
+}
 
-  } else {
-    return std::tuple_cat(std::tuple<V>{}, flatten_variables(Vars{}...));
-  }
+template <typename V, typename... Vars>
+auto flatten_variables_impl(std::false_type, V, Vars...) {
+  return std::tuple_cat(std::tuple<V>{}, flatten_variables(Vars{}...));
+}
+} // namespace detail
+
+template <typename V, typename... Vars> auto flatten_variables(V, Vars...) {
+  return detail::flatten_variables_impl(is_vector_variable<V>(), V{},
+                                        Vars{}...);
 }
 
 template <typename... Vars>
@@ -253,7 +341,6 @@ template <typename V, typename... Vars> struct vector_variable {
     friend pointer operator+(pointer p, index offset) noexcept {
       return {p.native + offset, p.stride};
     }
-
 
     friend bool operator==(pointer p1, pointer p2) noexcept {
       return p1.native == p2.native && p1.stride == p2.stride;
@@ -385,16 +472,23 @@ template <typename... Vars> class quantities {
   static_assert(sizeof...(Vars) > 0, "There must be at least one variable.");
   std::tuple<typename variable_traits<Vars>::value_type...> m_values{};
 
+  template <typename Var, typename T>
+  auto construct_impl(std::true_type, Var, T&& source) {
+    return fub::apply(
+        [&](auto... vars) {
+          return typename variable_traits<Var>::value_type{source[vars]...};
+        },
+        typename Var::variables_tuple{});
+  }
+
+  template <typename Var, typename T>
+  auto construct_impl(std::false_type, Var, T&& source) {
+    return source.template get<Var>();
+  }
+
   template <typename Var, typename T> auto construct(Var, T&& source) {
-    if constexpr (is_vector_variable<Var>::value) {
-      return fub::apply(
-          [&](auto... vars) {
-            return typename variable_traits<Var>::value_type{source[vars]...};
-          },
-          typename Var::variables_tuple{});
-    } else {
-      return source.template get<Var>();
-    }
+    return construct_impl(is_vector_variable<Var>(), Var{},
+                          std::forward<T>(source));
   }
 
 public:

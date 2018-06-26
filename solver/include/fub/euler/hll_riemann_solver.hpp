@@ -84,6 +84,31 @@ class hll_riemann_solver {
   using simd_flux_t =
       add_flux_t<add_simd_t<conservative_state_t<Equation>, Abi>>;
 
+  template <typename F, typename Q>
+  static decltype(auto) invoke_for_each_impl(std::true_type, F&& function,
+                                             Q&& quantity) {
+    auto flattened = flatten_variables(quantity);
+    typename variable_traits<Q>::value_type value;
+    index i = 0;
+    for_each_tuple_element([&](auto q) { value[i++] = function(q); },
+                           flattened);
+    return value;
+  }
+
+  template <typename F, typename Q>
+  static decltype(auto) invoke_for_each_impl(std::false_type, F&& function,
+                                             Q&& quantity) {
+    return fub::invoke(function, quantity);
+  }
+
+  template <typename F, typename Q>
+  static decltype(auto) invoke_for_each(F&& function, Q&& quantity) {
+
+    return invoke_for_each_impl(is_vector_variable<std::decay_t<Q>>{},
+                                std::forward<F>(function),
+                                std::forward<Q>(quantity));
+  }
+
   /// @brief Returns the HLL flux for all variables of the specified `Flux`
   /// type.
   ///
@@ -102,17 +127,7 @@ class hll_riemann_solver {
                            std::get<1>(signals));
     };
     const auto compute = [&](auto quantity) {
-      using Q = decltype(quantity);
-      if constexpr (is_vector_variable<Q>::value) {
-        auto flattened = flatten_variables(quantity);
-        typename variable_traits<Q>::value_type value;
-        index i = 0;
-        for_each_tuple_element(
-            [&](auto q) { value[i++] = compute_variable(q); }, flattened);
-        return value;
-      } else {
-        return compute_variable(quantity);
-      }
+      return invoke_for_each(compute_variable, quantity);
     };
     return fub::apply(
         [&](auto... vars) {

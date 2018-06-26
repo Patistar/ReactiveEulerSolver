@@ -47,29 +47,34 @@ template <typename Allocator = std::allocator<void>> struct storage_descriptor {
   using proto_allocator = Allocator;
   proto_allocator allocator;
 
+  template <typename Var, typename Extents, typename ProtoAlloc>
+  static auto make_vector(std::true_type, Var, const Extents& extents,
+                          const ProtoAlloc& alloc) {
+    using T = typename Var::scalar_type;
+    using Traits = std::allocator_traits<proto_allocator>;
+    using Alloc = typename Traits::template rebind_alloc<T>;
+    const std::ptrdiff_t size = variable_traits<Var>::size(extents);
+    return std::vector<T, Alloc>(size, Alloc{alloc});
+  }
+
+  template <typename Var, typename Extents, typename ProtoAlloc>
+  static auto make_vector(std::false_type, Var, const Extents& extents,
+                          const ProtoAlloc& alloc) {
+    using T = typename variable_traits<Var>::value_type;
+    using Traits = std::allocator_traits<proto_allocator>;
+    using Alloc = typename Traits::template rebind_alloc<T>;
+    const std::ptrdiff_t size = variable_traits<Var>::size(extents);
+    return std::vector<T, Alloc>(size, Alloc{alloc});
+  }
+
   template <typename Extents, typename... Vars>
   auto make_storage(const Extents& extents,
                     const std::tuple<Vars...>& vars) const {
     return fub::apply(
         [&extents, alloc = allocator](auto... vs) {
-          auto make_vector = [](auto v, const Extents& extents,
-                                const proto_allocator& alloc) {
-            using Var = decltype(v);
-            if constexpr (is_detected<detail::variables_tuple_t, Var>::value) {
-              using T = typename Var::scalar_type;
-              using Traits = std::allocator_traits<proto_allocator>;
-              using Alloc = typename Traits::template rebind_alloc<T>;
-              const std::ptrdiff_t size = variable_traits<Var>::size(extents);
-              return std::vector<T, Alloc>(size, Alloc{alloc});
-            } else {
-              using T = typename variable_traits<Var>::value_type;
-              using Traits = std::allocator_traits<proto_allocator>;
-              using Alloc = typename Traits::template rebind_alloc<T>;
-              const std::ptrdiff_t size = variable_traits<Var>::size(extents);
-              return std::vector<T, Alloc>(size, Alloc{alloc});
-            }
-          };
-          return std::make_tuple(make_vector(vs, extents, alloc)...);
+          return std::make_tuple(make_vector(
+              is_detected<detail::variables_tuple_t, decltype(vs)>{}, vs,
+              extents, alloc)...);
         },
         vars);
   }

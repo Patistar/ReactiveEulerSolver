@@ -472,7 +472,7 @@ void update_step_size(integration_state& state, const radau5& options) {
   }
 }
 
-void make_scaling(integration_state& state, const radau5& options,
+void update_scaling(integration_state& state, const radau5& options,
                   const vector_type& y) {
   for (std::size_t i = 0; i < y.size(); ++i) {
     state.scaling[i] = options.absolute_tolerance +
@@ -489,13 +489,13 @@ void advance_in_time(integration_state& state, const radau5& options,
   state.step_count += 1;
   update_step_size(state, options);
   state.restart_count = 0;
-  make_scaling(state, options, y);
+  update_scaling(state, options, y);
 }
 
 radau5_code try_step(integration_state& state, const radau5& options,
                      ode_system_t ode_system, vector_type& y) {
 
-  radau5_code code {}
+  radau5_code code{};
   do {
     code = do_first_newton_iteration_step(state, options, ode_system, y);
     if (code != radau5_code::accepted) {
@@ -539,7 +539,7 @@ void integrate_impl(integration_state& state, const radau5& options,
 
 void radau5::integrate(ode_system_t ode_system, std::array<double, 2> x,
                        span<double> y_0, span<char> memory,
-                       optional<feedback_t> feedback = nullopt) const {
+                       optional<feedback_t> feedback) const {
   integration_state state;
   state.available_memory = memory;
   state.step_size = initial_step_size;
@@ -548,7 +548,7 @@ void radau5::integrate(ode_system_t ode_system, std::array<double, 2> x,
   state.stopping_criterium = std::min(0.03, std::sqrt(relative_tolerance));
   vector_type y(y_0.data(), y_0.size());
   allocate_subobjects(state, y.size());
-  make_scaling(state, options, y);
+  update_scaling(state, *this, y);
   integrate_impl(state, *this, feedback, ode_system, y, x[1] - x[0]);
 }
 

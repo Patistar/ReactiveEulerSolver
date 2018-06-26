@@ -93,6 +93,46 @@ struct kinetic_source_term {
       dTdt /= (rho * (R / mean_M - mean_cp));
       dTdt_and_dcdt[0] = dTdt;
     }
+
+    template <typename Abi>
+    std::enable_if_t<is_simd_abi<Abi>::value>
+    operator()(Abi abi, mdspan<double, extents<dyn, Size + 1>> dTdt_and_dcdt,
+               mdspan<const double, extents<dyn, Size + 1>> T_and_c,
+               double /* t */) const noexcept {
+      // Compute production rates by calling the reaction mechanism.
+      span<double, Size> dcdt = drop<1>(dTdt_and_dcdt);
+      span<const double, Size> c = drop<1>(T_and_c);
+      const double T = T_and_c[0];
+      const double c_sum = std::accumulate(c.begin(), c.end(), 0.0);
+      const double R = equation.get_universal_gas_constant();
+      const double P = c_sum * R * T;
+      // Fill drhoXdt here by calling the get_production_rates function of the
+      // underlying mechanism.
+      equation.get_production_rates(dcdt, c, T, P);
+
+      // Get the mole fractions by computing the mean molar masses
+      span<const double, Size> M = equation.get_molar_masses();
+      const double mean_M = fub::transform_reduce(M, c, double(0)) / c_sum;
+      std::array<double, Size> rhoX;
+      std::transform(c.begin(), c.end(), rhoX.begin(),
+                     [=](double c_) { return c_ * mean_M; });
+      const double rho = std::accumulate(rhoX.begin(), rhoX.end(), double(0));
+
+      // Compute dTdt such that the internal energy stays constant!
+      std::array<double, Size> h;
+      equation.get_specific_enthalpies_of_formation(h, T);
+      std::array<double, Size> cp;
+      equation.get_specific_heat_capacities_at_constant_pressure(cp, T);
+      // We set dTdt as shown in Phillips thesis here
+      double dTdt = 0;
+      double mean_cp = 0;
+      for (int i = 0; i < Size - 1; ++i) {
+        dTdt += (h[i] - R / M[i] * T) * (M[i] * dcdt[i]);
+        mean_cp += cp[i] * c[i] * M[i] / rho;
+      }
+      dTdt /= (rho * (R / mean_M - mean_cp));
+      dTdt_and_dcdt[0] = dTdt;
+    }
   };
 
   template <typename State>
@@ -183,57 +223,57 @@ struct kinetic_source_term {
   //                         const BoundaryCondition&) const {
   //   const std::chrono::duration<double> initial{
   //       std::numeric_limits<double>::infinity()};
-    // return traits::reduce(
-    //     grid, initial, [](duration x, auto&& y) { return std::min(x,
-    //     y.get()); },
-    //     [&](const partition_type& partition) {
-    //       auto get_dt = [](node_type node, future<const_patch_view> /* data
-    //       */,
-    //                        kinetic_source_term solver, equation_type
-    //                        equation) {
-    //         const_patch_view view = node.get_patch_view().get();
-    //         auto get_max_dt = [=](auto& state) {
-    //           ode_system system{equation};
-    //           auto T_and_c = solver.retrieve_T_and_c(equation, state);
-    //           decltype(T_and_c) dTdt_and_dcdt;
-    //           /// Compute derivatives and retrieve them
-    //           system(dTdt_and_dcdt, T_and_c, 0);
-    //           auto c = drop<1>(make_span(T_and_c));
-    //           auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
-    //           const double T = T_and_c[0];
-    //           const double dTdt = dTdt_and_dcdt[0];
-    //           /// Compute max dt for each component and take the minimum
-    //           // auto molar_masses = solver.equation.get_molar_masses();
-    //           // const double rho = solver.equation.get(Density(), state);
-    //           const double max_dt = fub::transform_reduce(
-    //               dcdt.begin(), dcdt.end(), c.begin(),
-    //               std::numeric_limits<double>::infinity(),
-    //               [](double t1, double t2) { return std::min(t1, t2); },
-    //               [=](double dc_dt, double c) {
-    //                 return dc_dt < 0 ? std::abs(c / dc_dt)
-    //                                  :
-    //                                  std::numeric_limits<double>::infinity();
-    //               });
-    //           return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) :
-    //           max_dt;
-    //         };
-    //         double max_dt =
-    //             std::accumulate(view.begin(), view.end(),
-    //                             std::numeric_limits<double>::infinity(),
-    //                             [=](double dt, const auto& state) {
-    //                               return std::min(dt, get_max_dt(state));
-    //                             });
-    //         max_dt = std::max(max_dt, 1e-3);
-    //         assert(max_dt > 0);
-    //         return std::chrono::duration<double>(max_dt);
-    //       };
-    //       node_type node = traits::node(partition);
-    //       auto view = node.get_patch_view();
-    //       auto where = traits::locality(partition);
-    //       return traits::dataflow_action(get_dt, std::move(where),
-    //                                      std::move(node), std::move(view),
-    //                                      *this, grid.equation());
-    //     });
+  // return traits::reduce(
+  //     grid, initial, [](duration x, auto&& y) { return std::min(x,
+  //     y.get()); },
+  //     [&](const partition_type& partition) {
+  //       auto get_dt = [](node_type node, future<const_patch_view> /* data
+  //       */,
+  //                        kinetic_source_term solver, equation_type
+  //                        equation) {
+  //         const_patch_view view = node.get_patch_view().get();
+  //         auto get_max_dt = [=](auto& state) {
+  //           ode_system system{equation};
+  //           auto T_and_c = solver.retrieve_T_and_c(equation, state);
+  //           decltype(T_and_c) dTdt_and_dcdt;
+  //           /// Compute derivatives and retrieve them
+  //           system(dTdt_and_dcdt, T_and_c, 0);
+  //           auto c = drop<1>(make_span(T_and_c));
+  //           auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
+  //           const double T = T_and_c[0];
+  //           const double dTdt = dTdt_and_dcdt[0];
+  //           /// Compute max dt for each component and take the minimum
+  //           // auto molar_masses = solver.equation.get_molar_masses();
+  //           // const double rho = solver.equation.get(Density(), state);
+  //           const double max_dt = fub::transform_reduce(
+  //               dcdt.begin(), dcdt.end(), c.begin(),
+  //               std::numeric_limits<double>::infinity(),
+  //               [](double t1, double t2) { return std::min(t1, t2); },
+  //               [=](double dc_dt, double c) {
+  //                 return dc_dt < 0 ? std::abs(c / dc_dt)
+  //                                  :
+  //                                  std::numeric_limits<double>::infinity();
+  //               });
+  //           return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) :
+  //           max_dt;
+  //         };
+  //         double max_dt =
+  //             std::accumulate(view.begin(), view.end(),
+  //                             std::numeric_limits<double>::infinity(),
+  //                             [=](double dt, const auto& state) {
+  //                               return std::min(dt, get_max_dt(state));
+  //                             });
+  //         max_dt = std::max(max_dt, 1e-3);
+  //         assert(max_dt > 0);
+  //         return std::chrono::duration<double>(max_dt);
+  //       };
+  //       node_type node = traits::node(partition);
+  //       auto view = node.get_patch_view();
+  //       auto where = traits::locality(partition);
+  //       return traits::dataflow_action(get_dt, std::move(where),
+  //                                      std::move(node), std::move(view),
+  //                                      *this, grid.equation());
+  //     });
   // }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {

@@ -52,7 +52,7 @@ struct HyperbolicSystemSourceSolver {
       return std::make_pair(std::move(next), actual_dt);
     };
     return grid_traits<Grid>::dataflow(advance_grid, std::move(stable_dt_adv));
-                                       //, std::move(stable_dt_kin));
+    //, std::move(stable_dt_kin));
   }
 };
 

@@ -22,6 +22,7 @@
 #define FUB_ODE_SOLVER_CRADAU_HPP
 
 #include "fub/functional.hpp"
+#include "fub/optional.hpp"
 #include "fub/span.hpp"
 
 #include <chrono>
@@ -57,12 +58,9 @@ struct radau5 {
               span<char>(buffer.data(), buffer.size()));
   }
 
-  void integrate(ode_system_t ode_system, std::array<double, 2> x_interval,
-                 span<double> y_0, span<char> memory_buffer) const;
-
-  void integrate(feedback_t feedback, ode_system_t ode_system,
-                 std::array<double, 2> x_interval, span<double> y_0,
-                 span<char> memory_buffer) const;
+  void integrate(ode_system_t ode_system, std::array<double, 2> x,
+                 span<double> y_0, span<char> memory,
+                 optional<feedback_t> feedback = nullopt) const;
 
   double absolute_tolerance{1.0E-4};
   double relative_tolerance{1.0E-4};

@@ -21,7 +21,6 @@
 #include "fub/serial/kinetic.gri_30.1d.hpp"
 
 #include "fub/euler/boundary_condition/reflective.hpp"
-#include "fub/grid.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/run_simulation.hpp"
@@ -67,9 +66,9 @@ struct write_cgns_file {
     fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
     for (const Partition& partition : state.grid) {
       const auto& octant = fub::grid_traits<Grid>::octant(partition);
-      auto node = partition.second.get();
-      fub::output::cgns::write(file, octant, fub::make_view(node->patch),
-                               state.coordinates, Equation());
+      auto data = partition.second.get_patch_view().get();
+      fub::output::cgns::write(file, octant, data, state.coordinates,
+                               Equation());
     }
   }
 };
@@ -84,14 +83,16 @@ int main(int argc, char** argv) {
   desc.add_options()("feedback_interval",
                      po::value<double>()->default_value(1e-6),
                      "The time interval in which we write output files.");
+  desc.add_options()("extents", po::value<fub::index>()->default_value(64),
+                     "Amount of cells per patch.");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<std::array<fub::index, 1>>(Grid::extents_type());
 
+  const std::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 
   auto state = fub::serial::kinetic::gri_30_1d::initialise(

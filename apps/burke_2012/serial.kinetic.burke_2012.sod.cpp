@@ -80,14 +80,16 @@ int main(int argc, char** argv) {
   desc.add_options()("feedback_interval",
                      po::value<double>()->default_value(1e-6),
                      "The time interval in which we write output files.");
+                     desc.add_options()("extents", po::value<fub::index>()->default_value(64),
+                     "Amount of cells per patch.");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<std::array<fub::index, 1>>(Grid::extents_type());
 
+  const std::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 
   auto state = fub::serial::kinetic::burke_2012_1d::initialise(

@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/extents.hpp"
+#include <cstdio>
 
 int main() {
   using fub::dyn;
@@ -31,29 +32,31 @@ int main() {
 
   {
     constexpr fub::extents<2, dyn> e(2);
-    static_assert(e == fub::extents<2, 2>());
+    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
   }
 
   {
     constexpr fub::extents<dyn, 2> e(2);
-    static_assert(e == fub::extents<2, 2>());
+    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
   }
 
   {
     constexpr fub::extents<dyn, dyn> e(2, 2);
-    static_assert(e == fub::extents<2, 2>());
+    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
   }
 
   {
     constexpr fub::extents<2, 2> e;
     constexpr auto e2 = fub::grow(e, fub::int_c<1>);
-    static_assert(e2 == fub::extents<2, 3>());
+    static_assert(std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, 3>>::value, "Types are wrong.");
+    static_assert(e2 == fub::extents<2, 3>(), "Equality Operator failed, but types are correct.");
   }
 
   {
     constexpr fub::extents<dyn, 2> e(2);
     constexpr auto e2 = fub::grow(e, fub::int_c<1>);
-    static_assert(e2 == fub::extents<2, 3>());
+    static_assert(std::is_same<std::decay_t<decltype(e2)>, fub::extents<dyn, 3>>::value, "Types are wrong.");
+    static_assert(e2 == fub::extents<2, 3>(), "Equality Operator failed, but types are correct.");
   }
 
   {

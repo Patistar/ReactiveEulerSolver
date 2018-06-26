@@ -84,7 +84,7 @@ public:
   /// @brief This Constructor throws an exception if any specified extent is not
   /// equal to the compile time known extent.
   constexpr explicit extents_(const std::array<index, Rank>& extents) {
-    std::array<index, rank> check{{Es...}};
+    constexpr index check[rank]{Es...};
     if (!ranges::equal(check, extents)) {
       throw std::invalid_argument{
           "Specified extents do not match the compile time known extents."};
@@ -96,12 +96,12 @@ public:
   }
 
   constexpr index size() const noexcept {
-    constexpr std::array<index, rank> extents{{Es...}};
+    constexpr index extents[rank]{Es...};
     return fub::accumulate(extents, index(1), std::multiplies<>());
   }
 
   static constexpr index static_get(int dim) noexcept {
-    constexpr std::array<index, rank> es{{Es...}};
+    constexpr index es[rank]{Es...};
     return es[dim];
   }
 
@@ -144,7 +144,7 @@ public:
   constexpr index get(int dim) const noexcept { return m_extents[dim]; }
 
   template <typename Archive> void serialize(Archive& ar, unsigned) {
-    ar& m_extents;
+    ar & m_extents;
   }
 };
 
@@ -189,14 +189,21 @@ public:
   }
 
   static constexpr index static_get(int dim) noexcept {
-    std::array<index, rank> es{{Es...}};
+    index es[rank]{Es...};
     return es[dim];
   }
 
   constexpr index get(int dim) const noexcept {
-    std::array<index, rank> es{{Es...}};
+    constexpr index es[rank]{Es...};
     if (es[dim] == dyn) {
-      int count = fub::count(es.begin(), es.begin() + dim, dyn);
+      // NOT CONSTEXPR:
+      // int count = fub::count(ranges::begin(es), ranges::end(es) + dim, dyn);
+      int count = 0;
+      for (int i = 0; i < dim; ++i) {
+        if (es[i] == dyn) {
+          count += 1;
+        }
+      }
       return m_dynamic_extents[count];
     } else {
       return es[dim];
@@ -247,9 +254,12 @@ template <index... Es, index... Fs>
 constexpr std::enable_if_t<(sizeof...(Es) == sizeof...(Fs)), bool>
 operator==(const extents<Es...>& e1, const extents<Fs...>& e2) noexcept {
   constexpr int rank = sizeof...(Es);
-  auto a1 = static_cast<std::array<index, rank>>(e1);
-  auto a2 = static_cast<std::array<index, rank>>(e2);
-  return ranges::equal(a1, a2);
+  for (int i = 0; i < rank; ++i) {
+    if (e1.get(i) != e2.get(i)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 template <index... Es, index... Fs>
@@ -281,8 +291,10 @@ template <int Dim, index... Es, int... Is>
 constexpr auto grow_impl(const extents<Es...>& e, int_constant<Dim>,
                          std::false_type,
                          std::integer_sequence<int, Is...>) noexcept {
-  auto a = static_cast<std::array<index, sizeof...(Es)>>(e);
-  a[Dim] += 1;
+  constexpr std::size_t rank = sizeof...(Es);
+  index native[rank]{e.get(Is)...};
+  native[Dim] += 1;
+  std::array<index, rank> a{{native[Is]...}};
   return extents<grow_extent<Dim, Is, Es, 1>::value...>(a);
 }
 

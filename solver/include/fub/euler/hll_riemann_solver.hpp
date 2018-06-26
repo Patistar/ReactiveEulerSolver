@@ -88,7 +88,7 @@ class hll_riemann_solver {
   static decltype(auto) invoke_for_each_impl(std::true_type, F&& function,
                                              Q&& quantity) {
     auto flattened = flatten_variables(quantity);
-    typename variable_traits<Q>::value_type value;
+    typename variable_traits<std::decay_t<Q>>::value_type value;
     index i = 0;
     for_each_tuple_element([&](auto q) { value[i++] = function(q); },
                            flattened);

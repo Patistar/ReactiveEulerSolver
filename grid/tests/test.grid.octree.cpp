@@ -44,7 +44,7 @@ TEST_CASE("Parent and select child are working together") {
 
 template <int Rank> void test_max_depth() {
   constexpr int max_depth = fub::octant<Rank>::max_depth;
-  fub::array<fub::octant<Rank>, max_depth + 1> children{};
+  std::array<fub::octant<Rank>, max_depth + 1> children{};
   for (int depth = 1; static_cast<std::size_t>(depth) < children.size();
        depth++) {
     children[depth] = children[depth - 1].child(1);
@@ -69,11 +69,11 @@ TEST_CASE("Construction with coordinates works with coordinate function") {
     REQUIRE(fub::coordinate<2>(octant) == 1);
   }
   SECTION("ones coordinates") {
-    fub::array<std::uint64_t, 3> coords{1, 1, 1};
+    std::array<std::uint64_t, 3> coords{1, 1, 1};
     fub::octant<3> octant{4, coords};
     REQUIRE(fub::coordinates(octant) == coords);
 
-    coords = fub::array<std::uint64_t, 3>{14, 7, 5};
+    coords = std::array<std::uint64_t, 3>{14, 7, 5};
     octant = fub::octant<3>{4, coords};
     REQUIRE(fub::coordinates(octant) == coords);
   }
@@ -87,7 +87,7 @@ TEST_CASE("Construction with coordinates works with coordinate function") {
 }
 
 TEST_CASE("face Neighbor") {
-  fub::array<std::uint64_t, 3> coordinates{13, 7, 5};
+  std::array<std::uint64_t, 3> coordinates{13, 7, 5};
   fub::octant<3> octant{4, coordinates};
   SECTION("x axis") {
     const int x0 = 14;

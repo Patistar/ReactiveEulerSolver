@@ -8,7 +8,7 @@ include
 
 ### Class Templates
 
- * `fub::array<T, N>` - A constexpr-enabled version of `std::array`.
+ * `std::array<T, N>` - A constexpr-enabled version of `std::array`.
  * `fub::optional<T>` - Depending on availability it is either `std::optional<T>`, `std::experimental::optional<T>` or `boost::optional<T>`.
  * `fub::variant<T1, ..., Tn>` - Depending on availability it is either `std::variant<T1, ... Tn>` or `mpark::variant<T1, ..., Tn>`.
  * `fub::span<T, N>` - A one-dimensinoal view over a contiguous array of values.  

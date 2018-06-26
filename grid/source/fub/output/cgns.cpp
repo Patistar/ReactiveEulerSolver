@@ -96,8 +96,8 @@ void cgns::iteration_data_write(const cgns_context& ctx,
 namespace cgns_details {
 namespace {
 template <int Rank>
-array<char, 33> make_zone_name_(const octant<Rank>& o) noexcept {
-  array<char, 33> name{};
+std::array<char, 33> make_zone_name_(const octant<Rank>& o) noexcept {
+  std::array<char, 33> name{};
   auto index = o.morton_index();
   std::string index_str = std::to_string(index);
   std::copy_n(index_str.begin(), std::min<std::size_t>(32, index_str.size()),
@@ -106,13 +106,13 @@ array<char, 33> make_zone_name_(const octant<Rank>& o) noexcept {
 }
 } // namespace
 
-array<char, 33> make_zone_name(const octant<1>& o) noexcept {
+std::array<char, 33> make_zone_name(const octant<1>& o) noexcept {
   return make_zone_name_(o);
 }
-array<char, 33> make_zone_name(const octant<2>& o) noexcept {
+std::array<char, 33> make_zone_name(const octant<2>& o) noexcept {
   return make_zone_name_(o);
 }
-array<char, 33> make_zone_name(const octant<3>& o) noexcept {
+std::array<char, 33> make_zone_name(const octant<3>& o) noexcept {
   return make_zone_name_(o);
 }
 
@@ -140,10 +140,10 @@ make_coordinates(const uniform_cartesian_coordinates<Rank>& coordinates,
   auto e = fub::make_from_tuple<dynamic_extents_t<Rank>>(extents);
   layout_right::mapping<dynamic_extents_t<Rank>> mapping{e};
   std::vector<double> x(size);
-  for_each_index(mapping, [&](const array<index, Rank>& index) {
+  for_each_index(mapping, [&](const std::array<index, Rank>& index) {
     auto reversed{index};
     std::reverse(reversed.begin(), reversed.end());
-    array<double, Rank> xs = fub::apply(coordinates, index);
+    std::array<double, Rank> xs = fub::apply(coordinates, index);
     x[fub::apply(mapping, reversed)] = xs[dim];
   });
   return x;
@@ -164,7 +164,7 @@ const char* coordinate_name(int dim) {
 
 template <std::size_t Rank>
 zone_context zone_write_(const cgns_context& ctx, const char* name,
-                         const array<index, Rank>& extents) {
+                         const std::array<index, Rank>& extents) {
   cgsize_t size[3][Rank];
   for (std::size_t dim = 0; dim < Rank; ++dim) {
     size[0][dim] = extents[dim] + 1; // Number of Vertices
@@ -180,7 +180,7 @@ zone_context zone_write_(const cgns_context& ctx, const char* name,
 template <>
 zone_context zone_write_<std::size_t(1)>(const cgns_context& ctx,
                                          const char* name,
-                                         const array<index, 1>& extents) {
+                                         const std::array<index, 1>& extents) {
   cgsize_t size[3][2];
   size[0][0] = extents[0] + 1; // Number of Vertices
   size[1][0] = extents[0];     // Number of Cells
@@ -221,9 +221,9 @@ void coordinates_write_(const zone_context& zone,
 template <>
 void coordinates_write_<1>(const zone_context& zone,
                            const uniform_cartesian_coordinates<1>& coords) {
-  array<double, 2> lower{coords.lower()[0], 0};
-  array<double, 2> upper{coords.upper()[0], 1};
-  array<index, 2> extents{coords.extents()[0], 1};
+  std::array<double, 2> lower{coords.lower()[0], 0};
+  std::array<double, 2> upper{coords.upper()[0], 1};
+  std::array<index, 2> extents{coords.extents()[0], 1};
   uniform_cartesian_coordinates<2> lifted{lower, upper, extents};
   coordinates_write_(zone, lifted);
 }
@@ -243,21 +243,21 @@ void coordinates_write(const zone_context& zone,
 }
 
 zone_context zone_write(const cgns_context& ctx, const char* name,
-                        const array<index, 1>& extents) {
+                        const std::array<index, 1>& extents) {
   return zone_write_(ctx, name, extents);
 }
 zone_context zone_write(const cgns_context& ctx, const char* name,
-                        const array<index, 2>& extents) {
+                        const std::array<index, 2>& extents) {
   return zone_write_(ctx, name, extents);
 }
 zone_context zone_write(const cgns_context& ctx, const char* name,
-                        const array<index, 3>& extents) {
+                        const std::array<index, 3>& extents) {
   return zone_write_(ctx, name, extents);
 }
 
 void physical_dimension_write_impl(const zone_context& zone, int /* solution */,
                                    const char* variable,
-                                   const array<double, 5>& dimensions) {
+                                   const std::array<double, 5>& dimensions) {
   throw_if_cg_error(cg_goto(zone.file, zone.base, "Zone_t", zone.id,
                             "FlowSolution", 0, variable, 0, "end"));
   throw_if_cg_error(cg_dataclass_write(Dimensional));

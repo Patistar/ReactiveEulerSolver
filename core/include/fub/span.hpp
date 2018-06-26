@@ -21,9 +21,10 @@
 #ifndef FUB_CORE_SPAN_HPP
 #define FUB_CORE_SPAN_HPP
 
-#include "fub/array.hpp"
 #include "fub/native_accessor.hpp"
 #include "fub/type_traits.hpp"
+
+#include <array>
 
 namespace fub {
 template <typename T, index N, typename Accessor>
@@ -80,7 +81,7 @@ template <typename R> using data_t = decltype(fub::data(std::declval<R>()));
 template <typename A> struct is_std_array : bool_constant<false> {};
 
 template <typename T, std::size_t N>
-struct is_std_array<array<T, N>> : bool_constant<true> {};
+struct is_std_array<std::array<T, N>> : bool_constant<true> {};
 
 template <typename T, index N, typename Accessor> class basic_span;
 
@@ -125,16 +126,16 @@ public:
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
-                typename array<S, M>::const_pointer, pointer>::value>,
+                typename std::array<S, M>::const_pointer, pointer>::value>,
             typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(const array<S, M>& arr) noexcept // NOLINT
+  constexpr basic_span(const std::array<S, M>& arr) noexcept // NOLINT
       : m_storage{arr.data()} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
-                typename array<S, M>::pointer, pointer>::value>,
+                typename std::array<S, M>::pointer, pointer>::value>,
             typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(array<S, M>& arr) noexcept // NOLINT
+  constexpr basic_span(std::array<S, M>& arr) noexcept // NOLINT
       : m_storage{arr.data()} {}
 
   template <typename S, index_type M, typename A,
@@ -253,14 +254,14 @@ public:
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
-                typename array<S, M>::const_pointer, pointer>::value>>
-  constexpr basic_span(const array<S, M>& arr) noexcept // NOLINT
+                typename std::array<S, M>::const_pointer, pointer>::value>>
+  constexpr basic_span(const std::array<S, M>& arr) noexcept // NOLINT
       : m_storage{arr.data(), arr.size()} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
-                typename array<S, M>::pointer, pointer>::value>>
-  constexpr basic_span(array<S, M>& arr) noexcept // NOLINT
+                typename std::array<S, M>::pointer, pointer>::value>>
+  constexpr basic_span(std::array<S, M>& arr) noexcept // NOLINT
       : m_storage{arr.data(), arr.size()} {}
 
   template <

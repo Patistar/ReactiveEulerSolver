@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
 
   const int depth = vm["depth"].as<int>();
   
-  const fub::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
+  const std::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 
   auto state = fub::serial::single_stage_1d::initialise(&initial_value_function,

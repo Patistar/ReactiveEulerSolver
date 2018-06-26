@@ -37,6 +37,7 @@ namespace fub {
 namespace parallel {
 namespace kinetic {
 namespace {
+
 const godunov_method<euler::hlle_riemann_solver> flux_method;
 
 const time_integrator::forward_euler time_integrator;
@@ -53,7 +54,7 @@ const fub::euler::kinetic_source_term<kinetic::burke_2012_1d::grid_type,
     kinetic_source_term{};
 
 const auto solver = make_hyperbolic_system_source_solver(
-    godunov_splitting(), advective_solver, kinetic_source_term);
+    strang_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(

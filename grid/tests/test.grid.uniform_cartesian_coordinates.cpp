@@ -38,8 +38,8 @@ TEST_CASE("1D mapping is in range") {
 }
 
 TEST_CASE("2D ") {
-  fub::array<double, 2> lower{};
-  fub::array<double, 2> upper{{1.33, 2.51}};
+  std::array<double, 2> lower{};
+  std::array<double, 2> upper{{1.33, 2.51}};
   fub::uniform_cartesian_coordinates<2> coordinates(lower, upper, {4, 8});
 
   SECTION("mapping is in range") {

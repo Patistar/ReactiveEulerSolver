@@ -18,12 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/array.hpp"
 #include <range/v3/algorithm/equal.hpp>
 
 int main()
 {
-  constexpr fub::array<int, 2> array{{1, 2}};
+  constexpr std::array<int, 2> array{{1, 2}};
   static_assert(array.size() == 2);
   static_assert(array[0] == 1);
   static_assert(array[1] == 2);

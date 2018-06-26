@@ -21,7 +21,6 @@
 #ifndef FUB_OUTPUT_CGNS_HPP
 #define FUB_OUTPUT_CGNS_HPP
 
-#include "fub/array.hpp"
 #include "fub/octree.hpp"
 #include "fub/patch_view.hpp"
 #include "fub/span.hpp"
@@ -31,6 +30,7 @@ extern "C" {
 #include <cgnslib.h>
 }
 
+#include <array>
 #include <chrono>
 #include <string>
 
@@ -92,13 +92,13 @@ struct zone_context {
 
 /// @{
 zone_context zone_write(const cgns_context& context, const char* name,
-                        const array<index, 1>& extents);
+                        const std::array<index, 1>& extents);
 
 zone_context zone_write(const cgns_context& context, const char* name,
-                        const array<index, 2>& extents);
+                        const std::array<index, 2>& extents);
 
 zone_context zone_write(const cgns_context& context, const char* name,
-                        const array<index, 3>& extents);
+                        const std::array<index, 3>& extents);
 /// @}
 
 /// @brief Fills a specified CGNS zone with structured coordinates.
@@ -113,7 +113,7 @@ void coordinates_write(const zone_context& zone,
                        const uniform_cartesian_coordinates<3>&);
 /// @}
 
-/// @brief Writes a data array into the CGNS file.
+/// @brief Writes a data std::array into the CGNS file.
 int cell_centered_field_write(const zone_context& zone, int solution,
                               const char* name, span<const double>);
 
@@ -121,7 +121,7 @@ int cell_centered_field_write(const zone_context& zone, int solution,
 /// information.
 void physical_dimension_write_impl(const zone_context& zone, int solution,
                                    const char* variable,
-                                   const array<double, 5>&);
+                                   const std::array<double, 5>&);
 
 /// @brief We mark a specified variable as NonDimensional data.
 void physical_dimension_write_impl(const zone_context& zone, int solution,
@@ -181,9 +181,9 @@ void flow_solution_write(const zone_context& zone, const View& patch,
       vars);
 }
 
-array<char, 33> make_zone_name(const octant<1>& o) noexcept;
-array<char, 33> make_zone_name(const octant<2>& o) noexcept;
-array<char, 33> make_zone_name(const octant<3>& o) noexcept;
+std::array<char, 33> make_zone_name(const octant<1>& o) noexcept;
+std::array<char, 33> make_zone_name(const octant<2>& o) noexcept;
+std::array<char, 33> make_zone_name(const octant<3>& o) noexcept;
 
 }; // namespace cgns_details
 
@@ -193,7 +193,7 @@ void cgns::write(const cgns_context& ctx, const octant<Rank>& octant,
                  const uniform_cartesian_coordinates<Rank>& coordinates,
                  const Equation& equation) {
   using namespace cgns_details;
-  array<char, 33> zone_name = make_zone_name(octant);
+  std::array<char, 33> zone_name = make_zone_name(octant);
   zone_context zone = zone_write(ctx, zone_name.data(), coordinates.extents());
   coordinates_write(zone, adapt(coordinates, octant));
   flow_solution_write(zone, patch, equation, view_variables_t<View>());

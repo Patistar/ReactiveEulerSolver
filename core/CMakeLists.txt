@@ -38,7 +38,6 @@ include(CheckVariant)
 include(CheckClamp)
 include(CheckInvoke)
 include(CheckApply)
-include(CheckArray)
 
 configure_file(include/fub/config.hpp.in ${CMAKE_BINARY_DIR}/fub/core/config.hpp)
 

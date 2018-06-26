@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
 
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<fub::array<fub::index, 2>>(Grid::extents_type());
+  auto extents = static_cast<std::array<fub::index, 2>>(Grid::extents_type());
   fub::uniform_cartesian_coordinates<2> coordinates({-1.0, -1.0}, {1.0, 1.0},
                                                     extents);
   auto state = fub::parallel::single_stage_2d::initialise(&initial_value_function,

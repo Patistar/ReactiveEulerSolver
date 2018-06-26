@@ -27,9 +27,9 @@
 #include "fub/simd/scalar.hpp"
 #include "fub/simd/sse.hpp"
 
-#include "fub/array.hpp"
 #include "fub/utility.hpp"
 
+#include <array>
 #include <cassert>
 #include <ostream>
 #include <fmt/ostream.h>
@@ -61,7 +61,7 @@ template <typename T, typename Abi>
 std::ostream& operator<<(std::ostream& out, const simd<T, Abi>& v) {
   constexpr int width = simd_size_v<simd<T, Abi>>;
   constexpr int alignment = memory_alignment_v<simd<T, Abi>, T>;
-  alignas(alignment) array<T, width> array;
+  alignas(alignment) std::array<T, width> array;
   v.copy_to(array.data(), vector_alignment);
   out << "(" << array[0];
   for (std::size_t i = 1; i < width; ++i) {

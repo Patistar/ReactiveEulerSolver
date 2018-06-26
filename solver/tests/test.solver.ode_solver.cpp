@@ -46,5 +46,5 @@ int main() {
   radau.max_restart_count = 20;
   radau.absolute_tolerance = 1e-5;
   radau.relative_tolerance = 1e-4;
-  radau.integrate(print, ode_system, {0, 11.}, fub::make_span(y), buffer);
+  radau.integrate(ode_system, {0, 11.}, fub::make_span(y), buffer);
 }

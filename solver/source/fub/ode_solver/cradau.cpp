@@ -73,7 +73,7 @@ struct integration_state {
 ///
 /// These are most often denoted as the `c` vector in the `(A, b, c)`-butcher
 /// scheme.
-constexpr array<double, 3> get_time_coefficients() noexcept {
+constexpr std::array<double, 3> get_time_coefficients() noexcept {
   constexpr double sq6 =
       2.449489742783178098197284074705891391965947480656670128432;
   return {{(4. - sq6) / 10., (4. + sq6) / 10., 1.}};
@@ -87,7 +87,7 @@ constexpr array<double, 3> get_time_coefficients() noexcept {
 get_butcher_matrix() noexcept {
   constexpr double sq6 =
       2.449489742783178098197284074705891391965947480656670128432;
-  constexpr array<double, 3> time_coefficients = get_time_coefficients();
+  constexpr std::array<double, 3> time_coefficients = get_time_coefficients();
   static constexpr double A11 = (88. - 7. * sq6) / 360.;
   static constexpr double A12 = (296. - 169. * sq6) / 1800.;
   static constexpr double A13 = (-2. + 3. * sq6) / 225.;
@@ -417,7 +417,7 @@ void estimate_error(integration_state& state, const radau5&,
       2.449489742783178098197284074705891391965947480656670128432;
 
   // See [Hairer] p.123
-  static constexpr array<double, 3> e{
+  static constexpr std::array<double, 3> e{
       {(-13. - 7. * sq6) / 3., (-13. + 7. * sq6) / 3., -1. / 3.}};
 
   const index size = y.size();

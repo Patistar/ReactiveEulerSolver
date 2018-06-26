@@ -714,18 +714,37 @@ template <typename Var> remove_flux_t<Var> unflux(Var) {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                           [meta.simd_wrapper]
 // {{{
+template <typename V, typename Abi> struct add_simd;
+
+template <typename V, typename Abi = simd_abi::native<double>>
+using add_simd_t = typename add_simd<V, Abi>::type;
+
 template <typename Variable,
           typename Abi =
               simd_abi::native<typename variable_traits<Variable>::value_type>>
 struct simd_wrapper {
   static constexpr decltype(auto) name() noexcept { return Variable::name(); }
-  using value_type = simd<typename variable_traits<Variable>::value_type, Abi>;
+
+  template <typename T> struct value_type_impl { using type = simd<T, Abi>; };
+
+  template <typename T, std::size_t N>
+  struct value_type_impl<std::array<T, N>> {
+    using type = std::array<simd<T, Abi>, N>;
+  };
+
+  template <typename T>
+  using value_type_impl_t = typename value_type_impl<T>::type;
+
+  using value_type =
+      value_type_impl_t<typename variable_traits<Variable>::value_type>;
+
   struct equal_to {
     template <typename U>
     using invoke = disjunction<
         std::is_same<simd_wrapper, U>,
         meta::invoke<typename variable_traits<Variable>::equal_to, U>>;
   };
+
   template <typename W, typename T> decltype(auto) access(W w, T&& x) {
     return variable_traits<Variable>::access(w, std::forward<T>(x));
   }
@@ -758,14 +777,12 @@ template <typename V, typename Abi> struct add_simd {
       typename detail::add_simd_<V, Abi, is_vector_variable<V>::value>::type;
 };
 
-template <typename V, typename Abi = simd_abi::native<double>>
-using add_simd_t = typename add_simd<V, Abi>::type;
-
 template <typename V>
 using add_scalar_t = typename add_simd<V, simd_abi::scalar>::type;
 template <typename V, typename Abi> struct add_simd<simd_wrapper<V>, Abi> {
   using type = simd_wrapper<V, Abi>;
 };
+
 template <typename Abi, typename... Vs>
 struct add_simd<quantities<Vs...>, Abi> {
   using type = quantities<add_simd_t<Vs, Abi>...>;

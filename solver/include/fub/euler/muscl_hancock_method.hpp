@@ -222,7 +222,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     // Construct States
     using species_t = species_tuple_t<ideal_gas<Mechanism, Rank>>;
     static constexpr std::size_t array_size = std::tuple_size<species_t>::value;
-    array<S, array_size> Y;
+    std::array<S, array_size> Y;
     evolved_states<Mechanism, Rank, Abi> states;
 
     // Construct left state

@@ -21,7 +21,7 @@
 #ifndef FUB_DRIVER_SERIAL_GRI_30_1D_HPP
 #define FUB_DRIVER_SERIAL_GRI_30_1D_HPP
 
-#include "fub/grid.hpp"
+#include "fub/serial/grid.hpp"
 
 #include "fub/euler/mechanism/gri_30.hpp"
 #include "fub/polymorphic_boundary_condition.hpp"
@@ -39,10 +39,10 @@ struct gri_30_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
-  using patch_extents_type = extents<200>;
+  using patch_extents_type = extents<dyn>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::gri_30::gri_30, rank>;
-  using grid_type = standard_grid<equation_type, patch_extents_type>;
+  using grid_type = serial::grid<equation_type, patch_extents_type>;
   using partition_type = grid_type::partition_type;
   using patch_type = grid_type::patch_type;
   using equation_state_t = complete_state_t<equation_type>;

@@ -22,7 +22,6 @@
 #define FUB_CORE_MDSPAN_HPP
 
 #include "fub/algorithm.hpp"
-#include "fub/array.hpp"
 #include "fub/extents.hpp"
 #include "fub/layout_left.hpp"
 #include "fub/optional.hpp"
@@ -140,7 +139,7 @@ public:
 template <typename Mapping, typename Function>
 constexpr Function for_each_index(const Mapping& mapping, Function f) {
   constexpr int rank = Mapping::rank;
-  using Indices = array<index, rank>;
+  using Indices = std::array<index, rank>;
   optional<Indices> indices = Indices{};
   while (indices) {
     fub::invoke(std::ref(f), *indices);

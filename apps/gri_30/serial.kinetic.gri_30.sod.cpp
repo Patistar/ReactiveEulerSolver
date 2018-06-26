@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<fub::array<fub::index, 1>>(Grid::extents_type());
+  auto extents = static_cast<std::array<fub::index, 1>>(Grid::extents_type());
 
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
 

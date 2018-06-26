@@ -93,46 +93,6 @@ struct kinetic_source_term {
       dTdt /= (rho * (R / mean_M - mean_cp));
       dTdt_and_dcdt[0] = dTdt;
     }
-
-    template <typename Abi>
-    std::enable_if_t<is_simd_abi<Abi>::value>
-    operator()(Abi abi, mdspan<double, extents<dyn, Size + 1>> dTdt_and_dcdt,
-               mdspan<const double, extents<dyn, Size + 1>> T_and_c,
-               double /* t */) const noexcept {
-      // Compute production rates by calling the reaction mechanism.
-      span<double, Size> dcdt = drop<1>(dTdt_and_dcdt);
-      span<const double, Size> c = drop<1>(T_and_c);
-      const double T = T_and_c[0];
-      const double c_sum = std::accumulate(c.begin(), c.end(), 0.0);
-      const double R = equation.get_universal_gas_constant();
-      const double P = c_sum * R * T;
-      // Fill drhoXdt here by calling the get_production_rates function of the
-      // underlying mechanism.
-      equation.get_production_rates(dcdt, c, T, P);
-
-      // Get the mole fractions by computing the mean molar masses
-      span<const double, Size> M = equation.get_molar_masses();
-      const double mean_M = fub::transform_reduce(M, c, double(0)) / c_sum;
-      std::array<double, Size> rhoX;
-      std::transform(c.begin(), c.end(), rhoX.begin(),
-                     [=](double c_) { return c_ * mean_M; });
-      const double rho = std::accumulate(rhoX.begin(), rhoX.end(), double(0));
-
-      // Compute dTdt such that the internal energy stays constant!
-      std::array<double, Size> h;
-      equation.get_specific_enthalpies_of_formation(h, T);
-      std::array<double, Size> cp;
-      equation.get_specific_heat_capacities_at_constant_pressure(cp, T);
-      // We set dTdt as shown in Phillips thesis here
-      double dTdt = 0;
-      double mean_cp = 0;
-      for (int i = 0; i < Size - 1; ++i) {
-        dTdt += (h[i] - R / M[i] * T) * (M[i] * dcdt[i]);
-        mean_cp += cp[i] * c[i] * M[i] / rho;
-      }
-      dTdt /= (rho * (R / mean_M - mean_cp));
-      dTdt_and_dcdt[0] = dTdt;
-    }
   };
 
   template <typename State>

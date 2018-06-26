@@ -386,8 +386,8 @@ public:
     using namespace variables;
     complete_state q;
     q[density] = rho;
-    array<A, species_size> hs;
-    array<A, species_size> cps;
+    std::array<A, species_size> hs;
+    std::array<A, species_size> cps;
     q[temperature] = find_temperature(hs, cps, internal_energy, mass_fractions);
     q[cp] = fub::transform_reduce(cps, mass_fractions, A(0));
     q[enthalpy] = fub::transform_reduce(hs, mass_fractions, A(0));
@@ -422,8 +422,8 @@ public:
     using namespace variables;
     add_simd_t<complete_state, Abi> q{};
     q[density] = rho;
-    array<simd<A, Abi>, species_size> hs;
-    array<simd<A, Abi>, species_size> cps;
+    std::array<simd<A, Abi>, species_size> hs;
+    std::array<simd<A, Abi>, species_size> cps;
     simd<A, Abi> temp =
         find_temperature(abi, hs, cps, internal_energy, mass_fractions);
     q[temperature] = temp;
@@ -505,8 +505,8 @@ public:
 
   complete_state set_TPY(A T, A p, species_span<const A> mass_fractions) const
       noexcept {
-    array<A, species_size> hs;
-    array<A, species_size> cps;
+    std::array<A, species_size> hs;
+    std::array<A, species_size> cps;
     return set_TPY(hs, cps, T, p, mass_fractions);
   }
 
@@ -526,7 +526,7 @@ public:
     q[density] = p / (R * T);
     {
       // Set total energy
-      array<simd<A, Abi>, species_size> h;
+      std::array<simd<A, Abi>, species_size> h;
       get_specific_enthalpies_of_formation(abi, h, T);
       q[enthalpy] = fub::transform_reduce(h, mass_fractions, simd<A, Abi>(0.0));
       const simd<A, Abi> U =
@@ -538,7 +538,7 @@ public:
       const simd<A, Abi> E_ref = R * T_ref - h_ref;
       q[energy] = q[density] * (U + E_ref);
     }
-    array<simd<A, Abi>, species_size> cps;
+    std::array<simd<A, Abi>, species_size> cps;
     get_specific_heat_capacities_at_constant_pressure(abi, cps, T);
     q[cp] = fub::transform_reduce(cps, mass_fractions, simd<A, Abi>(0.0));
     const simd<A, Abi> gamma = q[cp] / (q[cp] - R);

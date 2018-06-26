@@ -22,10 +22,10 @@
 #define FUB_CORE_LAYOUT_LEFT_HPP
 
 #include "fub/algorithm.hpp"
-#include "fub/array.hpp"
 #include "fub/optional.hpp"
 #include "fub/type_traits.hpp"
 
+#include <array>
 #include <functional>
 
 namespace fub {
@@ -44,7 +44,7 @@ struct layout_left {
     template <typename... Indices,
               typename = std::enable_if_t<(sizeof...(Indices) == rank)>>
     constexpr index operator()(Indices... indices) const noexcept {
-      return do_mapping(array<index, rank>{{indices...}},
+      return do_mapping(std::array<index, rank>{{indices...}},
                         make_int_sequence<rank>());
     }
 
@@ -52,16 +52,15 @@ struct layout_left {
       return do_stride(make_int_sequence<R>());
     }
 
-    constexpr optional<array<index, rank>>
-    next(const array<index, rank>& indices) const noexcept {
+    constexpr optional<std::array<index, rank>>
+    next(const std::array<index, rank>& indices) const noexcept {
       return do_next(indices, int_c<0>);
     }
 
   private:
     template <int Dim>
-    constexpr optional<array<index, rank>> do_next(array<index, rank> indices,
-                                                   int_constant<Dim>) const
-        noexcept {
+    constexpr optional<std::array<index, rank>>
+    do_next(std::array<index, rank> indices, int_constant<Dim>) const noexcept {
       static_assert(0 <= Dim && Dim < Extents::rank,
                     "Dimension is out of range.");
       ++indices[Dim];
@@ -72,8 +71,8 @@ struct layout_left {
       return do_next(indices, int_c<Dim + 1>);
     }
 
-    constexpr optional<array<index, rank>> do_next(array<index, rank> indices,
-                                                   int_constant<rank - 1>) const
+    constexpr optional<std::array<index, rank>>
+    do_next(std::array<index, rank> indices, int_constant<rank - 1>) const
         noexcept {
       ++indices[rank - 1];
       if (indices[rank - 1] < extents().get(rank - 1)) {
@@ -83,10 +82,10 @@ struct layout_left {
     }
 
     template <int... Is>
-    constexpr index do_mapping(const array<index, rank>& is,
+    constexpr index do_mapping(const std::array<index, rank>& is,
                                std::integer_sequence<int, Is...>) const
         noexcept {
-      array<index, rank> strides{{stride<Is>()...}};
+      std::array<index, rank> strides{{stride<Is>()...}};
       index sum = fub::transform_reduce(strides, is, index(0));
       return sum;
     }
@@ -94,7 +93,7 @@ struct layout_left {
     template <int... Rs>
     constexpr index do_stride(std::integer_sequence<int, Rs...>) const
         noexcept {
-      array<index, sizeof...(Rs)> exts{{extents().get(Rs)...}};
+      std::array<index, sizeof...(Rs)> exts{{extents().get(Rs)...}};
       index prod = fub::accumulate(exts, index(1), std::multiplies<>());
       return prod;
     }

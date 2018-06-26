@@ -21,11 +21,11 @@
 #ifndef FUB_OCTREE_HPP
 #define FUB_OCTREE_HPP
 
-#include "fub/array.hpp"
 #include "fub/face.hpp"
 #include "fub/optional.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <climits>
 #include <cstdint>
@@ -65,7 +65,8 @@ public:
 
   /// @brief Constructs a morton index pointing to the octact with specified
   /// depth and coordinates.
-  constexpr basic_octant(int depth, const array<Integral, Rank>& coordinates);
+  constexpr basic_octant(int depth,
+                         const std::array<Integral, Rank>& coordinates);
 
   // Accessors
 
@@ -104,8 +105,8 @@ public:
 private:
   template <typename Archive>
   friend void serialize(Archive& archive, basic_octant& o, unsigned) {
-    archive & o.m_depth;
-    archive & o.m_morton_index;
+    archive& o.m_depth;
+    archive& o.m_morton_index;
   }
 };
 
@@ -168,7 +169,7 @@ struct level_mask
 
 template <typename Integral, std::size_t Rank>
 Integral interleave_bits(int depth, Integral bit_position,
-                         const array<Integral, Rank>& xs) noexcept {
+                         const std::array<Integral, Rank>& xs) noexcept {
   constexpr int max_depth = basic_octant<Integral, Rank>::max_depth;
   Integral interleaved{};
   for (std::size_t i = 0; i < Rank; ++i) {
@@ -184,7 +185,7 @@ Integral interleave_bits(int depth, Integral bit_position,
 // Constrcutor {{{
 template <typename Integral, int Rank>
 constexpr basic_octant<Integral, Rank>::basic_octant(
-    int depth, const array<Integral, Rank>& coords)
+    int depth, const std::array<Integral, Rank>& coords)
     : m_depth{depth}, m_morton_index{} {
   // Check for valid input
   if (depth < 0 || max_depth < depth) {
@@ -240,14 +241,14 @@ coordinate(const basic_octant<Integral, Rank>& o) noexcept {
 }
 
 template <typename Integral, int Rank>
-constexpr array<Integral, Rank>
+constexpr std::array<Integral, Rank>
 coordinates(const basic_octant<Integral, Rank>& o) noexcept {
   constexpr int max_depth = basic_octant<Integral, Rank>::max_depth;
   constexpr Integral first = octant_detail::level_mask<Integral, Rank>::value
                              << (Rank * (max_depth - 1));
   const Integral morton_index = o.morton_index();
   Integral level_position = first;
-  array<Integral, Rank> coordinates{};
+  std::array<Integral, Rank> coordinates{};
   for (int depth = 0; depth < o.depth(); ++depth) {
     const Integral level =
         (morton_index & level_position) >> (Rank * (max_depth - depth - 1));
@@ -363,7 +364,7 @@ template <typename Integral, int Rank>
 constexpr optional<basic_octant<Integral, Rank>>
 face_neighbor(const basic_octant<Integral, Rank>& octant,
               const face& face) noexcept {
-  array<Integral, Rank> xs = coordinates(octant);
+  std::array<Integral, Rank> xs = coordinates(octant);
   const int dim = as_int(face.dimension);
   const Integral max = (1 << octant.depth()) - 1;
   if ((xs[dim] == 0 && face.side == direction::left) ||

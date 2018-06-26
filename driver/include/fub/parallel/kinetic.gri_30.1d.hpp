@@ -39,7 +39,7 @@ struct gri_30_1d {
   static constexpr int rank = 1;
   static constexpr int ghost_width = 2;
 
-  using patch_extents_type = extents<16>;
+  using patch_extents_type = extents<dyn>;
   using equation_type =
       euler::ideal_gas<euler::mechanism::gri_30::gri_30, rank>;
   using grid_type = parallel::grid<equation_type, patch_extents_type>;

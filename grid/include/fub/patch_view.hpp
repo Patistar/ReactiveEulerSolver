@@ -247,7 +247,7 @@ public:
   }
 
   template <std::size_t N>
-  quantities_ref<Vars...> operator()(const array<std::ptrdiff_t, N>& idx) const
+  quantities_ref<Vars...> operator()(const std::array<std::ptrdiff_t, N>& idx) const
       noexcept {
     layout_left::mapping<extents_type> mapping;
     auto offset = fub::apply(mapping, idx);
@@ -261,7 +261,7 @@ public:
 
   template <typename... IndexTs>
   quantities_ref<Vars...> operator()(IndexTs... is) const noexcept {
-    return this->operator()(array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
+    return this->operator()(std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
   }
 
   auto rows() const noexcept {
@@ -324,7 +324,7 @@ public:
     return get<Var>();
   }
 
-  quantities_ref<Vars...> operator()(const array<std::ptrdiff_t, 1>& idx) const
+  quantities_ref<Vars...> operator()(const std::array<std::ptrdiff_t, 1>& idx) const
       noexcept {
     index offset = idx[0];
     return fub::apply(
@@ -337,7 +337,7 @@ public:
 
   template <typename... IndexTs>
   quantities_ref<Vars...> operator()(IndexTs... is) const noexcept {
-    return this->operator()(array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
+    return this->operator()(std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
   }
 
   quantities_ref<Vars...> first() const noexcept { return this->operator()(0); }
@@ -600,7 +600,7 @@ auto join_impl(std::true_type, const RowViews&... rows) {
   static_assert(
       conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
       "Only one-dimensional views an be joined.");
-  static constexpr array<index, sizeof...(RowViews)> sizes{
+  static constexpr std::array<index, sizeof...(RowViews)> sizes{
       {view_static_extent<RowViews, 0>::value...}};
   static constexpr index total_size = fub::accumulate(sizes, index(0));
   patch<view_join_variables_t<RowViews...>, extents<total_size>> joined_row;
@@ -617,7 +617,7 @@ auto join_impl(std::false_type, const RowViews&... rows) {
   static_assert(
       conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
       "Only one-dimensional views an be joined.");
-  const array<index, sizeof...(RowViews)> sizes{{rows.extents().get(0)...}};
+  const std::array<index, sizeof...(RowViews)> sizes{{rows.extents().get(0)...}};
   const extents<dyn> total_size{fub::accumulate(sizes, index(0))};
   patch<view_join_variables_t<RowViews...>, extents<dyn>> joined_row(
       total_size);
@@ -821,9 +821,9 @@ for_each_simd(F f, const Rows&... rows) {
 //                                                          [function.permutate]
 
 template <int A, int B, index... Es>
-constexpr array<index, sizeof...(Es)>
+constexpr std::array<index, sizeof...(Es)>
 make_permutated_extent_array(const extents<Es...>&) {
-  array<index, sizeof...(Es)> e{{Es...}};
+  std::array<index, sizeof...(Es)> e{{Es...}};
   index eA = e[A];
   e[A] = e[B];
   e[B] = eA;
@@ -832,7 +832,7 @@ make_permutated_extent_array(const extents<Es...>&) {
 
 template <int A, int B, typename E, std::size_t... Is>
 constexpr auto permutate_extents_impl(const E&, std::index_sequence<Is...>) {
-  constexpr array<index, sizeof...(Is)> es =
+  constexpr std::array<index, sizeof...(Is)> es =
       make_permutated_extent_array<A, B>(E{});
   return extents<es[Is]...>();
 }
@@ -859,9 +859,9 @@ make_tensor(const mdspan<T, extents<Es...>>& view) {
 }
 
 template <int A, int B, int Rank>
-constexpr array<int, Rank> make_permutation_index() noexcept {
+constexpr std::array<int, Rank> make_permutation_index() noexcept {
   auto index = fub::apply(
-      [](auto... is) { return array<int, sizeof...(is)>{{is()...}}; },
+      [](auto... is) { return std::array<int, sizeof...(is)>{{is()...}}; },
       as_tuple_t<std::make_integer_sequence<int, Rank>>());
   std::swap(index[A], index[B]);
   return index;
@@ -916,10 +916,10 @@ void slice_left(const ViewA& dest, const ViewB& source) {
       [&](auto variable) {
         auto st = make_tensor(source[variable]);
         auto dt = make_tensor(dest[variable]);
-        array<index, view_rank_v<ViewA>> origin{};
+        std::array<index, view_rank_v<ViewA>> origin{};
         origin[Dim] = source.extents().get(Dim) - Width;
         auto extents =
-            static_cast<array<index, view_rank_v<ViewA>>>(dest.extents());
+            static_cast<std::array<index, view_rank_v<ViewA>>>(dest.extents());
         dt = st.slice(origin, extents);
       },
       view_variables_t<ViewA>());
@@ -941,9 +941,9 @@ void slice_right(const ViewA& dest, const ViewB& source) {
       [&](auto variable) {
         auto st = make_tensor(source[variable]);
         auto dt = make_tensor(dest[variable]);
-        array<index, view_rank_v<ViewA>> origin{};
+        std::array<index, view_rank_v<ViewA>> origin{};
         auto extents =
-            static_cast<array<index, view_rank_v<ViewA>>>(dest.extents());
+            static_cast<std::array<index, view_rank_v<ViewA>>>(dest.extents());
         dt = st.slice(origin, extents);
       },
       view_variables_t<ViewA>());

@@ -20,4 +20,12 @@
 
 #include "fub/optional.hpp"
 
-int main() { fub::optional<int> o; }
+#include <memory>
+#include <cassert>
+
+int main() { 
+    fub::optional<std::unique_ptr<int>> o{std::make_unique<int>(0)};
+    assert(o.has_value());
+    o.reset();
+    assert(!o.has_value());
+}

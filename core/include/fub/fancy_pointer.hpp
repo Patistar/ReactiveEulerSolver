@@ -20,6 +20,10 @@ public:
 
   constexpr fancy_pointer() = default;
 
+  constexpr fancy_pointer(const fancy_pointer& p) noexcept = default;
+
+  constexpr fancy_pointer(fancy_pointer&& p) noexcept = default;
+
   constexpr fancy_pointer(std::nullptr_t) noexcept // NOLINT
       : fancy_pointer() {}
 
@@ -30,9 +34,7 @@ public:
 
   template <typename... Args>
   constexpr explicit fancy_pointer(Args&&... args) noexcept
-      : m_address{std::forward<Args>(args)...} {}
-
-  constexpr fancy_pointer(const fancy_pointer& p) noexcept = default;
+      : m_address(std::forward<Args>(args)...) {}
 
   template <typename S,
             typename = std::enable_if_t<std::is_convertible<S*, T*>::value>>

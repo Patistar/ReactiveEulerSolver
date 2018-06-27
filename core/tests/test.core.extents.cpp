@@ -25,9 +25,9 @@ int main() {
   using fub::dyn;
   {
     constexpr fub::extents<2, 2> e;
-    static_assert(e.size() == 4);
-    static_assert(e.get(0) == 2);
-    static_assert(e.get(1) == 2);
+    static_assert(e.size() == 4, "Static Size is broken.");
+    static_assert(e.get(0) == 2, "Static Access is broken.");
+    static_assert(e.get(1) == 2, "Static Access is broken.");
   }
 
   {
@@ -63,7 +63,7 @@ int main() {
     constexpr fub::extents<2, dyn> e(2);
     constexpr auto e2 = fub::grow(e, fub::int_c<1>);
     static_assert(
-        std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, dyn>>::value);
-    static_assert(e2 == fub::extents<2, 3>());
+        std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, dyn>>::value, "Grow is broken.");
+    static_assert(e2 == fub::extents<2, 3>(), "Comparison between mixed extents types is broken.");
   }
 }

@@ -25,7 +25,7 @@
 
 int main() { 
     fub::optional<std::unique_ptr<int>> o{std::make_unique<int>(0)};
-    assert(o.has_value());
+    assert(o);
     o.reset();
-    assert(!o.has_value());
+    assert(!o);
 }

@@ -22,10 +22,7 @@
 #include "fub/algorithm.hpp"
 #include "fub/optional.hpp"
 
-#include "fub/ode_solver/outcome.hpp"
 #include <blaze/Math.h>
-
-namespace outcome = OUTCOME_V2_NAMESPACE;
 
 namespace fub {
 namespace ode_solver {

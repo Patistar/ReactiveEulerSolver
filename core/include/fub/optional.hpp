@@ -46,7 +46,7 @@ using std::experimental::nullopt;
 using std::experimental::optional;
 #else
 using boost::optional;
-static constexpr auto nullopt = boost::none;
+static const auto nullopt = boost::none;
 #endif
 
 } // namespace fub

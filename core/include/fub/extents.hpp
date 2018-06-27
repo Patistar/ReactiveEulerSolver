@@ -206,7 +206,7 @@ public:
   static constexpr int rank_dynamic = Dynamic;
   static constexpr int rank = Rank;
 
-  static_assert(rank_dynamic < rank);
+  static_assert(rank_dynamic < rank, "Dynamic rank can not be larger than the total rank.");
 
   constexpr extents_() = default;
 

@@ -327,7 +327,7 @@ template <typename V, typename... Vars> struct vector_variable {
 
   static_assert(
       conjunction<std::is_same<
-          scalar_type, typename variable_traits<Vars>::value_type>...>::value);
+          scalar_type, typename variable_traits<Vars>::value_type>...>::value, "value types do not match.");
   using value_type = std::array<scalar_type, rank>;
 
   struct pointer {
@@ -402,28 +402,28 @@ template <typename V, typename... Vars> struct vector_variable {
   template <typename W>
   static constexpr decltype(auto) access(W, pointer ptr) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return *(ptr.native + I::value * ptr.stride);
   }
 
   template <typename W>
   static constexpr decltype(auto) access(W, const_pointer ptr) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return *(ptr.native + I::value * ptr.stride);
   }
 
   template <typename W>
   static constexpr decltype(auto) access(W, value_type& array) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return array[I::value];
   }
 
   template <typename W>
   static constexpr decltype(auto) access(W, const value_type& array) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return array[I::value];
   }
 
@@ -441,7 +441,7 @@ template <typename V, typename... Vars> struct vector_variable {
   static mdspan<scalar_type, Extents> view(W, pointer p,
                                            const Extents& extents) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return mdspan<scalar_type, Extents>{p.native + I::value * p.stride,
                                         extents};
   }
@@ -450,7 +450,7 @@ template <typename V, typename... Vars> struct vector_variable {
   static mdspan<const scalar_type, Extents>
   view(W, const_pointer p, const Extents& extents) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
-    static_assert(I::value < rank);
+    static_assert(I::value < rank, "Variable not found.");
     return mdspan<const scalar_type, Extents>{p.native + I::value * p.stride,
                                               extents};
   }

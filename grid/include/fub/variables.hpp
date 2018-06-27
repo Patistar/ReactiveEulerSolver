@@ -560,7 +560,9 @@ template <typename... Vars> class quantities_ref {
 public:
   quantities_ref() = delete;
   quantities_ref(pointer<Vars>... pointers) noexcept : m_pointers{pointers...} {
-    assert(true && ... && pointers);
+    assert(foldl(m_pointers, true, [](bool not_null, auto ptr) -> bool { 
+      return not_null && ptr;
+    }));
   }
   quantities_ref(const quantities_ref&) = default;
 

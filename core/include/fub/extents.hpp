@@ -83,7 +83,15 @@ public:
 
   /// @brief This Constructor throws an exception if any specified extent is not
   /// equal to the compile time known extent.
-  constexpr explicit extents_(const std::array<index, Rank>& extents) {
+  explicit extents_(const std::array<index, Rank>& extents) {
+    constexpr index check[rank]{Es...};
+    if (!ranges::equal(check, extents)) {
+      throw std::invalid_argument{
+          "Specified extents do not match the compile time known extents."};
+    }
+  }
+
+  constexpr explicit extents_(const index (&extents)[rank]) {
     constexpr index check[rank]{Es...};
     if (!ranges::equal(check, extents)) {
       throw std::invalid_argument{
@@ -97,7 +105,16 @@ public:
 
   constexpr index size() const noexcept {
     constexpr index extents[rank]{Es...};
+    // Internal Compiler Error for gcc-6:
+#ifdef __clang__
     return fub::accumulate(extents, index(1), std::multiplies<>());
+#else
+    index product = 1;
+    for (int i = 0; i < rank; ++i) {
+      product *= extents[i];
+    }
+    return product;
+#endif
   }
 
   static constexpr index static_get(int dim) noexcept {
@@ -110,9 +127,19 @@ public:
   template <typename Archive> void serialize(Archive&, unsigned) {}
 };
 
+template <typename T, std::size_t Rank, std::size_t... Is>
+constexpr std::array<T, Rank> as_std_array(const T (&array)[Rank], std::integer_sequence<std::size_t, Is...>) {
+  return std::array<T, Rank>{{array[Is]...}};
+}
+
+template <typename T, std::size_t Rank>
+constexpr std::array<T, Rank> as_std_array(const T (&array)[Rank]) {
+  return as_std_array(array, std::make_integer_sequence<std::size_t, Rank>{});
+}
+
 /// @brief Extents implementation if all extents are runtime known.
 template <int Rank, index... Es> class extents_<Rank, Rank, Es...> {
-  std::array<index, Rank> m_extents;
+  index m_extents[Rank];
 
 public:
   static constexpr int rank_dynamic = Rank;
@@ -121,22 +148,39 @@ public:
   /// @brief Constructs an empty extents of size zero.
   constexpr extents_() = default;
 
-  constexpr explicit extents_(const std::array<index, Rank>& extents)
-      : m_extents{extents} {}
+  explicit extents_(const std::array<index, Rank>& extents)
+  {
+    std::copy(extents.begin(), extents.end(), std::begin(m_extents));
+  }
+
+  constexpr explicit extents_(const index (&array)[rank]) 
+  {
+    for (int i = 0; i < rank; ++i) {
+      m_extents[i] = array[i];
+    }
+  }
 
   template <typename... Is, typename = std::enable_if_t<
                                 conjunction<std::is_integral<Is>...>::value &&
                                 (sizeof...(Is) == Rank)>>
   constexpr explicit extents_(Is... extents)
-      : m_extents{{static_cast<index>(extents)...}} {}
+      : m_extents{static_cast<index>(extents)...} {}
 
   constexpr explicit operator std::array<index, Rank>() const noexcept {
-    return m_extents;
+    return as_std_array(m_extents);
   }
 
   constexpr index size() const noexcept {
-    return fub::accumulate(m_extents.begin(), m_extents.end(), index(1),
-                           std::multiplies<>());
+    // Internal Compiler Error for gcc-6:
+#ifdef __clang__
+    return fub::accumulate(m_extents, index(1), std::multiplies<>());
+#else
+    index product = 1;
+    for (int i = 0; i < rank; ++i) {
+      product *= m_extents[i];
+    }
+    return product;
+#endif
   }
 
   static constexpr index static_get(int) noexcept { return dyn; }
@@ -156,7 +200,7 @@ public:
 ///
 /// @todo Construction of an extent of this type is not canonic.
 template <int Rank, int Dynamic, index... Es> class extents_ {
-  std::array<index, Dynamic> m_dynamic_extents;
+  index m_dynamic_extents[Dynamic];
 
 public:
   static constexpr int rank_dynamic = Dynamic;
@@ -169,10 +213,10 @@ public:
   template <typename... Is, typename = std::enable_if_t<
                                 conjunction<std::is_integral<Is>...>::value &&
                                 (sizeof...(Is) == rank_dynamic)>>
-  constexpr extents_(Is... dynamic_extents)
-      : m_dynamic_extents{{static_cast<index>(dynamic_extents)...}} {}
+  constexpr explicit extents_(Is... dynamic_extents)
+      : m_dynamic_extents{static_cast<index>(dynamic_extents)...} {}
 
-  constexpr extents_(const std::array<index, rank>& a) : m_dynamic_extents{} {
+  explicit extents_(const std::array<index, rank>& a) : m_dynamic_extents{} {
     constexpr std::array<index, rank> es{{Es...}};
     int dynamic_extents_counter{0};
     for (int dim = 0; dim < rank; ++dim) {
@@ -181,6 +225,23 @@ public:
         ++dynamic_extents_counter;
       } else {
         if (es[dim] != a[dim]) {
+          throw std::invalid_argument{
+              "Specified extents do not match the compile time known extents."};
+        }
+      }
+    }
+  }
+
+   constexpr explicit extents_(const index (&array)[rank]) 
+    : m_dynamic_extents{} {
+    constexpr index es[rank]{Es...};
+    int dynamic_extents_counter{0};
+    for (int dim = 0; dim < rank; ++dim) {
+      if (es[dim] == dyn) {
+        m_dynamic_extents[dynamic_extents_counter] = array[dim];
+        ++dynamic_extents_counter;
+      } else {
+        if (es[dim] != array[dim]) {
           throw std::invalid_argument{
               "Specified extents do not match the compile time known extents."};
         }
@@ -291,11 +352,10 @@ template <int Dim, index... Es, int... Is>
 constexpr auto grow_impl(const extents<Es...>& e, int_constant<Dim>,
                          std::false_type,
                          std::integer_sequence<int, Is...>) noexcept {
-  constexpr std::size_t rank = sizeof...(Es);
+  constexpr int rank = extents<Es...>::rank;
   index native[rank]{e.get(Is)...};
   native[Dim] += 1;
-  std::array<index, rank> a{{native[Is]...}};
-  return extents<grow_extent<Dim, Is, Es, 1>::value...>(a);
+  return extents<grow_extent<Dim, Is, Es, 1>::value...>(native);
 }
 
 /// Grow for the case that Dim is a static extent
@@ -306,13 +366,21 @@ constexpr auto grow_impl(const extents<Es...>& e, int_constant<Dim> dim,
   return grow_impl(e, dim, std::false_type{}, make_int_sequence<rank>());
 }
 
+template <int Dim, index... Es, int... Is>
+constexpr extents<Es...> grow_impl(const extents<Es...>& e, int_constant<Dim>,
+                                   std::true_type,
+                                   std::integer_sequence<int, Is...>) noexcept {
+  constexpr int rank = extents<Es...>::rank;
+  index native[rank]{e.get(Is)...};
+  native[Dim] += 1;
+  return extents<Es...>(native);
+}
+
 template <int Dim, index... Es>
 constexpr extents<Es...> grow_impl(const extents<Es...>& e, int_constant<Dim>,
                                    std::true_type) noexcept {
   constexpr int rank = extents<Es...>::rank;
-  auto a = static_cast<std::array<index, rank>>(e);
-  a[Dim] += 1;
-  return extents<Es...>(a);
+  return grow_impl(e, int_c<Dim>, std::true_type{}, make_int_sequence<rank>{});
 }
 } // namespace detail
 

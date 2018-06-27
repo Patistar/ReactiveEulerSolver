@@ -492,7 +492,7 @@ template <typename... Vars> class quantities {
   }
 
 public:
-  quantities() noexcept = default;
+  quantities() = default;
   quantities(const quantities&) = default;
 
   explicit quantities(

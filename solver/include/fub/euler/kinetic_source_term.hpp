@@ -149,7 +149,7 @@ struct kinetic_source_term {
             location_type where = future_where.get();
             const_patch_view view = future_view.get();
             patch_type result(view.extents());
-            patch_view dest = make_view(result);
+            patch_view_t<patch_type&> dest = make_view(result);
             std::transform(view.begin(), view.end(), dest.begin(),
                            [&](const auto& state) {
                              return solver.advance_state(equation, state, dt);

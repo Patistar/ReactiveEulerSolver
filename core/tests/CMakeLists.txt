@@ -14,9 +14,6 @@ target_include_directories(Catch2
 add_executable(test.core.fancy_pointer test.core.fancy_poiner.cpp)
 target_link_libraries(test.core.fancy_pointer ReactiveEulerSolver_core Catch2)
 
-add_executable(test.core.array test.core.array.cpp)
-target_link_libraries(test.core.array ReactiveEulerSolver_core)
-
 add_executable(test.core.extents test.core.extents.cpp)
 target_link_libraries(test.core.extents ReactiveEulerSolver_core)
 

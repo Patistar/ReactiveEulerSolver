@@ -33,10 +33,14 @@
 #include <range/v3/utility/basic_iterator.hpp>
 #include <range/v3/view/zip.hpp>
 
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
+#endif
 #include <unsupported/Eigen/CXX11/Tensor>
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 namespace fub {
 template <typename, typename...> class patch_view;
@@ -489,6 +493,8 @@ auto make_view(const patch<V<Vars...>, extents<E>, Storage>& p) noexcept {
   return row_view<E, std::add_const_t<Vars>...>(p);
 }
 
+template <typename T> using patch_view_t = decltype(make_view(std::declval<T>()));
+
 template <typename Vars, index Size> struct view_row;
 template <typename V, index Size>
 using view_row_t = typename view_row<V, Size>::type;
@@ -600,8 +606,7 @@ auto join_impl(std::true_type, const RowViews&... rows) {
   static_assert(
       conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
       "Only one-dimensional views an be joined.");
-  static constexpr std::array<index, sizeof...(RowViews)> sizes{
-      {view_static_extent<RowViews, 0>::value...}};
+  static constexpr index sizes[sizeof...(RowViews)]{view_static_extent<RowViews, 0>::value...};
   static constexpr index total_size = fub::accumulate(sizes, index(0));
   patch<view_join_variables_t<RowViews...>, extents<total_size>> joined_row;
   auto view = make_view(joined_row);

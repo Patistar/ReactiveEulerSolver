@@ -828,11 +828,11 @@ for_each_simd(F f, const Rows&... rows) {
 template <int A, int B, index... Es>
 constexpr std::array<index, sizeof...(Es)>
 make_permutated_extent_array(const extents<Es...>&) {
-  std::array<index, sizeof...(Es)> e{{Es...}};
+  index e[sizeof...(Es)]{Es...};
   index eA = e[A];
   e[A] = e[B];
   e[B] = eA;
-  return e;
+  return detail::as_std_array(e);
 }
 
 template <int A, int B, typename E, std::size_t... Is>

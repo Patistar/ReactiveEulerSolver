@@ -111,11 +111,24 @@ public:
   /////////////////////////////////////////////////////////////////////////////
   // Constructors
 
+#if __cplusplus >= 201703L
   constexpr basic_span(pointer p, [[maybe_unused]] index_type size) noexcept
+#elif defined(NDEBUG)
+  constexpr basic_span(pointer p, index_type) noexcept
+#else
+  constexpr basic_span(pointer p, index_type size) noexcept
+#endif
       : m_storage{p} {
     assert(N <= size);
   }
+
+#if __cplusplus >= 201703L
   constexpr basic_span(pointer first, [[maybe_unused]] pointer last) noexcept
+#elif defined(NDEBUG)
+  constexpr basic_span(pointer first, pointer) noexcept
+#else
+  constexpr basic_span(pointer first, pointer last) noexcept
+#endif
       : m_storage{first} {
     assert(N <= (last - first));
   }

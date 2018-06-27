@@ -169,8 +169,13 @@ public:
   }
 
   // Element Access
-
+#if __cplusplus >= 201703L
   constexpr value_type operator[]([[maybe_unused]] int i) const noexcept {
+#elif defined(NDEBUG)
+  constexpr value_type operator[](int) const noexcept {
+#else
+  constexpr value_type operator[](int i) const noexcept {
+#endif
     assert(i == 0);
     return m_value;
   }
@@ -259,7 +264,13 @@ public:
 
   // Element Access
 
+#if __cplusplus >= 201703L
   constexpr value_type operator[]([[maybe_unused]] int i) const noexcept {
+#elif defined(NDEBUG)
+  constexpr value_type operator[](int) const noexcept {
+#else
+  constexpr value_type operator[](int i) const noexcept {
+#endif
     assert(i == 0);
     return m_value;
   }

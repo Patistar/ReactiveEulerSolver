@@ -26,7 +26,7 @@
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/godunov_method.hpp"
-#include "fub/godunov_splitting.hpp"
+#include "fub/strang_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/ode_solver/cradau.hpp"
@@ -42,7 +42,7 @@ const godunov_method<euler::hlle_riemann_solver> flux_method;
 
 const time_integrator::forward_euler time_integrator;
 
-const fub::hyperbolic_system_solver<kinetic::burke_2012_1d::grid_type,
+const hyperbolic_system_solver<kinetic::burke_2012_1d::grid_type,
                                     kinetic::burke_2012_1d::boundary_condition,
                                     uniform_cartesian_coordinates<1>,
                                     std::decay_t<decltype(flux_method)>,

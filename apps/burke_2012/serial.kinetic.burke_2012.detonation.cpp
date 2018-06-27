@@ -38,15 +38,15 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   using namespace fub::euler::mechanism::burke2012::variables;
   moles[as_index(o2)] = 1.0;
   moles[as_index(h2)] = 2.0;
-  auto left = Equation().set_TPX(2000, 5E5, moles);
-  auto right = Equation().set_TPX(300, 1E5, moles);
+  auto left = Equation().set_TPX(2000, 5.0E5, moles);
+  auto right = Equation().set_TPX(288, 1.0E5, moles);
   return {{left, right}};
 }
 
 Equation::complete_state
 initial_value_function(const std::array<double, 1>& xs) {
   static auto states = get_initial_states();
-  if (0.29 < xs[0] && xs[0] < 0.3) {
+  if (xs[0] < 0.01) {
     return states[0];
   } else {
     return states[1];

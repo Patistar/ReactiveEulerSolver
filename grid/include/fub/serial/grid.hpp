@@ -43,10 +43,10 @@ public:
   using patch_type = typename grid_node_patch<Eq, Extents>::type;
   using patch_view_type = decltype(make_view(std::declval<const patch_type>()));
 
-  grid_node(const grid_node&) = default
-  grid_node& oprator=(const grid_node&) = default
-  grid_node(grid_node&&) noexcept = default
-  grid_node&& operator=(grid_node&&) noexcept = default
+  grid_node(const grid_node&) = default;
+  grid_node& oprator=(const grid_node&) = default;
+  grid_node(grid_node&&) noexcept = default;
+  grid_node&& operator=(grid_node&&) noexcept = default;
 
   grid_node(ready_future<grid_node> node)
       : m_patch{std::move(node.get().m_patch)} {}

@@ -32,6 +32,9 @@ endif()
 add_executable(test.grid.interval_map test.grid.interval_map.cpp)
 target_link_libraries(test.grid.interval_map ReactiveEulerSolver.grid)
 
+add_executable(test.grid.grid test.grid.grid.cpp)
+target_link_libraries(test.grid.grid ReactiveEulerSolver.grid)
+
 add_executable(test.grid.patch_view test.grid.patch_view.cpp)
 target_link_libraries(test.grid.patch_view ReactiveEulerSolver.grid Catch2)
 

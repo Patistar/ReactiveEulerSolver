@@ -76,28 +76,6 @@ constexpr std::array<double, 3> get_time_coefficients() noexcept {
   return {{(4. - sq6) / 10., (4. + sq6) / 10., 1.}};
 }
 
-/// \brief Returns the butcher matrix for the 3-stage RADAU IIa solver.
-///
-/// This is a 3x3-matrix and is denoted as `A` in the `(A, b, c)`-butcher
-/// scheme.
-[[maybe_unused]] blaze::StaticMatrix<double, 3, 3>
-get_butcher_matrix() noexcept {
-  constexpr double sq6 =
-      2.449489742783178098197284074705891391965947480656670128432;
-  constexpr std::array<double, 3> time_coefficients = get_time_coefficients();
-  static constexpr double A11 = (88. - 7. * sq6) / 360.;
-  static constexpr double A12 = (296. - 169. * sq6) / 1800.;
-  static constexpr double A13 = (-2. + 3. * sq6) / 225.;
-  static constexpr double A21 = (296. + 169. * sq6) / 1800.;
-  static constexpr double A22 = (88. + 7. * sq6) / 360.;
-  static constexpr double A23 = (-2. - 3. * sq6) / 225.;
-  static constexpr double A31 = time_coefficients[0];
-  static constexpr double A32 = time_coefficients[1];
-  static constexpr double A33 = time_coefficients[2];
-  return blaze::StaticMatrix<double, 3, 3>{
-      {A11, A12, A13}, {A21, A22, A23}, {A31, A32, A33}};
-}
-
 blaze::StaticMatrix<double, 3, 3> get_transform_matrix() noexcept {
   static constexpr double T11 = 9.1232394870892942792E-02;
   static constexpr double T12 = -0.14125529502095420843E0;

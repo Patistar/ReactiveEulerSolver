@@ -191,7 +191,7 @@ constexpr basic_octant<Integral, Rank>::basic_octant(
   if (depth < 0 || max_depth < depth) {
     throw std::out_of_range("basic_octant: Depth is out of range.");
   }
-  const Integral max = depth == 0 ? 0 : Integral(1) << max_depth - depth;
+  const Integral max = depth == 0 ? 0 : Integral(1) << (max_depth - depth);
   if (!std::all_of(coords.begin(), coords.end(),
                    [max](Integral x) { return 0 <= x && x <= max; })) {
     throw std::out_of_range(

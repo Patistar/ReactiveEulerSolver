@@ -18,8 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/grid.hpp"
+#include "fub/serial/grid.hpp"
+#include <type_traits>
+
+#include "fub/optional.hpp"
+
+struct Density {};
+
+struct Equation {
+  using complete_state = std::tuple<Density>;
+};
 
 int main()
 {
+    using fub::ready_future;
+    using fub::serial::grid_node;
+    using fub::extents;
+    using fub::dyn;
+    static_assert(std::is_assignable<grid_node<Equation, extents<dyn>>&, const grid_node<Equation, extents<dyn>>&>::value, "grid_node is not copyable.");
+
+    ready_future<grid_node<Equation, extents<dyn>>> future_node(grid_node<Equation, extents<dyn>>(fub::serial::dummy_location{}, extents<dyn>(32)));
+    grid_node<Equation, extents<dyn>> node = std::move(future_node);
+    assert(node.get_patch_view().get().extents().size() == 32);
 }

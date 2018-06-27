@@ -46,7 +46,7 @@ public:
   grid_node(const grid_node&) = default;
   grid_node& operator=(const grid_node&) = default;
   grid_node(grid_node&&) noexcept = default;
-  grid_node&& operator=(grid_node&&) noexcept = default;
+  grid_node& operator=(grid_node&&) noexcept = default;
 
   grid_node(ready_future<grid_node> node)
       : m_patch{std::move(node.get().m_patch)} {}

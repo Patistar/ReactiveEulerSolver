@@ -267,8 +267,8 @@ struct hyperbolic_system_solver {
   }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {
-    archive& flux_method;
-    archive& integrator;
+    archive & flux_method;
+    archive & integrator;
   }
 
   FluxMethod flux_method;

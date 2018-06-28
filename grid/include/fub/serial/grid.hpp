@@ -51,13 +51,13 @@ public:
     return *this;
   }
 
-  explicit grid_node(dummy_location, const Extents& extents)
+  grid_node(dummy_location, const Extents& extents)
       : m_patch(std::make_shared<patch_type>(extents)) {}
 
-  explicit grid_node(dummy_location, patch_type&& patch)
+  grid_node(dummy_location, patch_type&& patch)
       : m_patch(std::make_shared<patch_type>(std::move(patch))) {}
 
-  explicit grid_node(dummy_location, const patch_type& patch)
+  grid_node(dummy_location, const patch_type& patch)
       : m_patch(std::make_shared<patch_type>(patch)) {}
 
   ready_future<patch_view_type> get_patch_view() const {

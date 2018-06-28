@@ -21,8 +21,9 @@
 #ifndef FUB_READY_FUTURE_HPP
 #define FUB_READY_FUTURE_HPP
 
-#include "fub/optional.hpp"
 #include "fub/type_traits.hpp"
+
+#include <boost/optional.hpp>
 
 namespace fub {
 template <typename T> class ready_future {
@@ -73,7 +74,10 @@ public:
 
 private:
   template <typename S> friend class ready_future;
-  optional<T> m_value;
+  // std::optional<T> requires T to be a a complete type.
+  // We use boost::optional very explicitly here to accept incomplete types.
+  // This is needed constructs like `serial::grid_node`
+  boost::optional<T> m_value;
 };
 
 template <> class ready_future<void> {

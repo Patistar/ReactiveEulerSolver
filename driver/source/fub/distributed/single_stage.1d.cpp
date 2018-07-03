@@ -23,24 +23,28 @@
 #include "fub/distributed/initialise.hpp"
 #include "fub/patch_view.hpp"
 
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/time_integrator/forward_euler.hpp"
 
+using Eq = fub::euler::ideal_gas<fub::euler::mechanism::single_stage::single_stage, 1>;
+using Ex = fub::extents<fub::dyn>;
+FUB_REGISTER_GRID_NODE_COMPONENT(Eq, Ex);
+
 namespace fub {
 namespace distributed {
 namespace {
-const single_stage_1d::equation_type equation{};
-
 const godunov_method<fub::euler::hlle_riemann_solver> flux_method;
 
 const fub::time_integrator::forward_euler time_integrator;
 
-const fub::hyperbolic_system_solver<decltype(equation), decltype(flux_method),
-                                    decltype(time_integrator)>
-    advective_solver{equation, flux_method, time_integrator};
+const fub::hyperbolic_system_solver<distributed::single_stage_1d::grid_type,
+                                    distributed::single_stage_1d::boundary_condition,
+                                    uniform_cartesian_coordinates<1>,
+                                    std::decay_t<decltype(flux_method)>,
+                                    std::decay_t<decltype(time_integrator)>>
+    advective_solver{flux_method, time_integrator};
 } // namespace
 
 single_stage_1d::state_type single_stage_1d::initialise(

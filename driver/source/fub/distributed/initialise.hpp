@@ -26,29 +26,31 @@
 
 namespace fub {
 namespace distributed {
-template <typename Grid> struct initialise_partition {
-  using node_type = typename grid_traits<Grid>::node_type;
-  using patch_type = typename grid_traits<Grid>::patch_type;
-  static constexpr int rank = Grid::rank;
+template <typename Grid, typename Function> struct initialise_patch {
+  using traits = grid_traits<Grid>;
+  using node_type = typename traits::node_type;
+  using patch_type = typename traits::patch_type;
+  using extents_type = typename traits::extents_type;
+  static constexpr int rank = traits::rank;
 
-  template <typename Feedback>
-  static node_type invoke(patch_type patch, const hpx::id_type& where,
-                          const uniform_cartesian_coordinates<rank>& coords,
-                          Feedback f) {
+  static node_type invoke(extents_type extents,
+                          uniform_cartesian_coordinates<rank> coords,
+                          Function function) {
+    patch_type patch(extents);
     auto view = make_view(patch);
-    for_each_index(patch.extents(), [&](const std::array<index, rank>& i) {
-      view(i) = fub::invoke(f, fub::apply(coords, i));
+    for_each_index(view.extents(), [&](const std::array<index, rank>& i) {
+      view(i) = fub::invoke(function, fub::apply(coords, i));
     });
-    return node_type(where, std::move(patch));
+    return node_type(hpx::find_here(), std::move(patch));
   }
 };
 
 template <typename Grid, typename Feedback>
-struct initialise_partition_action
+struct initialise_patch_action
     : hpx::actions::make_action<
-          decltype(&initialise_partition<Grid>::template invoke<Feedback>),
-          &initialise_partition<Grid>::template invoke<Feedback>,
-          initialise_partition_action<Grid, Feedback>> {};
+          decltype(&initialise_patch<Grid, Feedback>::invoke),
+          &initialise_patch<Grid, Feedback>::invoke,
+          initialise_patch_action<Grid, Feedback>> {};
 
 template <typename State, typename InitialCondition, int Rank>
 State initialise(InitialCondition f,
@@ -58,16 +60,14 @@ State initialise(InitialCondition f,
   using traits = grid_traits<grid_type>;
   typename traits::extents_type extents(coordinates.extents());
   typename traits::equation_type equation{};
-  auto localities = hpx::find_all_localities();
-  auto distribution = make_uniform_distribution(int_c<Rank>, depth, localities);
-  grid_type grid = make_grid(distribution, depth, extents, equation);
+  grid_type grid = make_grid(make_uniform_distribution(int_c<Rank>, depth, hpx::find_all_localities()), depth, extents, equation);
   for (auto& partition : grid) {
-    auto&& locality = traits::locality(partition);
+    hpx::id_type locality = traits::locality(partition);
     auto&& oct = traits::octant(partition);
     auto&& coords = adapt(coordinates, oct);
-    initialise_partition_action<grid_type, InitialCondition> action{};
     partition.second =
-        traits::dataflow(action, locality, fub::as_const(partition), locality, coords, f);
+        traits::dataflow_action(initialise_patch_action<grid_type, InitialCondition>(),
+                   locality, extents, coords, f);
   }
   return State{std::move(grid),
                coordinates,

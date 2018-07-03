@@ -38,7 +38,7 @@ public:
 
   explicit ready_future(const T& value) : m_value{value} {}
 
-  ready_future(ready_future<ready_future> result)
+  ready_future(ready_future<ready_future> result) noexcept
       : ready_future([&] {
           if (result.m_value) {
             return ready_future(std::move(*result.m_value));
@@ -46,7 +46,7 @@ public:
           return ready_future();
         }()) {}
 
-  ready_future& operator=(ready_future<ready_future> result) {
+  ready_future& operator=(ready_future<ready_future> result) noexcept {
     if (result.m_value) {
       m_value.reset(std::move(*result.m_value));
     } else {

@@ -32,7 +32,10 @@
 
 namespace fub {
 namespace serial {
-struct dummy_location {};
+struct dummy_location {
+  dummy_location() = default;
+  dummy_location(ready_future<dummy_location>) {}
+};
 
 template <typename Eq, typename E> struct grid_node_patch {
   using type = patch<as_tuple_t<complete_state_t<Eq>>, E>;
@@ -65,8 +68,8 @@ public:
     return result;
   }
 
-  ready_future<dummy_location> get_locality() const noexcept {
-    return ready_future<dummy_location>{dummy_location{}};
+  dummy_location get_locality() const noexcept {
+    return dummy_location{};
   }
 
 private:
@@ -259,7 +262,8 @@ struct grid_traits<serial::grid<Equation, Extents>> {
   static ready_future<T> reduce(const grid_type& grid, T initial,
                                 BinaryOp binary_op, Proj proj) {
     for (const partition_type& partition : grid) {
-      initial = fub::invoke(binary_op, initial, fub::invoke(proj, partition));
+      auto&& projected = fub::invoke(proj, partition);
+      initial = fub::invoke(binary_op, initial, std::move(projected));
     }
     return ready_future<T>(std::move(initial));
   }

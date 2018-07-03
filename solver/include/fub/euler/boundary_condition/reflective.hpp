@@ -34,12 +34,29 @@
 namespace fub {
 namespace euler {
 namespace boundary_condition {
+namespace detail {
+template <typename Grid, axis Axis, direction Dir, int Width>
+struct reflect_patch {
+  using traits = grid_traits<Grid>;
+  using node_type = typename traits::node_type;
+  using locality_type = typename traits::location_type;
+  using patch_type = typename traits::patch_type;
+  using variables_tuple = typename patch_type::variables_tuple;
+  using equation_type = typename traits::equation_type;
+  using extents_type = typename traits::extents_type;
+  using source_view = typename traits::const_patch_view_type;
 
-class reflective {
-  template <axis Axis, direction Dir, typename Source, typename Dest,
-            typename Equation>
-  static void apply(const Source& source, const Dest& dest,
-                    const Equation& equation, std::true_type) noexcept {
+  using reflected_extents_type =
+      replace_extent_t<extents_type, as_int(Axis), int_c<Width>>;
+
+  using reflected_node_type =
+      typename traits::template bind_node<equation_type,
+                                          reflected_extents_type>;
+
+  using dest_view = patch_view_t<typename reflected_node_type::patch_type&>;
+
+  static void apply(const source_view& source, const dest_view& dest,
+                    const equation_type& equation, std::true_type) noexcept {
     static constexpr int Dim = as_int(Axis);
     for_each_index(dest.extents(), [&](auto indices) {
       const std::ptrdiff_t size = source.extents().get(Dim);
@@ -53,11 +70,8 @@ class reflective {
     });
   }
 
-  template <axis Axis, direction Dir, typename Source, typename Dest,
-            typename Equation>
-  static void apply(const Source& source, const Dest& dest,
-                    const Equation& equation, std::false_type) noexcept {
-    using namespace variables;
+  static void apply(const source_view& source, const dest_view& dest,
+                    const equation_type& equation, std::false_type) noexcept {
     static constexpr int Dim = as_int(Axis);
     for_each_index(dest.extents(), [&](auto indices) {
       const std::ptrdiff_t size = dest.extents().get(Dim);
@@ -65,20 +79,39 @@ class reflective {
       auto mapped = indices;
       mapped[Dim] = size - 1 - i;
       dest(mapped) = source(indices);
-      auto rho_u = equation.get_momentum(dest(indices));
+      auto rho_u = equation.get_momentum(dest(mapped));
       rho_u[Dim] *= -1;
-      dest(indices) = equation.set_momentum(dest(indices), rho_u);
+      dest(mapped) = equation.set_momentum(dest(mapped), rho_u);
     });
   }
 
-  template <axis Axis, direction Dir, typename Source, typename Dest,
-            typename Equation>
-  static void apply(const Source& source, const Dest& dest,
-                    const Equation& equation) noexcept {
-    return apply<Axis, Dir>(source, dest, equation,
-                            bool_c<Dir == direction::right>);
+  static void apply(const source_view& source, const dest_view& dest,
+                    const equation_type& equation) noexcept {
+    return apply(source, dest, equation, bool_c<Dir == direction::right>);
   }
 
+  static reflected_node_type invoke(node_type left, equation_type equation) {
+    source_view view = left.get_patch_view().get();
+    reflected_extents_type reduced_extents =
+        replace_extent(view.extents(), int_c<as_int(Axis)>, int_c<Width>);
+    typename reflected_node_type::patch_type right(reduced_extents);
+    reflect_patch::apply(view, make_view(right), equation);
+    return reflected_node_type(left.get_locality(), std::move(right));
+  }
+};
+
+template <typename Grid, axis Axis, direction Dir, int Width>
+struct reflect_patch_action
+    : grid_traits<Grid>::template make_action<
+          decltype(&reflect_patch<Grid, Axis, Dir, Width>::invoke),
+          &reflect_patch<Grid, Axis, Dir, Width>::invoke,
+          reflect_patch_action<Grid, Axis, Dir, Width>> {};
+
+} // namespace detail
+
+using detail::reflect_patch_action;
+
+class reflective {
 public:
   template <int Width, axis Axis, direction Dir, typename Grid,
             typename Coordinates>
@@ -86,35 +119,9 @@ public:
   get_face_neighbor(const typename grid_traits<Grid>::partition_type& partition,
                     const Grid& grid, const Coordinates& /* coordinates */) {
     using traits = grid_traits<Grid>;
-    using node_type = typename traits::node_type;
-    using patch_type = typename traits::patch_type;
-    using variables_tuple = typename patch_type::variables_tuple;
-    using equation_type = typename traits::equation_type;
-    using extents_type = typename traits::extents_type;
-    using result_extents_type =
-        replace_extent_t<extents_type, as_int(Axis), int_c<Width>>;
-    using result_node_type =
-        typename traits::template bind_node<equation_type, result_extents_type>;
-    auto where = traits::locality(partition);
-    node_type node = traits::node(partition);
-    auto reflect_data = [](const node_type& left,
-                           const equation_type& equation) {
-      result_node_type result = grid_traits<Grid>::dataflow(
-          [](auto view, auto where, const equation_type& equation) {
-            auto left = view.get();
-            result_extents_type reduced_extents = replace_extent(
-                left.extents(), int_c<as_int(Axis)>, int_c<Width>);
-            auto right = make_patch(variables_tuple(), reduced_extents);
-            apply<Axis, Dir>(left, make_view(right), equation);
-            return result_node_type(where.get(), std::move(right));
-          },
-          left.get_patch_view(), left.get_locality(),
-          equation);
-      return result;
-    };
-    result_node_type result = grid_traits<Grid>::dataflow_action(
-        reflect_data, std::move(where), node, grid.equation());
-    return result;
+    return
+        traits::dataflow_action(reflect_patch_action<Grid, Axis, Dir, Width>(),
+                                traits::locality(partition), traits::node(partition), grid.equation());
   }
 };
 

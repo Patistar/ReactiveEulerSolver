@@ -23,11 +23,11 @@ if (NOT DEFINED HPX_FOUND OR NOT HPX_FOUND)
   find_package(HPX 1.0)
 endif()
 
-#if (DEFINED HPX_FOUND AND HPX_FOUND)
-  #add_hpx_executable(test.grid.distributed_grid
-    #SOURCES test.grid.distributed_grid.cpp
-    #DEPENDENCIES ReactiveEulerSolver.grid Catch2)
-#endif()
+if (DEFINED HPX_FOUND AND HPX_FOUND)
+  add_hpx_executable(test.grid.distributed_grid
+    SOURCES test.grid.distributed_grid.cpp
+    DEPENDENCIES ReactiveEulerSolver.grid Catch2)
+endif()
 
 add_executable(test.grid.interval_map test.grid.interval_map.cpp)
 target_link_libraries(test.grid.interval_map ReactiveEulerSolver.grid)

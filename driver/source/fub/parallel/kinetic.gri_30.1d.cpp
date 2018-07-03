@@ -23,7 +23,6 @@
 #include "fub/parallel/initialise.hpp"
 #include "fub/patch_view.hpp"
 
-#include "fub/euler/boundary_condition/reflective.hpp"
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/euler/muscl_hancock_method.hpp"

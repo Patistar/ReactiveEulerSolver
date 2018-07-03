@@ -31,11 +31,11 @@
 #pragma clang diagnostic pop
 #endif
 
-#include "fub/grid.hpp"
 #include "fub/interval_map.hpp"
 #include "fub/octree.hpp"
 #include "fub/optional.hpp"
 #include "fub/patch.hpp"
+#include "fub/serial/grid.hpp"
 
 namespace fub {
 namespace distributed {
@@ -69,7 +69,19 @@ private:
   patch_type m_patch;
 };
 
+#define FUB_REGISTER_GRID_NODE_COMPONENT_DECLARATION(Eq, Ext)                  \
+  using grid_node_server_get_patch_action_type =                               \
+      ::fub::distributed::grid_node_server<Eq, Ext>::get_patch_action;         \
+  HPX_REGISTER_ACTION_DECLARATION(grid_node_server_get_patch_action_type)
+
 #define FUB_REGISTER_GRID_NODE_COMPONENT(Eq, Ext)                              \
+  using grid_node_server_get_patch_action_ghost_type =                         \
+      ::fub::distributed::grid_node_server<Eq,                                 \
+                                           fub::extents<2>>::get_patch_action; \
+  HPX_REGISTER_ACTION(grid_node_server_get_patch_action_ghost_type);           \
+  using grid_node_component_ghost_type = ::hpx::components::component<         \
+      ::fub::distributed::grid_node_server<Eq, fub::extents<2>>>;              \
+  HPX_REGISTER_COMPONENT(grid_node_component_ghost_type)                       \
   using grid_node_server_get_patch_action_type =                               \
       ::fub::distributed::grid_node_server<Eq, Ext>::get_patch_action;         \
   HPX_REGISTER_ACTION(grid_node_server_get_patch_action_type);                 \
@@ -86,41 +98,61 @@ class grid_node
 
 public:
   using patch_type = typename grid_patch<Eq, Extents>::type;
+  using patch_view = decltype(make_view(std::declval<const patch_type>()));
 
   grid_node() = default;
 
   /// Create new component on locality 'where' and initialize the held data
   grid_node(hpx::id_type where, const Extents& extents)
-      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(where, extents)) {}
+      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(std::move(where),
+                                                           extents)) {}
 
   /// Create new component on locality 'where' and initialize the held data
   grid_node(hpx::id_type where, const patch_type& patch)
-      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(where, patch)) {}
+      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(std::move(where),
+                                                           patch)) {}
 
   /// Create new component on locality 'where' and initialize the held data
   grid_node(hpx::id_type where, patch_type&& patch)
-      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(where,
+      : base_type(hpx::new_<grid_node_server<Eq, Extents>>(std::move(where),
                                                            std::move(patch))) {}
 
   /// Unwrap a future node
   grid_node(hpx::future<grid_node> node) : base_type(std::move(node)) {}
-  grid_node(hpx::future<hpx::id_type>&& id) : base_type(std::move(id)) {} 
-  grid_node(const hpx::future<hpx::id_type>& id) : base_type(id) {} 
+  grid_node(hpx::future<hpx::id_type>&& id) : base_type(std::move(id)) {}
+  grid_node(const hpx::future<hpx::id_type>& id) : base_type(id) {}
 
-  hpx::future<patch_type> get_patch() const {
-    typename grid_node_server<Eq, Extents>::get_patch_action act;
-    return hpx::async(act, base_type::get_id());
+  hpx::id_type get_locality() const { return hpx::get_colocation_id(base_type::get_id()).get(); }
+
+  void retrieve_patch() {
+    if (!m_patch.valid()) {
+      m_patch =
+          hpx::async(typename grid_node_server<Eq, Extents>::get_patch_action(),
+                     base_type::get_id());
+    }
   }
+
+  hpx::future<patch_view> get_patch_view() {
+    if (!m_patch.valid()) {
+      retrieve_patch();
+    }
+    return m_patch.then([](const hpx::shared_future<patch_type>& p) {
+      return make_view(p.get());
+    });
+  }
+
+private:
+  hpx::shared_future<patch_type> m_patch;
 };
 
-template <typename Equation, typename Extents> class grid {
+template <typename Eq, typename PatchExtents> class grid {
 public:
-  static constexpr int rank = Extents::rank;
+  static constexpr int rank = PatchExtents::rank;
 
-  using equation_type = Equation;
-  using extents_type = Extents;
-  using patch_type = typename grid_patch<Equation, Extents>::type;
+  using equation_type = Eq;
+  using extents_type = PatchExtents;
   using node_type = grid_node<equation_type, extents_type>;
+  using patch_type = typename node_type::patch_type;
   using mapped_type = node_type;
   using octree_type = octree<mapped_type, rank>;
   using octant_type = octant<rank>;
@@ -128,48 +160,32 @@ public:
   using iterator = typename octree_type::iterator;
   using const_iterator = typename octree_type::const_iterator;
 
-  grid(const equation_type& equation, const extents_type& extents) noexcept
-      : m_equation(equation), m_patch_extents(extents) {}
+  grid(const equation_type& eq, const extents_type& extents) noexcept
+      : m_patch_extents{extents}, m_equation{eq} {}
 
-  // Accessors
+  // Iterators
 
-  const octree_type& octree() const noexcept { return m_tree; }
-  const extents_type& patch_extents() const noexcept { return m_patch_extents; }
-  const equation_type& equation() const noexcept { return m_equation; }
-
-  auto size() const noexcept { return m_tree.size(); }
-
-  // Modifiers
-
-  iterator insert(const_iterator hint, const octant_type& octant,
-                  const node_type& node) {
-    return m_tree.insert(hint, std::make_pair(octant, node));
-  }
-
-  iterator insert(const_iterator hint, const octant_type& octant,
-                  node_type&& node) {
-    return m_tree.insert(hint, std::make_pair(octant, std::move(node)));
-  }
-
-  template <typename... Args>
-  iterator emplace(const_iterator hint, const octant_type& octant,
-                   Args&&... args) {
-    return insert(hint, octant, node_type(std::forward<Args>(args)...));
-  }
-
-  // ITERATORS
-
-  const_iterator begin() const noexcept { return m_tree.begin(); }
-  const_iterator end() const noexcept { return m_tree.end(); }
-
+  /// Returns an iterator to the first element
+  /// @{
   iterator begin() noexcept { return m_tree.begin(); }
-  iterator end() noexcept { return m_tree.end(); }
+  const_iterator begin() const noexcept { return m_tree.begin(); }
+  const_iterator cbegin() const noexcept { return m_tree.cbegin(); }
+  /// @}
 
-  /// @brief Returns the partition located at the specified octant.
-  template <axis Axis, direction Direction>
+  /// Returns an iterator one past the last elemet
+  /// @{
+  iterator end() noexcept { return m_tree.end(); }
+  const_iterator end() const noexcept { return m_tree.end(); }
+  const_iterator cend() const noexcept { return m_tree.end(); }
+  /// @}
+
+  // Access Partition
+
+  /// Returns the partition for a specified octant if found.
+  template <axis Axis, direction Dir>
   optional<partition_type> get_face_neighbor(const octant_type& octant) const
       noexcept {
-    optional<octant_type> neighbor = face_neighbor(octant, {Axis, Direction});
+    optional<octant_type> neighbor = face_neighbor(octant, {Axis, Dir});
     if (neighbor) {
       const_iterator it = m_tree.find(*neighbor);
       if (it != m_tree.end()) {
@@ -179,10 +195,41 @@ public:
     return nullopt;
   }
 
+  // Observers
+
+  const extents_type& patch_extents() const noexcept { return m_patch_extents; }
+  const equation_type& equation() const noexcept { return m_equation; }
+  auto size() const noexcept { return m_tree.size(); }
+
+  // Modifiers
+
+  /// Inserts a grid node which contains patch data values.
+  /// @{
+  iterator insert(const_iterator hint, const octant_type& octant,
+                  node_type&& node) {
+    return m_tree.insert(hint, std::make_pair(octant, std::move(node)));
+  }
+
+  iterator insert(const_iterator hint, const octant_type& octant,
+                  const node_type& node) {
+    return m_tree.insert(hint, std::make_pair(octant, node));
+  }
+
+  std::pair<iterator, bool> insert(const octant_type& octant,
+                                   node_type&& node) {
+    return m_tree.insert(std::make_pair(octant, std::move(node)));
+  }
+
+  std::pair<iterator, bool> insert(const octant_type& octant,
+                                   const node_type& node) {
+    return m_tree.insert(std::make_pair(octant, node));
+  }
+  /// @}
+
 private:
   octree_type m_tree{};
-  equation_type m_equation{};
   extents_type m_patch_extents{};
+  equation_type m_equation{};
 };
 
 template <int Rank, typename Localities>
@@ -224,75 +271,50 @@ grid<Equation, Extents> make_grid(const Distribution& distribution, int depth,
   const octant<rank> last = octant<rank>().upper_descendant(depth);
   while (oct != last) {
     const hpx::id_type& id = distribution[oct];
-    grid.emplace(grid.end(), oct, id, extents);
+    grid.insert(grid.end(), oct, grid_node<Equation, Extents>(id, extents));
     oct = oct.next();
   }
+  const hpx::id_type& id = distribution[oct];
+  grid.insert(grid.end(), oct, grid_node<Equation, Extents>(id, extents));
   return grid;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// filter_patch overload set
-
-template <typename T> struct filter_patch_fn {
-  template <typename S> decltype(auto) operator()(S&& obj) const noexcept {
-    return std::forward<S>(obj);
-  }
-};
-
-template <typename Eq, typename Ex> struct filter_patch_fn<grid_node<Eq, Ex>> {
-  hpx::future<typename grid_patch<Eq, Ex>::type>
-  operator()(const grid_node<Eq, Ex>& node) const {
-    return node.get_patch();
-  }
-};
-
-template <int Rank, typename Eq, typename Ex>
-struct filter_patch_fn<std::pair<const octant<Rank>, grid_node<Eq, Ex>>> {
-  hpx::future<typename grid_patch<Eq, Ex>::type>
-  operator()(const typename grid<Eq, Ex>::partition_type& p) const {
-    return filter_patch_fn<grid_node<Eq, Ex>>{}(p.second);
-  }
-};
-
-template <typename T> decltype(auto) filter_patch(T&& obj) {
-  return filter_patch_fn<std::decay_t<T>>{}(std::forward<T>(obj));
-}
-
-template <typename Arg>
-using filter_patch_t = decltype(filter_patch(std::declval<Arg>()));
-
-template <typename Arg>
-using unwrap_t = decltype(hpx::util::unwrap(std::declval<Arg>()));
-
 } // namespace distributed
 
-template <typename Eq, typename Ex>
-struct grid_traits<distributed::grid<Eq, Ex>> {
-  using grid_type = distributed::grid<Eq, Ex>;
-  using equation_type = Eq;
-  using extents_type = typename grid_type::extents_type;
+template <typename Equation, typename Extents>
+struct grid_traits<distributed::grid<Equation, Extents>> {
+  using grid_type = distributed::grid<Equation, Extents>;
+  using equation_type = typename grid_type::equation_type;
   using partition_type = typename grid_type::partition_type;
+  using extents_type = typename grid_type::extents_type;
   using octant_type = typename grid_type::octant_type;
   using mapped_type = typename grid_type::mapped_type;
   using patch_type = typename grid_type::patch_type;
   using patch_view_type = decltype(make_view(std::declval<patch_type&>()));
+  using const_patch_view_type =
+      decltype(make_view(std::declval<const patch_type&>()));
   using node_type = typename grid_type::node_type;
+
+  template <typename Eq, typename Ex>
+  using bind_node = distributed::grid_node<Eq, Ex>;
+
+  using location_type = hpx::id_type;
+
+  template <typename T> using future = hpx::future<T>;
 
   static constexpr int rank = grid_type::rank;
 
+  template <typename AddressType, AddressType Address, typename T>
+  using make_action = hpx::actions::make_action<AddressType, Address, T>;
+
   template <typename F, typename... Args>
-  static decltype(auto) dataflow(F f, Args&&... args) {
-    return hpx::dataflow(
-        hpx::launch::async, hpx::util::unwrapping(std::move(f)),
-        distributed::filter_patch(std::forward<Args>(args))...);
+  static decltype(auto) dataflow(F&& f, Args&&... args) {
+    return hpx::dataflow(hpx::launch::async, std::forward<F>(f),
+                         std::forward<Args>(args)...);
   }
 
   template <typename F, typename... Args>
-  static decltype(auto) dataflow(F f, const hpx::id_type& id, Args&&... args) {
-    auto action = distributed::as_action(std::move(f));
-    return hpx::dataflow(
-        hpx::launch::async, hpx::util::unwrapping(std::move(action)), id,
-        distributed::filter_patch(std::forward<Args>(args))...);
+  static decltype(auto) dataflow_action(F&& f, Args&&... args) {
+    return hpx::async(std::forward<F>(f), std::forward<Args>(args)...);
   }
 
   /// @brief Returns the octant from a specified value
@@ -305,8 +327,18 @@ struct grid_traits<distributed::grid<Eq, Ex>> {
     return partition.first;
   }
 
-  static decltype(auto) locality(const partition_type& partition) {
-    return partition.second.get_id();
+  static const node_type& node(const partition_type& partition) noexcept {
+    return partition.second;
+  }
+  static node_type& node(partition_type& partition) noexcept {
+    return partition.second;
+  }
+  static node_type&& node(partition_type&& partition) noexcept {
+    return std::move(partition.second);
+  }
+
+  static hpx::id_type locality(const partition_type& partition) {
+    return partition.second.get_locality();
   }
 
   /// @brief This function specialises the reduce algorithm for the grid at
@@ -323,16 +355,27 @@ struct grid_traits<distributed::grid<Eq, Ex>> {
                    });
     return hpx::when_all(projected).then(
         [=, binary_op = std::move(binary_op)](auto ps) {
-          auto&& projected_ = ps.get();
-          return std::accumulate(
-              projected_.begin(), projected_.end(), initial,
-              [binary_op = std::move(binary_op)](auto&& x, auto&& y) {
-                return fub::invoke(binary_op, x, y.get());
-              });
+          auto projected_vector = ps.get();
+          T value = initial;
+          for (auto&& projected : projected_vector) {
+            value = fub::invoke(binary_op, value, std::move(projected));
+          }
+          return value;
         });
   }
 };
 
 } // namespace fub
+
+namespace hpx {
+namespace serialization {
+template <typename Ar, typename Rep, typename Period>
+void serialize(Ar& archive, std::chrono::duration<Rep, Period>& t, unsigned) {
+  Rep rep = t.count();
+  archive & rep;
+  t = std::chrono::duration<Rep, Period>{rep};
+}
+} // namespace serialization
+} // namespace hpx
 
 #endif // !FUB_DISTRIBUTED_GRID_HPP

@@ -94,15 +94,15 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return m;
   }
 
-  /// @brief We deploy simple minmod limiting of slopes
+  /// @brief We deploy Monotonized central-difference (MC) Limiter
   template <typename T, typename Abi>
   static simd<T, Abi>
   compute_limited_slope(const simd<T, Abi>& left,
                         const nodeduce_t<simd<T, Abi>>& right) noexcept {
-    const simd<T, Abi> central_difference = 0.5 * (right - left);
-    const simd<T, Abi> one_sided = 2 * minmod(left, right);
-    const simd<T, Abi> limited = minmod(central_difference, one_sided);
-    return limited;
+    simd<T, Abi> r = right / left;
+    simd<T, Abi> van_leer_limiter  = (4 * r) / ((r + 1) * (r + 1));
+    where(left * right <= 0, van_leer_limiter) = 0;
+    return van_leer_limiter * left;
   }
 
   /// @brief Returns the slope vector for a specified stencil
@@ -201,7 +201,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     S drhodx = dwdx[pressure] / (R * w[temperature]) -
                w[pressure] / (R * w[temperature] * w[temperature]) *
                    dwdx[temperature] -
-               w[pressure] / (R * R * w[temperature]) * R_hat * dYdx_mass_sum;
+               (rho / R) * R_hat * dYdx_mass_sum;
 
     // Compute velocity derivate, du / dt
     S dudt = -w[velocity<0>] * dwdx[velocity<0>] - dwdx[pressure] / rho;
@@ -274,8 +274,13 @@ template <typename RiemannSolver> struct muscl_hancock_method {
 
   template <typename Mechanism, int Rank, index Size>
   struct reconstructed_states {
+    reconstructed_states(const extents<Size>& e)
+        : on_left_face(e), on_right_face(e) {}
+
+    static_assert(Size == dyn || Size > 0, "Invalid Extents Size.");
     using patch_type =
         patch<complete_state_t<ideal_gas<Mechanism, Rank>>, extents<Size>>;
+
     patch_type on_left_face;
     patch_type on_right_face;
   };
@@ -284,15 +289,15 @@ template <typename RiemannSolver> struct muscl_hancock_method {
             typename Coordinates>
   std::enable_if_t<
       is_simd_abi_v<Abi>,
-      reconstructed_states<Mechanism, Rank, view_extents_t<StateSpan>().size()>>
+      reconstructed_states<Mechanism, Rank, view_extents_t<StateSpan>().static_get(0)>>
   reconstruct_states(const ideal_gas<Mechanism, Rank>& eq, const Abi& abi,
                      const StateSpan& qL, const nodeduce_t<StateSpan>& qM,
                      const nodeduce_t<StateSpan>& qR,
                      std::chrono::duration<double> dt,
                      const Coordinates& coordinates) const noexcept {
-    static constexpr index length = view_extents_t<StateSpan>().size();
-    reconstructed_states<Mechanism, Rank, length> rec;
-    double lambda = 0.5 * dt.count() / coordinates.dx()[0];
+    static constexpr index Extent = view_extents_t<StateSpan>().static_get(0);
+    reconstructed_states<Mechanism, Rank, Extent> rec(qM.extents());
+    double lambda = dt.count() / coordinates.dx()[0];
     fub::for_each_simd(
         abi,
         [&](auto abi, auto&& left, auto&& right, auto qL, auto qM, auto qR) {
@@ -327,13 +332,14 @@ template <typename RiemannSolver> struct muscl_hancock_method {
         [&](auto flux, auto left, auto middle, auto right) {
           // Gather all states into one continuous array
           const auto row = join(rtake<2>(left), middle, take<2>(right));
-          auto qL = rdrop<2>(make_view(row));
-          auto qM = rdrop<1>(drop<1>(make_view(row)));
-          auto qR = drop<2>(make_view(row));
+          const auto rowv = make_view(row);
+          auto qL = rdrop<2>(rowv);
+          auto qM = rdrop<1>(drop<1>(rowv));
+          auto qR = drop<2>(rowv);
 
           // Reconstruct states on half-time level
           const auto reconstructed = reconstruct_states(
-              equation, abi, qL, qM, qR, 0.5 * dt, coordinates);
+              equation, abi, qL, qM, qR, dt, coordinates);
 
           // Compute numeric fluxes with these reconstruced states.
           m_godunov_method.compute_numeric_fluxes(

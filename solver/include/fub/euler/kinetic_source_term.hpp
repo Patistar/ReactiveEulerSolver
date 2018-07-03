@@ -33,6 +33,12 @@
 
 namespace fub {
 namespace euler {
+namespace kinetic_source_term_detail {
+template <typename Grid, typename Solver> struct advance_patch;
+template <typename Grid, typename Solver> struct advance_patch_action;
+template <typename Grid, typename Solver> struct get_dt;
+template <typename Grid, typename Solver> struct get_dt_action;
+} // namespace kinetic_source_term_detail
 
 template <typename Grid, typename OdeSolver = ode_solver::Radau>
 struct kinetic_source_term {
@@ -139,33 +145,15 @@ struct kinetic_source_term {
   Grid step(const Grid& grid, duration dt) const {
     using node_type = typename traits::node_type;
     Grid next{grid.equation(), grid.patch_extents()};
-    auto advance_data = [](node_type node, kinetic_source_term solver,
-                           equation_type equation, duration dt) {
-      future<const_patch_view> view = node.get_patch_view();
-      future<location_type> where = node.get_locality();
-      node_type result = traits::dataflow(
-          [node, solver, equation, dt](future<const_patch_view> future_view,
-                                       future<location_type> future_where) {
-            location_type where = future_where.get();
-            const_patch_view view = future_view.get();
-            patch_type result(view.extents());
-            patch_view_t<patch_type&> dest = make_view(result);
-            std::transform(view.begin(), view.end(), dest.begin(),
-                           [&](const auto& state) {
-                             return solver.advance_state(equation, state, dt);
-                           });
-            return node_type(where, std::move(result));
-          },
-          std::move(view), std::move(where));
-      return result;
-    };
+    kinetic_source_term_detail::advance_patch_action<Grid, kinetic_source_term>
+        advance_patch{};
     for (const partition_type& partition : grid) {
       const auto& octant = traits::octant(partition);
       auto where = traits::locality(partition);
       node_type node = traits::node(partition);
       equation_type equation = grid.equation();
       next.insert(next.end(), octant,
-                  traits::dataflow_action(advance_data, std::move(where),
+                  traits::dataflow_action(advance_patch, std::move(where),
                                           std::move(node), *this, equation,
                                           dt));
     }
@@ -178,63 +166,24 @@ struct kinetic_source_term {
     return step(grid, dt);
   }
 
-  // template <typename Coordinates, typename BoundaryCondition>
-  // auto get_time_step_size(const Grid& grid, const Coordinates&,
-  //                         const BoundaryCondition&) const {
-  //   const std::chrono::duration<double> initial{
-  //       std::numeric_limits<double>::infinity()};
-  // return traits::reduce(
-  //     grid, initial, [](duration x, auto&& y) { return std::min(x,
-  //     y.get()); },
-  //     [&](const partition_type& partition) {
-  //       auto get_dt = [](node_type node, future<const_patch_view> /* data
-  //       */,
-  //                        kinetic_source_term solver, equation_type
-  //                        equation) {
-  //         const_patch_view view = node.get_patch_view().get();
-  //         auto get_max_dt = [=](auto& state) {
-  //           ode_system system{equation};
-  //           auto T_and_c = solver.retrieve_T_and_c(equation, state);
-  //           decltype(T_and_c) dTdt_and_dcdt;
-  //           /// Compute derivatives and retrieve them
-  //           system(dTdt_and_dcdt, T_and_c, 0);
-  //           auto c = drop<1>(make_span(T_and_c));
-  //           auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
-  //           const double T = T_and_c[0];
-  //           const double dTdt = dTdt_and_dcdt[0];
-  //           /// Compute max dt for each component and take the minimum
-  //           // auto molar_masses = solver.equation.get_molar_masses();
-  //           // const double rho = solver.equation.get(Density(), state);
-  //           const double max_dt = fub::transform_reduce(
-  //               dcdt.begin(), dcdt.end(), c.begin(),
-  //               std::numeric_limits<double>::infinity(),
-  //               [](double t1, double t2) { return std::min(t1, t2); },
-  //               [=](double dc_dt, double c) {
-  //                 return dc_dt < 0 ? std::abs(c / dc_dt)
-  //                                  :
-  //                                  std::numeric_limits<double>::infinity();
-  //               });
-  //           return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) :
-  //           max_dt;
-  //         };
-  //         double max_dt =
-  //             std::accumulate(view.begin(), view.end(),
-  //                             std::numeric_limits<double>::infinity(),
-  //                             [=](double dt, const auto& state) {
-  //                               return std::min(dt, get_max_dt(state));
-  //                             });
-  //         max_dt = std::max(max_dt, 1e-3);
-  //         assert(max_dt > 0);
-  //         return std::chrono::duration<double>(max_dt);
-  //       };
-  //       node_type node = traits::node(partition);
-  //       auto view = node.get_patch_view();
-  //       auto where = traits::locality(partition);
-  //       return traits::dataflow_action(get_dt, std::move(where),
-  //                                      std::move(node), std::move(view),
-  //                                      *this, grid.equation());
-  //     });
-  // }
+  template <typename Coordinates, typename BoundaryCondition>
+  auto get_time_step_size(const Grid& grid, const Coordinates&,
+                          const BoundaryCondition&) const {
+    const std::chrono::duration<double> initial{
+        std::numeric_limits<double>::infinity()};
+    return traits::reduce(
+        grid, initial,
+        [](duration x, future<duration> y) { return std::min(x, y.get()); },
+        [&](const partition_type& partition) {
+          kinetic_source_term_detail::get_dt_action<Grid, kinetic_source_term>
+              get_dt{};
+          node_type node = traits::node(partition);
+          auto where = traits::locality(partition);
+          return traits::dataflow_action(get_dt, std::move(where),
+                                         std::move(node), *this,
+                                         grid.equation());
+        });
+  }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {
     archive& m_ode_solver;
@@ -242,6 +191,96 @@ struct kinetic_source_term {
 
   OdeSolver m_ode_solver{};
 };
+
+namespace kinetic_source_term_detail {
+template <typename Grid, typename Solver> struct advance_patch {
+  using traits = grid_traits<Grid>;
+  using node_type = typename traits::node_type;
+  using equation_type = typename traits::equation_type;
+  using patch_type = typename traits::patch_type;
+  using const_patch_view = typename traits::const_patch_view_type;
+  using location_type = typename traits::location_type;
+  using duration = std::chrono::duration<double>;
+  template <typename T> using future = typename traits::template future<T>;
+
+  static node_type invoke(node_type node, Solver solver, equation_type equation,
+                          duration dt) {
+    future<const_patch_view> view = node.get_patch_view();
+    node_type result = traits::dataflow(
+        [node, solver, equation, dt](future<const_patch_view> future_view) {
+          const_patch_view view = future_view.get();
+          patch_type result(view.extents());
+          patch_view_t<patch_type&> dest = make_view(result);
+          std::transform(view.begin(), view.end(), dest.begin(),
+                         [&](const auto& state) {
+                           return solver.advance_state(equation, state, dt);
+                         });
+          return node_type(node.get_locality(), std::move(result));
+        },
+        std::move(view));
+    return result;
+  }
+};
+
+template <typename Grid, typename Solver>
+struct advance_patch_action
+    : grid_traits<Grid>::template make_action<
+          decltype(&advance_patch<Grid, Solver>::invoke),
+          &advance_patch<Grid, Solver>::invoke,
+          advance_patch_action<Grid, Solver>> {};
+
+template <typename Grid, typename Solver> struct get_dt {
+  using traits = grid_traits<Grid>;
+  using node_type = typename traits::node_type;
+  using equation_type = typename traits::equation_type;
+  using patch_type = typename traits::patch_type;
+  using const_patch_view = typename traits::const_patch_view_type;
+  using location_type = typename traits::location_type;
+  using duration = std::chrono::duration<double>;
+  template <typename T> using future = typename traits::template future<T>;
+
+  static duration invoke(node_type node, Solver solver,
+                         equation_type equation) {
+    const_patch_view view = node.get_patch_view().get();
+    auto get_max_dt = [=](auto& state) {
+      typename kinetic_source_term<Grid>::ode_system system{equation};
+      auto T_and_c = solver.retrieve_T_and_c(equation, state);
+      decltype(T_and_c) dTdt_and_dcdt;
+      /// Compute derivatives and retrieve them
+      system(dTdt_and_dcdt, T_and_c, 0);
+      auto c = drop<1>(make_span(T_and_c));
+      auto dcdt = drop<1>(make_span(dTdt_and_dcdt));
+      const double T = T_and_c[0];
+      const double dTdt = dTdt_and_dcdt[0];
+      /// Compute max dt for each component and take the minimum
+      // auto molar_masses = solver.equation.get_molar_masses();
+      // const double rho = solver.equation.get(Density(), state);
+      const double max_dt = fub::transform_reduce(
+          dcdt.begin(), dcdt.end(), c.begin(),
+          std::numeric_limits<double>::infinity(),
+          [](double t1, double t2) { return std::min(t1, t2); },
+          [=](double dc_dt, double c) {
+            return dc_dt < 0 ? std::abs(c / dc_dt)
+                             : std::numeric_limits<double>::infinity();
+          });
+      return dTdt < 0 ? std::min(max_dt, std::abs(T / dTdt)) : max_dt;
+    };
+    double max_dt = std::accumulate(view.begin(), view.end(),
+                                    std::numeric_limits<double>::infinity(),
+                                    [=](double dt, const auto& state) {
+                                      return std::min(dt, get_max_dt(state));
+                                    });
+    assert(max_dt > 0);
+    return std::chrono::duration<double>(max_dt);
+  }
+};
+
+template <typename Grid, typename Solver>
+struct get_dt_action
+    : grid_traits<Grid>::template make_action<
+          decltype(&get_dt<Grid, Solver>::invoke),
+          &get_dt<Grid, Solver>::invoke, get_dt_action<Grid, Solver>> {};
+} // namespace kinetic_source_term_detail
 
 } // namespace euler
 } // namespace fub

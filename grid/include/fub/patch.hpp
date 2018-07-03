@@ -209,8 +209,8 @@ public:
 private:
   template <typename Archive>
   friend void serialize(Archive& archive, patch& p, unsigned) {
-    archive& p.m_extents;
-    for_each_tuple_element([&](auto& storage) { archive& storage; },
+    archive & p.m_extents;
+    for_each_tuple_element([&](auto& storage) { archive & storage; },
                            p.m_storage);
   }
 };

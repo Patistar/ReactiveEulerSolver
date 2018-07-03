@@ -26,7 +26,7 @@
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
 #include "fub/godunov_method.hpp"
-#include "fub/strang_splitting.hpp"
+#include "fub/godunov_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
 #include "fub/ode_solver/cradau.hpp"
@@ -54,7 +54,7 @@ const fub::euler::kinetic_source_term<kinetic::burke_2012_1d::grid_type,
     kinetic_source_term{};
 
 const auto solver = make_hyperbolic_system_source_solver(
-    strang_splitting(), advective_solver, kinetic_source_term);
+    godunov_splitting(), advective_solver, kinetic_source_term);
 } // namespace
 
 burke_2012_1d::state_type burke_2012_1d::initialise(

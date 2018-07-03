@@ -34,11 +34,11 @@ int main() {
   x[Index_v<H2>] = 2.0;
   x[Index_v<O2>] = 1.0;
   fub::euler::ideal_gas<Burke2012> eq{};
-  auto state = eq.set_TPX(1100, 4e5, x);
+  auto state = eq.set_TPX(1200, 5e5, x);
   using grid_t = fub::serial::grid<fub::euler::ideal_gas<Burke2012>,
                                    fub::extents<fub::dyn>>;
   using kinetic_source_term_t =
-      fub::euler::kinetic_source_term<grid_t, fub::ode_solver::radau5>;
+      fub::euler::kinetic_source_term<grid_t>;
   kinetic_source_term_t source_term{};
   using namespace std::chrono_literals;
   auto next = source_term.advance_state(eq, state, 0.001s);

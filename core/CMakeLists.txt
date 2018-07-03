@@ -4,17 +4,20 @@ project(ReactiveEulerSolver_core CXX)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 ###############################################################################
-#                                         Set the default C++ standard to C++17
+#                                         Set the default C++ standard to C++14
+
 if (NOT DEFINED FUB_CORE_CXX_STANDARD)
-  set(FUB_CORE_CXX_STANDARD 17)
+  set(FUB_CORE_CXX_STANDARD 14)
 endif()
 
 ###############################################################################
 #                                             Find Boost or throw a fatal error
+
 find_package(Boost REQUIRED)
 
 ###############################################################################
 #                                      Download fmtlib and add the subdirectory
+
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt/.git)
   execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/fmt
                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -23,6 +26,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt)
 
 ###############################################################################
 #                                              Add range-v3 and define a target
+
 if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/range-v3/.git)
   execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/range-v3
                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

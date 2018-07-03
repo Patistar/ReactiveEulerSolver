@@ -45,7 +45,7 @@ const fub::hyperbolic_system_solver<
 burke_2012_1d::state_type burke_2012_1d::initialise(
     initial_condition_function f,
     const uniform_cartesian_coordinates<rank>& coordinates, int depth) {
-  return serial::initialise<state_type>(std::move(f), coordinates, depth);
+  return serial::initialise<state_type>(std::move(f), coordinates, depth, 0.25);
 }
 
 burke_2012_1d::state_type burke_2012_1d::advance(

@@ -33,50 +33,36 @@
 
 namespace fub {
 namespace detail {
+/// We use this class to declare an action which integrates a patch in time.
+///
+/// @example TODO
+///
+/// @see Actions
+/// @{
 template <typename Grid, typename Solver, typename Coordinates, typename Left,
           typename Right, axis Axis>
-struct integrate_patch {
-  using traits = grid_traits<Grid>;
-  static constexpr int rank = traits::rank;
-  using equation_type = typename traits::equation_type;
-  using node_type = typename traits::node_type;
-  using duration = std::chrono::duration<double>;
-
-  static node_type invoke(const Left& left, const node_type& middle,
-                          const Right& right, const Solver& solver,
-                          const equation_type& equation,
-                          const Coordinates& coords, duration dt) {
-    node_type result = traits::dataflow(
-        [left, middle, right, solver, equation, coords, dt](auto lv, auto mv,
-                                                            auto rv) {
-          auto left_view = lv.get();
-          auto middle_view = mv.get();
-          auto right_view = rv.get();
-          typename traits::patch_type dest(middle_view.extents());
-          solver.integrator.template integrate<Axis>(
-              make_view(dest), left_view, middle_view, right_view, dt, coords,
-              solver.flux_method, equation);
-          node_type result =
-              middle.get_locality().then([dest = std::move(dest)](auto id) {
-                return node_type(id.get(), std::move(dest));
-              });
-          return result;
-        },
-        left.get_patch_view(), middle.get_patch_view(), right.get_patch_view());
-    return result;
-  };
-};
+struct integrate_patch;
 
 template <typename Grid, typename Solver, typename Coordinates, typename Left,
           typename Right, axis Axis>
-struct integrate_patch_action
-    : grid_traits<Grid>::template make_action<
-          decltype(&integrate_patch<Grid, Solver, Coordinates, Left, Right,
-                                    Axis>::invoke),
-          &integrate_patch<Grid, Solver, Coordinates, Left, Right,
-                           Axis>::invoke,
-          integrate_patch_action<Grid, Solver, Coordinates, Left, Right,
-                                 Axis>> {};
+struct integrate_patch_action;
+/// @}
+
+/// We use this class to declare an action which gets a stable time step size
+/// for patch.
+///
+/// @example TODO
+///
+/// @see Actions
+/// @{
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right>
+struct get_dt;
+
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right>
+struct get_dt_action;
+/// @}
 } // namespace detail
 
 template <typename Grid, typename BoundaryCondition, typename Coordinates,
@@ -97,6 +83,10 @@ struct hyperbolic_system_solver {
   using integrate_patch_action =
       detail::integrate_patch_action<Grid, hyperbolic_system_solver,
                                      Coordinates, Left, Right, Axis>;
+
+  template <typename Left, typename Right>
+  using get_dt_action = detail::get_dt_action<Grid, hyperbolic_system_solver,
+                                              Coordinates, Left, Right>;
 
   // Utility typedef
   using duration = std::chrono::duration<double>;
@@ -151,21 +141,20 @@ struct hyperbolic_system_solver {
       const octant<rank> octant = traits::octant(partition);
       const Coordinates adapted = adapt(coordinates, octant);
       node_type node = traits::node(partition);
-      future<location_type> where = traits::locality(partition);
+      location_type where = traits::locality(partition);
       // Whatever type left and right have, we do the same thing.
       // visit dispatches `{variant<T, S>, variant<T, S>}` into for cases
       // ({T, T}, {T, S}, {S, T}, {S, S}).
       fub::visit(
           [&](auto left, auto right) mutable {
             // Create a function which will be possibly invoked delayed.
-            integrate_patch_action<std::decay_t<decltype(left)>,
-                                   std::decay_t<decltype(right)>, Axis>
-                integrate_patch{};
+            using L = std::decay_t<decltype(left)>;
+            using R = std::decay_t<decltype(right)>;
             // Whenever `left`, `partition` and `right` are ready, invoke
             // integrate_partition and put the result into `next`.
             next.insert(next.end(), octant,
                         traits::dataflow_action(
-                            integrate_patch, std::move(where), std::move(left),
+                            integrate_patch_action<L, R, Axis>(), std::move(where), std::move(left),
                             std::move(node), std::move(right), *this, equation,
                             adapted, dt));
           },
@@ -202,8 +191,8 @@ struct hyperbolic_system_solver {
     duration initial{std::numeric_limits<double>::infinity()};
     return traits::reduce(
         current, initial,
-        [](duration x, auto&& y) { return std::min(x, y.get()); },
-        [=](const partition_type& partition) {
+        [](duration x, future<duration> y) { return std::min(x, y.get()); },
+        [&](const partition_type& partition) {
           auto left_nb = get_face_neighbor<axis::x, direction::left>(
               partition, current, boundary_condition, coordinates);
           auto right_nb = get_face_neighbor<axis::x, direction::right>(
@@ -211,22 +200,14 @@ struct hyperbolic_system_solver {
           octant<rank> octant = traits::octant(partition);
           Coordinates adapted = adapt(coordinates, octant);
           node_type node = traits::node(partition);
-          future<location_type> where = traits::locality(partition);
+          location_type where = traits::locality(partition);
           return fub::visit(
               [&](auto left, auto right) {
-                auto get_dt = [left, node,
-                               right](auto lv, auto mv, auto rv,
-                                      const hyperbolic_system_solver& solver,
-                                      const equation_type& equation,
-                                      const Coordinates& coords) {
-                  duration dt = solver.flux_method.get_stable_time_step(
-                      equation, lv.get(), mv.get(), rv.get(), coords);
-                  assert(dt.count() > 0);
-                  return dt;
-                };
+                using L = std::decay_t<decltype(left)>;
+                using R = std::decay_t<decltype(right)>;
                 return traits::dataflow_action(
-                    std::move(get_dt), std::move(where), left.get_patch_view(),
-                    node.get_patch_view(), right.get_patch_view(), *this,
+                    get_dt_action<L, R>(), std::move(where), std::move(left),
+                    std::move(node), std::move(right), *this,
                     current.equation(), adapted);
               },
               std::move(left_nb), std::move(right_nb));
@@ -273,7 +254,96 @@ struct hyperbolic_system_solver {
 
   FluxMethod flux_method;
   TimeIntegrator integrator;
-}; // namespace fub
+};
+
+namespace detail {
+//////////////////////////////////////////////////////////////////////////////
+// Integrate Patch Action
+
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right, axis Axis>
+struct integrate_patch {
+  using traits = grid_traits<Grid>;
+  static constexpr int rank = traits::rank;
+  using equation_type = typename traits::equation_type;
+  using node_type = typename traits::node_type;
+  using duration = std::chrono::duration<double>;
+
+  static node_type invoke(Left left, node_type middle,
+                          Right right, Solver solver,
+                          equation_type equation,
+                          Coordinates coords, duration dt) {
+    auto lv = left.get_patch_view();
+    auto mv = middle.get_patch_view();
+    auto rv = right.get_patch_view();
+    node_type result = traits::dataflow(
+        [left, middle, right, solver, equation, coords, dt](auto lv, auto mv,
+                                                            auto rv) {
+          auto left_view = lv.get();
+          auto middle_view = mv.get();
+          auto right_view = rv.get();
+          typename traits::patch_type dest(middle_view.extents());
+          solver.integrator.template integrate<Axis>(
+              make_view(dest), left_view, middle_view, right_view, dt, coords,
+              solver.flux_method, equation);
+          node_type result(middle.get_locality(), std::move(dest));
+          return result;
+        }, std::move(lv), std::move(mv), std::move(rv));
+    return result;
+  };
+};
+
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right, axis Axis>
+struct integrate_patch_action
+    : grid_traits<Grid>::template make_action<
+          decltype(&integrate_patch<Grid, Solver, Coordinates, Left, Right,
+                                    Axis>::invoke),
+          &integrate_patch<Grid, Solver, Coordinates, Left, Right,
+                           Axis>::invoke,
+          integrate_patch_action<Grid, Solver, Coordinates, Left, Right,
+                                 Axis>> {};
+
+//////////////////////////////////////////////////////////////////////////////
+// Get Time Step Size Action
+
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right>
+struct get_dt {
+  using traits = grid_traits<Grid>;
+
+  static constexpr int rank = traits::rank;
+  using equation_type = typename traits::equation_type;
+  using node_type = typename traits::node_type;
+  using duration = std::chrono::duration<double>;
+  template <typename T> using future = typename traits::template future<T>;
+
+  static future<duration> invoke(Left left, node_type middle, Right right,
+                                 Solver solver, equation_type equation,
+                                 Coordinates coords) {
+    auto lview = left.get_patch_view();
+    auto mview = middle.get_patch_view();
+    auto rview = right.get_patch_view();
+    return traits::dataflow(
+        [left, middle, right, solver, equation, coords](auto l, auto m,
+                                                        auto r) {
+          duration dt = solver.flux_method.get_stable_time_step(
+              equation, l.get(), m.get(), r.get(), coords);
+          assert(dt.count() > 0);
+          return dt;
+        },
+        std::move(lview), std::move(mview), std::move(rview));
+  }
+};
+
+template <typename Grid, typename Solver, typename Coordinates, typename Left,
+          typename Right>
+struct get_dt_action
+    : grid_traits<Grid>::template make_action<
+          decltype(&get_dt<Grid, Solver, Coordinates, Left, Right>::invoke),
+          &get_dt<Grid, Solver, Coordinates, Left, Right>::invoke,
+          get_dt_action<Grid, Solver, Coordinates, Left, Right>> {};
+} // namespace detail
 
 } // namespace fub
 

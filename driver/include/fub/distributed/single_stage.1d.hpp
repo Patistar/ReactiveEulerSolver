@@ -56,7 +56,7 @@ struct single_stage_1d {
   };
 
   using initial_condition_function =
-      hpx::util::function<equation_state_t(const std::array<double, rank>&)>;
+      hpx::util::function<equation_state_t(std::array<double, rank>)>;
 
   using feedback_function = std::function<bool(const state_type&)>;
 
@@ -75,5 +75,7 @@ struct single_stage_1d {
 
 } // namespace distributed
 } // namespace fub
+
+FUB_REGISTER_GRID_NODE_COMPONENT_DECLARATION(fub::distributed::single_stage_1d::equation_type, fub::distributed::single_stage_1d::patch_extents_type);
 
 #endif // !SOLVER_HPP

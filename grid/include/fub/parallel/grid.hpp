@@ -37,10 +37,14 @@
 
 namespace fub {
 namespace parallel {
-using serial::dummy_location;
+struct dummy_location {
+  dummy_location() = default;
+  dummy_location(hpx::future<dummy_location>) {}
+};
+
 
 template <typename Eq, typename Ex> struct grid_node_patch {
-  using type = patch<as_tuple_t<complete_state_t<Eq>>, Ex>;
+  using type = patch<complete_state_t<Eq>, Ex>;
 };
 
 template <typename Eq, typename Extents> class grid_node {
@@ -80,8 +84,8 @@ public:
     });
   }
 
-  hpx::future<dummy_location> get_locality() const {
-    return hpx::make_ready_future(dummy_location{});
+  dummy_location get_locality() const {
+    return dummy_location{};
   }
 
 private:
@@ -94,8 +98,8 @@ public:
 
   using equation_type = Eq;
   using extents_type = PatchExtents;
-  using patch_type = patch<as_tuple_t<complete_state_t<Eq>>, extents_type>;
   using node_type = grid_node<equation_type, extents_type>;
+  using patch_type = typename node_type::patch_type;
   using mapped_type = node_type;
   using octree_type = octree<mapped_type, rank>;
   using octant_type = octant<rank>;
@@ -261,13 +265,16 @@ struct grid_traits<parallel::grid<Equation, Extents>> {
                    });
     return hpx::when_all(projected).then(
         [=, binary_op = std::move(binary_op)](auto ps) {
-          auto projected_ = ps.get();
-          return std::accumulate(projected_.begin(), projected_.end(), initial,
-                                 binary_op);
+          auto projected_vector = ps.get();
+          T value = initial;
+          for (auto&& projected : projected_vector) {
+            value = fub::invoke(binary_op, value, std::move(projected));
+          }
+          return value;
         });
   }
-}; // namespace fub
+};
 
 } // namespace fub
 
-#endif // !GRID_HPP
+#endif // !FUB_PARALLEL_GRID_HPP

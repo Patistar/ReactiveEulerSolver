@@ -406,6 +406,7 @@ public:
     std::array<double, Rank> old = get_momentum(q);
     auto e_kinetic_new = fub::transform_reduce(rhou, rhou, double(0));
     auto e_kinetic_old = fub::transform_reduce(old, old, double(0));
+    assert(q[density] > 0.0);
     result[energy] += 0.5 * (e_kinetic_new - e_kinetic_old) / q[density];
     for_each_tuple_element(
         [&](auto dir) { result[momentum<decltype(dir)::value>] = rhou[dir()]; },

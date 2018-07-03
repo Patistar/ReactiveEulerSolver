@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <blaze/Math.h>
+
 #include "fub/ode_solver/cradau.hpp"
 #include "fub/algorithm.hpp"
 #include "fub/optional.hpp"
 
-#include <blaze/Math.h>
 
 namespace fub {
 namespace ode_solver {

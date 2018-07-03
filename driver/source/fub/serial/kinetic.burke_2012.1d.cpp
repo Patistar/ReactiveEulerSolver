@@ -24,7 +24,7 @@
 
 #include "fub/euler/hlle_riemann_solver.hpp"
 #include "fub/euler/kinetic_source_term.hpp"
-#include "fub/godunov_method.hpp"
+#include "fub/euler/muscl_hancock_method.hpp"
 #include "fub/strang_splitting.hpp"
 #include "fub/hyperbolic_system_solver.hpp"
 #include "fub/hyperbolic_system_source_solver.hpp"
@@ -36,7 +36,7 @@ namespace fub {
 namespace serial {
 namespace kinetic {
 namespace {
-const godunov_method<euler::hlle_riemann_solver> flux_method;
+const euler::muscl_hancock_method<euler::hlle_riemann_solver> flux_method;
 
 const time_integrator::forward_euler time_integrator;
 
@@ -46,7 +46,7 @@ const hyperbolic_system_solver<
     std::decay_t<decltype(time_integrator)>>
     advective_solver{flux_method, time_integrator};
 
-const euler::kinetic_source_term<burke_2012_1d::grid_type, ode_solver::radau5>
+const euler::kinetic_source_term<burke_2012_1d::grid_type>
     kinetic_source_term{};
 
 const auto solver = make_hyperbolic_system_source_solver(
@@ -56,7 +56,7 @@ const auto solver = make_hyperbolic_system_source_solver(
 burke_2012_1d::state_type burke_2012_1d::initialise(
     initial_condition_function f,
     const uniform_cartesian_coordinates<rank>& coordinates, int depth) {
-  return serial::initialise<state_type>(std::move(f), coordinates, depth, 0.5);
+  return serial::initialise<state_type>(std::move(f), coordinates, depth, 0.25);
 }
 
 burke_2012_1d::state_type burke_2012_1d::advance(

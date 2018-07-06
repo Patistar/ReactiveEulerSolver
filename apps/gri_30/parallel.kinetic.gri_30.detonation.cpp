@@ -68,9 +68,9 @@ struct write_cgns_file {
       fub::output::cgns::iteration_data_write(file, state.time, state.cycle);
       for (const Partition& partition : state.grid) {
         const auto& octant = fub::grid_traits<Grid>::octant(partition);
-        auto node = partition.second.get();
-        fub::output::cgns::write(file, octant, fub::make_view(node.patch),
-                                 state.coordinates, Equation());
+        auto data = partition.second.get_patch_view().get();
+        fub::output::cgns::write(file, octant, data, state.coordinates,
+                                 Equation());
       }
     });
   }

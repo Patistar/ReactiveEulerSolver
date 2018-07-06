@@ -183,16 +183,14 @@ public:
 
   /// Returns the partition for a specified octant if found.
   template <axis Axis, direction Dir>
-  optional<partition_type> get_face_neighbor(const octant_type& octant) const
+  const_iterator find_face_neighbor(const octant_type& octant) const
       noexcept {
     optional<octant_type> neighbor = face_neighbor(octant, {Axis, Dir});
     if (neighbor) {
       const_iterator it = m_tree.find(*neighbor);
-      if (it != m_tree.end()) {
-        return *it;
-      }
+      return it;
     }
-    return nullopt;
+    return cend();
   }
 
   // Observers
@@ -354,10 +352,10 @@ struct grid_traits<distributed::grid<Equation, Extents>> {
                      return fub::invoke(proj, partition);
                    });
     return hpx::when_all(projected).then(
-        [=, binary_op = std::move(binary_op)](auto ps) {
-          auto projected_vector = ps.get();
+        [initial, binary_op = std::move(binary_op)](hpx::future<std::vector<Projected>> ps) {
+          std::vector<Projected> projected_vector = ps.get();
           T value = initial;
-          for (auto&& projected : projected_vector) {
+          for (Projected& projected : projected_vector) {
             value = fub::invoke(binary_op, value, std::move(projected));
           }
           return value;

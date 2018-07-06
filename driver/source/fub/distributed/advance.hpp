@@ -50,7 +50,7 @@ State advance(const Solver& solver, const State& state,
   auto get_next_level = [=](const hpx::shared_future<State>& future_state) {
     const State& state = future_state.get();
     if (state.time >= goal) {
-      return hpx::make_ready_future(std::move(state));
+      return hpx::make_ready_future(state);
     }
     std::chrono::duration<double> max_step_size = goal - state.time;
     hpx::future<std::pair<grid_type, std::chrono::duration<double>>> result =

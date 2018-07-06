@@ -111,9 +111,9 @@ struct hyperbolic_system_solver {
                     const Coordinates& coordinates) const {
     using variant_t = variant<node_type, get_face_neighbor_t<Axis, Dir>>;
     auto&& octant = traits::octant(partition);
-    optional<partition_type> existing_part(
-        grid.template get_face_neighbor<Axis, Dir>(octant));
-    if (existing_part) {
+    auto existing_part = 
+        grid.template find_face_neighbor<Axis, Dir>(octant);
+    if (existing_part != grid.end()) {
       return variant_t{in_place_index<0>, traits::node(*existing_part)};
     }
     return variant_t{

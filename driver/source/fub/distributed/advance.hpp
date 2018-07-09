@@ -78,7 +78,7 @@ State advance(const Solver& solver, const State& state,
   int next_i = 0;
   while (true) {
     auto time = times[next_i].get();
-    if (!fub::invoke(std::ref(feedback), time_levels[next_i].get()) ||
+    if (!fub::invoke(feedback, time_levels[next_i].get()) ||
         !(time < goal)) {
       break;
     }

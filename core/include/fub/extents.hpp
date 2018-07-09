@@ -66,6 +66,7 @@ static constexpr int extents_rank_v = extents_rank<E>::value;
 template <typename E> struct extents_rank_dynamic {
   static constexpr int value = E::rank_dynamic;
 };
+
 template <typename E>
 static constexpr int extents_rank_dynamic_v = extents_rank_dynamic<E>::value;
 

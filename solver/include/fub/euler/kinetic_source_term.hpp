@@ -99,6 +99,49 @@ struct kinetic_source_term {
       dTdt /= (rho * (R / mean_M - mean_cp));
       dTdt_and_dcdt[0] = dTdt;
     }
+
+    template <typename Abi, typename = std::enable_if_t<is_simd_abi_v<Abi>>>
+    void operator()(Abi abi,
+                    nodeduce_t<span<simd<double, Abi>, Size + 1>> dTdt_and_dcdt,
+                    nodeduce_t<span<const simd<double, Abi>, Size + 1>> T_and_c,
+                    nodeduce_t<simd<double, Abi>> /* t */) const noexcept {
+      // Compute production rates by calling the reaction mechanism.
+      span<simd<double, Abi>, Size> dcdt = drop<1>(dTdt_and_dcdt);
+      span<simd<const double, Abi>, Size> c = drop<1>(T_and_c);
+      const simd<double, Abi> T = T_and_c[0];
+      const simd<double, Abi> c_sum =
+          std::accumulate(c.begin(), c.end(), simd<double, Abi>{0});
+      const simd<double, Abi> R = equation.get_universal_gas_constant();
+      const simd<double, Abi> P = c_sum * R * T;
+      // Fill drhoXdt here by calling the get_production_rates function of the
+      // underlying mechanism.
+      equation.get_production_rates(abi, dcdt, c, T, P);
+
+      // Get the mole fractions by computing the mean molar masses
+      span<const simd<double, Abi>, Size> M = equation.get_molar_masses();
+      const simd<double, Abi> mean_M =
+          fub::transform_reduce(M, c, simd<double, Abi>(0)) / c_sum;
+      std::array<simd<double, Abi>, Size> rhoX;
+      std::transform(c.begin(), c.end(), rhoX.begin(),
+                     [=](simd<double, Abi> c_) { return c_ * mean_M; });
+      const simd<double, Abi> rho =
+          std::accumulate(rhoX.begin(), rhoX.end(), simd<double, Abi>(0));
+
+      // Compute dTdt such that the internal energy stays constant!
+      std::array<simd<double, Abi>, Size> h;
+      equation.get_specific_enthalpies_of_formation(abi, h, T);
+      std::array<simd<double, Abi>, Size> cp;
+      equation.get_specific_heat_capacities_at_constant_pressure(abi, cp, T);
+      // We set dTdt as shown in Phillips thesis here
+      simd<double, Abi> dTdt = 0;
+      simd<double, Abi> mean_cp = 0;
+      for (int i = 0; i < Size - 1; ++i) {
+        dTdt += (h[i] - R / M[i] * T) * (M[i] * dcdt[i]);
+        mean_cp += cp[i] * c[i] * M[i] / rho;
+      }
+      dTdt /= (rho * (R / mean_M - mean_cp));
+      dTdt_and_dcdt[0] = dTdt;
+    }
   };
 
   template <typename State>
@@ -175,18 +218,19 @@ struct kinetic_source_term {
         grid, initial,
         [](duration x, future<duration> y) { return std::min(x, y.get()); },
         [&](const partition_type& partition) {
-          kinetic_source_term_detail::get_dt_action<Grid, kinetic_source_term>
-              get_dt{};
-          node_type node = traits::node(partition);
-          auto where = traits::get_location(partition);
-          return traits::dataflow_action(get_dt, std::move(where),
-                                         std::move(node), *this,
-                                         grid.equation());
+          using get_dt_action =
+              kinetic_source_term_detail::get_dt_action<Grid,
+                                                        kinetic_source_term>;
+          return traits::dataflow_action(
+              get_dt_action(), traits::get_location(partition),
+              traits::node(partition), *this, grid.equation());
         });
   }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {
-    archive& m_ode_solver;
+    // clang-format off
+    archive & m_ode_solver;
+    // clang-format on
   }
 
   OdeSolver m_ode_solver{};
@@ -205,8 +249,7 @@ template <typename Grid, typename Solver> struct advance_patch {
 
   static node_type invoke(node_type node, Solver solver, equation_type equation,
                           duration dt) {
-    future<const_patch_view> view = node.get_patch_view();
-    node_type result = traits::dataflow(
+    return traits::dataflow(
         [node, solver, equation, dt](future<const_patch_view> future_view) {
           const_patch_view view = future_view.get();
           patch_type result(view.extents());
@@ -217,8 +260,7 @@ template <typename Grid, typename Solver> struct advance_patch {
                          });
           return node_type(node.get_location(), std::move(result));
         },
-        std::move(view));
-    return result;
+        node.get_patch_view());
   }
 };
 

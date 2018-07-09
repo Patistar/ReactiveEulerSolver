@@ -26,6 +26,7 @@
 #if __has_include("emmintrin.h") && defined(__SSE__) && !defined(FUB_NO_SSE)
 #define FUB_SIMD_HAS_SSE
 #include "emmintrin.h"
+#include "immintrin.h"
 #include <boost/align/is_aligned.hpp>
 
 namespace fub {
@@ -165,8 +166,6 @@ public:
   // Explicit cast into native type
   explicit operator const native_type&() const noexcept { return m_value; }
   explicit operator native_type&() noexcept { return m_value; }
-
-
 
   // Copy members
 
@@ -361,6 +360,37 @@ public:
 inline simd<double, simd_abi::sse>
 sqrt(const simd<double, simd_abi::sse>& x) noexcept {
   return _mm_sqrt_pd(static_cast<__m128d>(x));
+}
+
+namespace sse_detail {
+// Generate a constant vector of 4 integers stored in memory.
+// Can be converted to any integer vector type
+template <int i0, int i1, int i2, int i3> static inline __m128i constant4i() {
+  static const union {
+    int i[4];
+    __m128i xmm;
+  } u = {{i0, i1, i2, i3}};
+  return u.xmm;
+}
+} // namespace sse_detail
+
+inline simd<double, simd_abi::sse>
+round(const simd<double, simd_abi::sse>& x) noexcept {
+#ifdef __SSE4_2__
+  return _mm_round_pd(static_cast<__m128d>(x),
+                      _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+#else
+  // Note: assume MXCSR control register is set to rounding
+  // (don't use conversion to int, it will limit the value to +/- 2^31)
+  __m128d signmask = _mm_castsi128_pd(
+      sse_detail::constant4i<0, (int)0x80000000, 0, (int)0x80000000>()); // -0.0
+  __m128d magic = _mm_castsi128_pd(
+      sse_detail::constant4i<0, 0x43300000, 0,
+                             0x43300000>()); // magic number = 2^52
+  __m128d sign = _mm_and_pd(static_cast<__m128d>(x), signmask); // signbit of x
+  sse<double> signedmagic = _mm_or_pd(magic, sign); // magic number with sign of x
+  return x + signedmagic - signedmagic;         // round by adding magic number
+#endif
 }
 
 inline simd<double, simd_abi::sse>

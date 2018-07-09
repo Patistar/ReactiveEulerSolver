@@ -23,7 +23,7 @@
 
 #include "fub/simd/scalar.hpp"
 
-#if __has_include("immintrin.h") && defined(__AVX__) && !defined(FUB_NO_AVX)
+#if __has_include("immintrin.h") && defined(__AVX2__) && !defined(FUB_NO_AVX)
 #define FUB_SIMD_HAS_AVX
 #include "immintrin.h"
 #include <boost/align/is_aligned.hpp>

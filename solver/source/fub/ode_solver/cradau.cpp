@@ -243,9 +243,9 @@ void solve_iteration_matrix(integration_state& state,
   a_1 = y_0 + z_1;
   a_2 = y_0 + z_2;
   const double dt = state.step_size;
-  fub::invoke(ode_system, state.time + time_coefficients[0] * dt, a_0, z_0);
-  fub::invoke(ode_system, state.time + time_coefficients[1] * dt, a_1, z_1);
-  fub::invoke(ode_system, state.time + time_coefficients[2] * dt, a_2, z_2);
+  ode_system(state.time + time_coefficients[0] * dt, a_0, z_0);
+  ode_system(state.time + time_coefficients[1] * dt, a_1, z_1);
+  ode_system(state.time + time_coefficients[2] * dt, a_2, z_2);
 
   // Compute (T_inv o Id) F(Z^k) and store it into the `z`-vector
 

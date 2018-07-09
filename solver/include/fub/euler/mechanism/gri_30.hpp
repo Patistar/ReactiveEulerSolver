@@ -272,6 +272,16 @@ struct gri_30 {
                                    double temperature,
                                    double pressure) noexcept;
 
+#if defined(FUB_SIMD_HAS_SSE)
+  /// @brief Returns dY/dt for a specified mass distribution, temperature and
+  /// pressure.
+  static void get_production_rates(simd_abi::sse,
+                                   species_span<sse<double>> dydt,
+                                   species_span<const sse<double>> y,
+                                   sse<double> temperature,
+                                   sse<double> pressure) noexcept;
+#endif
+
   /// @brief Fills the `cps` array with heat capacities which depend on
   /// temperature [K] and mass fractions per each species.
   static void get_specific_heat_capacities_at_constant_pressure(

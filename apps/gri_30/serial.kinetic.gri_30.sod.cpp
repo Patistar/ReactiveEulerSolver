@@ -77,12 +77,12 @@ int main(int argc, char** argv) {
   po::options_description desc("Allowed Options");
   desc.add_options()("depth", po::value<int>()->default_value(0),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(1e-4),
+  desc.add_options()("time", po::value<double>()->default_value(1.0),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(1e-6),
+                     po::value<double>()->default_value(1e-4),
                      "The time interval in which we write output files.");
-  desc.add_options()("extents", po::value<fub::index>()->default_value(64),
+  desc.add_options()("extents", po::value<fub::index>()->default_value(200),
                      "Amount of cells per patch.");
 
   po::variables_map vm;

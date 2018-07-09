@@ -41,7 +41,6 @@ std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   moles[as_index(O2())] = 1.0;
   moles[as_index(C2H6())] = 1.0;
   auto left = Equation().set_TPX(900, 20E5, moles);
-  std::swap(moles[as_index(N2())], moles[as_index(AR())]);
   auto right = Equation().set_TPX(345, 8E5, moles);
   return {{left, right}};
 }

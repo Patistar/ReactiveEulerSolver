@@ -83,20 +83,24 @@ struct write_cgns_file {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("depth", po::value<int>()->default_value(5),
+  desc.add_options()("depth", po::value<int>()->default_value(3),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(1e-4),
+  desc.add_options()("time", po::value<double>()->default_value(1.0),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(1e-6),
+                     po::value<double>()->default_value(1e-4),
                      "The time interval in which we write output files.");
+  desc.add_options()("extents", po::value<fub::index>()->default_value(12),
+                     "Amount of cells per patch.");
   return hpx::init(desc, argc, argv);
 }
 
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<std::array<fub::index, 1>>(Grid::extents_type());
+  
+  const std::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
+  
   auto state = fub::parallel::kinetic::burke_2012_1d::initialise(
       &initial_value_function, coordinates, depth);
   write_cgns_file write_cgns{};

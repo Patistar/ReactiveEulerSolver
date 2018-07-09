@@ -37,9 +37,10 @@ using Partition = Grid::partition_type;
 std::array<Equation::complete_state, 2> get_initial_states() noexcept {
   std::array<double, Equation::species_size> moles{};
   using namespace fub::euler::mechanism::gri_30;
-  moles[as_index(N2())] = 1.0;
-  auto left = Equation().set_TPX(900, 8E5, moles);
-  std::swap(moles[as_index(N2())], moles[as_index(AR())]);
+  moles[as_index(CH4())] = 1.0;
+  moles[as_index(O2())] = 1.0;
+  moles[as_index(C2H6())] = 1.0;
+  auto left = Equation().set_TPX(900, 20E5, moles);
   auto right = Equation().set_TPX(345, 8E5, moles);
   return {{left, right}};
 }
@@ -83,20 +84,24 @@ struct write_cgns_file {
 int main(int argc, char** argv) {
   namespace po = boost::program_options;
   po::options_description desc("Allowed Options");
-  desc.add_options()("depth", po::value<int>()->default_value(4),
+  desc.add_options()("depth", po::value<int>()->default_value(3),
                      "Depth of tree.");
-  desc.add_options()("time", po::value<double>()->default_value(1e-3),
+  desc.add_options()("time", po::value<double>()->default_value(1.0),
                      "The final time level which we are interested in.");
   desc.add_options()("feedback_interval",
-                     po::value<double>()->default_value(5e-6),
+                     po::value<double>()->default_value(1e-3),
                      "The time interval in which we write output files.");
+  desc.add_options()("extents", po::value<fub::index>()->default_value(12),
+                     "Amount of cells per patch.");
   return hpx::init(desc, argc, argv);
 }
 
 int hpx_main(boost::program_options::variables_map& vm) {
   const int depth = vm["depth"].as<int>();
-  auto extents = static_cast<std::array<fub::index, 1>>(Grid::extents_type());
+
+  const std::array<fub::index, 1> extents{{vm["extents"].as<fub::index>()}};
   fub::uniform_cartesian_coordinates<1> coordinates({0}, {1.0}, extents);
+  
   auto state = fub::parallel::kinetic::gri_30_1d::initialise(&initial_value_function,
                                                      coordinates, depth);
   write_cgns_file write_cgns{};

@@ -149,7 +149,7 @@ struct kinetic_source_term {
         advance_patch{};
     for (const partition_type& partition : grid) {
       const auto& octant = traits::octant(partition);
-      auto where = traits::locality(partition);
+      auto where = traits::get_location(partition);
       node_type node = traits::node(partition);
       equation_type equation = grid.equation();
       next.insert(next.end(), octant,
@@ -178,7 +178,7 @@ struct kinetic_source_term {
           kinetic_source_term_detail::get_dt_action<Grid, kinetic_source_term>
               get_dt{};
           node_type node = traits::node(partition);
-          auto where = traits::locality(partition);
+          auto where = traits::get_location(partition);
           return traits::dataflow_action(get_dt, std::move(where),
                                          std::move(node), *this,
                                          grid.equation());
@@ -215,7 +215,7 @@ template <typename Grid, typename Solver> struct advance_patch {
                          [&](const auto& state) {
                            return solver.advance_state(equation, state, dt);
                          });
-          return node_type(node.get_locality(), std::move(result));
+          return node_type(node.get_location(), std::move(result));
         },
         std::move(view));
     return result;

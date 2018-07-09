@@ -96,7 +96,7 @@ struct reflect_patch {
         replace_extent(view.extents(), int_c<as_int(Axis)>, int_c<Width>);
     typename reflected_node_type::patch_type right(reduced_extents);
     reflect_patch::apply(view, make_view(right), equation);
-    return reflected_node_type(left.get_locality(), std::move(right));
+    return reflected_node_type(left.get_location(), std::move(right));
   }
 };
 
@@ -121,7 +121,7 @@ public:
     using traits = grid_traits<Grid>;
     return
         traits::dataflow_action(reflect_patch_action<Grid, Axis, Dir, Width>(),
-                                traits::locality(partition), traits::node(partition), grid.equation());
+                                traits::get_location(partition), traits::node(partition), grid.equation());
   }
 };
 

@@ -62,7 +62,7 @@ State initialise(InitialCondition f,
   typename traits::equation_type equation{};
   grid_type grid = make_grid(make_uniform_distribution(int_c<Rank>, depth, hpx::find_all_localities()), depth, extents, equation);
   for (auto& partition : grid) {
-    hpx::id_type locality = traits::locality(partition);
+    hpx::id_type locality = traits::get_location(partition);
     auto&& oct = traits::octant(partition);
     auto&& coords = adapt(coordinates, oct);
     partition.second =

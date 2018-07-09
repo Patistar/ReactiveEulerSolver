@@ -68,7 +68,7 @@ public:
     return result;
   }
 
-  dummy_location get_locality() const noexcept {
+  dummy_location get_location() const noexcept {
     return dummy_location{};
   }
 
@@ -249,8 +249,8 @@ struct grid_traits<serial::grid<Equation, Extents>> {
     return std::move(partition.second);
   }
 
-  static auto locality(const partition_type& part) noexcept {
-    return part.second.get_locality();
+  static auto get_location(const partition_type& part) noexcept {
+    return part.second.get_location();
     ;
   }
 

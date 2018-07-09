@@ -35,8 +35,6 @@ namespace fub {
 namespace detail {
 /// We use this class to declare an action which integrates a patch in time.
 ///
-/// @example TODO
-///
 /// @see Actions
 /// @{
 template <typename Grid, typename Solver, typename Coordinates, typename Left,
@@ -50,8 +48,6 @@ struct integrate_patch_action;
 
 /// We use this class to declare an action which gets a stable time step size
 /// for patch.
-///
-/// @example TODO
 ///
 /// @see Actions
 /// @{
@@ -111,8 +107,7 @@ struct hyperbolic_system_solver {
                     const Coordinates& coordinates) const {
     using variant_t = variant<node_type, get_face_neighbor_t<Axis, Dir>>;
     auto&& octant = traits::octant(partition);
-    auto existing_part = 
-        grid.template find_face_neighbor<Axis, Dir>(octant);
+    auto existing_part = grid.template find_face_neighbor<Axis, Dir>(octant);
     if (existing_part != grid.end()) {
       return variant_t{in_place_index<0>, traits::node(*existing_part)};
     }
@@ -133,15 +128,17 @@ struct hyperbolic_system_solver {
     Grid next{equation, current.patch_extents()};
     for (const partition_type& partition : current) {
       // Find neighbor partitions for ghost cells.
-      auto left_{get_face_neighbor<Axis, direction::left>(
-          partition, current, boundary_condition, coordinates)};
-      auto right_{get_face_neighbor<Axis, direction::right>(
-          partition, current, boundary_condition, coordinates)};
+      variant<node_type, get_face_neighbor_t<Axis, direction::left>> left_ =
+          get_face_neighbor<Axis, direction::left>(
+              partition, current, boundary_condition, coordinates);
+      variant<node_type, get_face_neighbor_t<Axis, direction::right>> right_ =
+          get_face_neighbor<Axis, direction::right>(
+              partition, current, boundary_condition, coordinates);
       // Fetch some Meta Data about what and where to integrate.
       const octant<rank> octant = traits::octant(partition);
       const Coordinates adapted = adapt(coordinates, octant);
       node_type node = traits::node(partition);
-      location_type where = traits::locality(partition);
+      location_type where = traits::get_location(partition);
       // Whatever type left and right have, we do the same thing.
       // visit dispatches `{variant<T, S>, variant<T, S>}` into for cases
       // ({T, T}, {T, S}, {S, T}, {S, S}).
@@ -154,9 +151,9 @@ struct hyperbolic_system_solver {
             // integrate_partition and put the result into `next`.
             next.insert(next.end(), octant,
                         traits::dataflow_action(
-                            integrate_patch_action<L, R, Axis>(), std::move(where), std::move(left),
-                            std::move(node), std::move(right), *this, equation,
-                            adapted, dt));
+                            integrate_patch_action<L, R, Axis>(), where,
+                            std::move(left), node, std::move(right), *this,
+                            equation, adapted, dt));
           },
           std::move(left_), std::move(right_));
     }
@@ -193,22 +190,23 @@ struct hyperbolic_system_solver {
         current, initial,
         [](duration x, future<duration> y) { return std::min(x, y.get()); },
         [&](const partition_type& partition) {
-          auto left_nb = get_face_neighbor<axis::x, direction::left>(
-              partition, current, boundary_condition, coordinates);
-          auto right_nb = get_face_neighbor<axis::x, direction::right>(
-              partition, current, boundary_condition, coordinates);
+          variant<node_type, get_face_neighbor_t<axis::x, direction::left>>
+              left_nb = get_face_neighbor<axis::x, direction::left>(
+                  partition, current, boundary_condition, coordinates);
+          variant<node_type, get_face_neighbor_t<axis::x, direction::left>>
+              right_nb = get_face_neighbor<axis::x, direction::right>(
+                  partition, current, boundary_condition, coordinates);
           octant<rank> octant = traits::octant(partition);
           Coordinates adapted = adapt(coordinates, octant);
           node_type node = traits::node(partition);
-          location_type where = traits::locality(partition);
+          location_type where = traits::get_location(partition);
           return fub::visit(
               [&](auto left, auto right) {
                 using L = std::decay_t<decltype(left)>;
                 using R = std::decay_t<decltype(right)>;
                 return traits::dataflow_action(
-                    get_dt_action<L, R>(), std::move(where), std::move(left),
-                    std::move(node), std::move(right), *this,
-                    current.equation(), adapted);
+                    get_dt_action<L, R>(), where, std::move(left), node,
+                    std::move(right), *this, current.equation(), adapted);
               },
               std::move(left_nb), std::move(right_nb));
         });
@@ -248,8 +246,8 @@ struct hyperbolic_system_solver {
   }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {
-    archive & flux_method;
-    archive & integrator;
+    archive& flux_method;
+    archive& integrator;
   }
 
   FluxMethod flux_method;
@@ -269,9 +267,8 @@ struct integrate_patch {
   using node_type = typename traits::node_type;
   using duration = std::chrono::duration<double>;
 
-  static node_type invoke(Left left, node_type middle,
-                          Right right, Solver solver,
-                          equation_type equation,
+  static node_type invoke(Left left, node_type middle, Right right,
+                          Solver solver, equation_type equation,
                           Coordinates coords, duration dt) {
     auto lv = left.get_patch_view();
     auto mv = middle.get_patch_view();
@@ -286,9 +283,10 @@ struct integrate_patch {
           solver.integrator.template integrate<Axis>(
               make_view(dest), left_view, middle_view, right_view, dt, coords,
               solver.flux_method, equation);
-          node_type result(middle.get_locality(), std::move(dest));
+          node_type result(middle.get_location(), std::move(dest));
           return result;
-        }, std::move(lv), std::move(mv), std::move(rv));
+        },
+        std::move(lv), std::move(mv), std::move(rv));
     return result;
   };
 };

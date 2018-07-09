@@ -303,7 +303,7 @@ public:
   polymorphic_boundary_condition(const polymorphic_boundary_condition& other)
       : m_impl{other.clone()} {}
 
-  polymorphic_boundary_condition(polymorphic_boundary_condition&& other)
+  polymorphic_boundary_condition(polymorphic_boundary_condition&& other) noexcept
       : m_impl{std::move(other.m_impl)} {}
 
   template <typename BC,

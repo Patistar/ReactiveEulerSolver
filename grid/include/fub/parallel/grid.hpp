@@ -84,7 +84,7 @@ public:
     });
   }
 
-  dummy_location get_locality() const {
+  dummy_location get_location() const {
     return dummy_location{};
   }
 
@@ -247,7 +247,7 @@ struct grid_traits<parallel::grid<Equation, Extents>> {
   }
 
   static hpx::future<parallel::dummy_location>
-  locality(const partition_type&) noexcept {
+  get_location(const partition_type&) noexcept {
     return hpx::make_ready_future(parallel::dummy_location{});
   }
 

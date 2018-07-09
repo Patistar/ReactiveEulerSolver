@@ -40,16 +40,19 @@ struct HyperbolicSystemSourceSolver {
                           const BoundaryCondition& boundary_condition) const {
     auto stable_dt_adv = m_hyperbolic_solver.get_time_step_size(
         grid, coordinates, boundary_condition);
-     auto stable_dt_kin = m_source_solver.get_time_step_size(grid,coordinates, boundary_condition);
-    auto advance_grid = [=, solver = *this](auto stable_dt_adv, auto stable_dt_kin) {
+    auto stable_dt_kin = m_source_solver.get_time_step_size(grid, coordinates,
+                                                            boundary_condition);
+    auto advance_grid = [=, solver = *this](auto stable_dt_adv,
+                                            auto stable_dt_kin) {
       std::chrono::duration<double> actual_dt = std::min(
-          {limited_dt, cfl * stable_dt_adv.get(), 2 * stable_dt_kin.get()});
+          {limited_dt, cfl * stable_dt_adv.get() /* , 2 * stable_dt_kin.get() */});
       Grid next = solver.m_splitting.step(
           grid, actual_dt, coordinates, boundary_condition,
           solver.m_source_solver, solver.m_hyperbolic_solver);
       return std::make_pair(std::move(next), actual_dt);
     };
-    return grid_traits<Grid>::dataflow(advance_grid, std::move(stable_dt_adv), std::move(stable_dt_kin));
+    return grid_traits<Grid>::dataflow(advance_grid, std::move(stable_dt_adv),
+                                       std::move(stable_dt_kin));
   }
 };
 

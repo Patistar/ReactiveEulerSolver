@@ -470,7 +470,6 @@ void advance_in_time(integration_state& state, const radau5& options,
 
 radau5_code try_step(integration_state& state, const radau5& options,
                      ode_system_t ode_system, vector_type& y) {
-
   radau5_code code{};
   do {
     code = do_first_newton_iteration_step(state, options, ode_system, y);

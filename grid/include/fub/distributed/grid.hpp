@@ -122,7 +122,7 @@ public:
   grid_node(hpx::future<hpx::id_type>&& id) : base_type(std::move(id)) {}
   grid_node(const hpx::future<hpx::id_type>& id) : base_type(id) {}
 
-  hpx::id_type get_locality() const { return hpx::get_colocation_id(base_type::get_id()).get(); }
+  hpx::id_type get_location() const { return hpx::get_colocation_id(base_type::get_id()).get(); }
 
   void retrieve_patch() {
     if (!m_patch.valid()) {
@@ -335,8 +335,8 @@ struct grid_traits<distributed::grid<Equation, Extents>> {
     return std::move(partition.second);
   }
 
-  static hpx::id_type locality(const partition_type& partition) {
-    return partition.second.get_locality();
+  static hpx::id_type get_location(const partition_type& partition) {
+    return partition.second.get_location();
   }
 
   /// @brief This function specialises the reduce algorithm for the grid at

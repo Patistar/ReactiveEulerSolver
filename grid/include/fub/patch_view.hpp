@@ -53,9 +53,10 @@ template <index E, index... Es> struct make_row_extents_fn<extents<E, Es...>> {
   constexpr extents<E> operator()(index) const noexcept { return extents<E>(); }
 };
 
-template <index... Es> struct make_row_extents_fn<extents<dyn, Es...>> {
-  constexpr extents<dyn> operator()(index len) const noexcept {
-    return extents<dyn>(len);
+template <index... Es>
+struct make_row_extents_fn<extents<dynamic_extent, Es...>> {
+  constexpr extents<dynamic_extent> operator()(index len) const noexcept {
+    return extents<dynamic_extent>(len);
   }
 };
 
@@ -122,7 +123,7 @@ public:
   }
 
   void next() noexcept {
-    fub::for_each_tuple_element(
+    for_each_tuple_element(
         [row_length = m_row_length](auto& ps) { ps = ps + row_length; },
         m_pointers);
     ++m_position;
@@ -251,8 +252,8 @@ public:
   }
 
   template <std::size_t N>
-  quantities_ref<Vars...> operator()(const std::array<std::ptrdiff_t, N>& idx) const
-      noexcept {
+  quantities_ref<Vars...>
+  operator()(const std::array<std::ptrdiff_t, N>& idx) const noexcept {
     layout_left::mapping<extents_type> mapping;
     auto offset = fub::apply(mapping, idx);
     return fub::apply(
@@ -265,7 +266,8 @@ public:
 
   template <typename... IndexTs>
   quantities_ref<Vars...> operator()(IndexTs... is) const noexcept {
-    return this->operator()(std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
+    return this->operator()(
+        std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
   }
 
   auto rows() const noexcept {
@@ -280,7 +282,7 @@ public:
 template <index Size, typename... Vars>
 class row_view : public detail::patch_view_base<extents<Size>> {
 public:
-  static_assert(Size == dyn || Size > 0, "Invalid Row Size");
+  static_assert(Size == dynamic_extent || Size > 0, "Invalid Row Size");
 
   using base_type = detail::patch_view_base<extents<Size>>;
 
@@ -318,8 +320,7 @@ public:
         std::remove_const_t<std::tuple_element_t<Index::value, variables>>;
     auto mdspan = variable_traits<Holder>::view(
         Var(), std::get<Index::value>(m_pointers), this->extents());
-    return span<typename decltype(mdspan)::element_type, Size>(mdspan.data(),
-                                                               mdspan.size());
+    return mdspan.span();
   }
 
   index size() const noexcept { return this->extents().size(); }
@@ -328,8 +329,8 @@ public:
     return get<Var>();
   }
 
-  quantities_ref<Vars...> operator()(const std::array<std::ptrdiff_t, 1>& idx) const
-      noexcept {
+  quantities_ref<Vars...>
+  operator()(const std::array<std::ptrdiff_t, 1>& idx) const noexcept {
     index offset = idx[0];
     return fub::apply(
         [=](auto... Is) {
@@ -341,7 +342,8 @@ public:
 
   template <typename... IndexTs>
   quantities_ref<Vars...> operator()(IndexTs... is) const noexcept {
-    return this->operator()(std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
+    return this->operator()(
+        std::array<std::ptrdiff_t, sizeof...(IndexTs)>{{is...}});
   }
 
   quantities_ref<Vars...> first() const noexcept { return this->operator()(0); }
@@ -380,12 +382,13 @@ auto drop(const row_view<Len, Vs...>& view) noexcept {
 }
 
 template <index N, typename... Vs>
-auto drop(const row_view<dyn, Vs...>& view) noexcept {
+auto drop(const row_view<dynamic_extent, Vs...>& view) noexcept {
   const index size = view.extents().size() - N;
   assert(size > 0);
   return fub::apply(
       [=](auto... pointers) {
-        return row_view<dyn, Vs...>(extents<dyn>(size), (pointers + N)...);
+        return row_view<dynamic_extent, Vs...>(extents<dynamic_extent>(size),
+                                               (pointers + N)...);
       },
       view.m_pointers);
 }
@@ -401,7 +404,7 @@ auto take(const row_view<Len, Vs...>& view) noexcept {
 }
 
 template <index N, typename... Vs>
-auto take(const row_view<dyn, Vs...>& view) noexcept {
+auto take(const row_view<dynamic_extent, Vs...>& view) noexcept {
   assert(N <= view.extents().size());
   return fub::apply(
       [](auto... pointers) {
@@ -417,7 +420,7 @@ auto rtake(const row_view<Len, Vs...>& view) noexcept {
 }
 
 template <index N, typename... Vs>
-auto rtake(const row_view<dyn, Vs...>& view) noexcept {
+auto rtake(const row_view<dynamic_extent, Vs...>& view) noexcept {
   const index offset = view.extents().size() - N;
   assert(offset > 0);
   return fub::apply(
@@ -428,12 +431,13 @@ auto rtake(const row_view<dyn, Vs...>& view) noexcept {
 }
 
 template <typename... Vs>
-auto rtake(const row_view<dyn, Vs...>& view, index n) noexcept {
+auto rtake(const row_view<dynamic_extent, Vs...>& view, index n) noexcept {
   const index offset = view.extents().size() - n;
   assert(offset > 0);
   return fub::apply(
       [=](auto... pointers) {
-        return row_view<dyn, Vs...>(extents<dyn>(n), (pointers + offset)...);
+        return row_view<dynamic_extent, Vs...>(extents<dynamic_extent>(n),
+                                               (pointers + offset)...);
       },
       view.m_pointers);
 }
@@ -445,12 +449,13 @@ auto rdrop(const row_view<Len, Vs...>& view) noexcept {
 }
 
 template <index N, typename... Vs>
-auto rdrop(const row_view<dyn, Vs...>& view) noexcept {
+auto rdrop(const row_view<dynamic_extent, Vs...>& view) noexcept {
   const index size = view.extents().size() - N;
   assert(size > 0);
   return fub::apply(
       [=](auto... pointers) {
-        return row_view<dyn, Vs...>(extents<dyn>(size), pointers...);
+        return row_view<dynamic_extent, Vs...>(extents<dynamic_extent>(size),
+                                               pointers...);
       },
       view.m_pointers);
 }
@@ -493,7 +498,8 @@ auto make_view(const patch<V<Vars...>, extents<E>, Storage>& p) noexcept {
   return row_view<E, std::add_const_t<Vars>...>(p);
 }
 
-template <typename T> using patch_view_t = decltype(make_view(std::declval<T>()));
+template <typename T>
+using patch_view_t = decltype(make_view(std::declval<T>()));
 
 template <typename Vars, index Size> struct view_row;
 template <typename V, index Size>
@@ -556,7 +562,7 @@ std::enable_if_t<conjunction<is_view<Views>...>::value, F>
 for_each_row(F function, const Views&... views) {
   auto all_rows = ranges::view::zip(views.rows()...);
   for (auto&& rows : all_rows) {
-    fub::apply(std::ref(function), rows);
+    fub::apply(function, rows);
   }
   return function;
 }
@@ -601,12 +607,13 @@ auto join_impl(std::true_type, const RowViews&... rows) {
                 "Only views can be joined.");
   static_assert(
       conjunction<
-          bool_constant<view_extents_t<RowViews>::rank_dynamic == 0>...>::value,
+          bool_constant<view_extents_t<RowViews>::rank_dynamic() == 0>...>::value,
       "Only statically sized views can be joined.");
   static_assert(
-      conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
+      conjunction<bool_constant<view_extents_t<RowViews>::rank() == 1>...>::value,
       "Only one-dimensional views an be joined.");
-  static constexpr index sizes[sizeof...(RowViews)]{view_static_extent<RowViews, 0>::value...};
+  static constexpr index sizes[sizeof...(RowViews)]{
+      view_static_extent<RowViews, 0>::value...};
   static constexpr index total_size = fub::accumulate(sizes, index(0));
   patch<view_join_variables_t<RowViews...>, extents<total_size>> joined_row;
   auto view = make_view(joined_row);
@@ -620,11 +627,12 @@ auto join_impl(std::false_type, const RowViews&... rows) {
   static_assert(conjunction<is_view<RowViews>...>::value,
                 "Only views can be joined.");
   static_assert(
-      conjunction<bool_constant<view_extents_t<RowViews>::rank == 1>...>::value,
+      conjunction<bool_constant<view_extents_t<RowViews>::rank() == 1>...>::value,
       "Only one-dimensional views an be joined.");
-  const std::array<index, sizeof...(RowViews)> sizes{{rows.extents().get(0)...}};
-  const extents<dyn> total_size{fub::accumulate(sizes, index(0))};
-  patch<view_join_variables_t<RowViews...>, extents<dyn>> joined_row(
+  const std::array<index, sizeof...(RowViews)> sizes{
+      {rows.extents().get(0)...}};
+  const extents<dynamic_extent> total_size{fub::accumulate(sizes, index(0))};
+  patch<view_join_variables_t<RowViews...>, extents<dynamic_extent>> joined_row(
       total_size);
   auto view = make_view(joined_row);
   auto it = view.begin();
@@ -636,7 +644,7 @@ auto join_impl(std::false_type, const RowViews&... rows) {
 template <typename... RowViews> auto join(const RowViews&... rows) {
   return detail::join_impl(
       conjunction<
-          bool_constant<view_extents_t<RowViews>::rank_dynamic == 0>...>(),
+          bool_constant<view_extents_t<RowViews>::rank_dynamic() == 0>...>(),
       rows...);
 }
 
@@ -732,6 +740,7 @@ load_or_proxy(const row_view<E, Vs...>& view, index shift = 0) noexcept {
 }
 
 namespace detail {
+
 template <typename Abi, typename F, typename FirstRow, typename... Rows>
 std::enable_if_t<is_simd_abi_v<Abi>, F>
 for_each_simd_impl(const Abi& abi, F f, const FirstRow& first,
@@ -750,8 +759,8 @@ F for_each_simd_impl(index_constant<Rest>, F f, const Row& row,
 }
 
 template <typename F, typename Row, typename... Rows>
-F for_each_simd_impl(index_constant<dyn>, index rest, F f, const Row& row,
-                     const Rows&... rows) {
+F for_each_simd_impl(index_constant<dynamic_extent>, index rest, F f,
+                     const Row& row, const Rows&... rows) {
   if (rest > 0) {
     return for_each_simd_impl(simd_abi::scalar(), std::move(f),
                               rtake(row, rest), rtake(rows, rest)...);
@@ -772,7 +781,8 @@ for_each_simd_impl(std::false_type, const Abi& abi, F f, const FirstRow& first,
                 load_or_proxy<Abi>(rows, shift)...);
   }
   const index rest = size % width;
-  return for_each_simd_impl(index_c<dyn>, rest, std::move(f), first, rows...);
+  return for_each_simd_impl(index_c<dynamic_extent>, rest, std::move(f), first,
+                            rows...);
 }
 
 template <typename Abi, typename F, typename FirstRow, typename... Rows>
@@ -802,18 +812,18 @@ for_each_simd_impl(const Abi& abi, F f, const FirstRow& first,
                                          view_extents_t<Rows>>...>::value,
                 "All parameters need to have the same size.");
   using Extents = view_extents_t<FirstRow>;
-  static_assert(Extents::rank == 1,
+  static_assert(Extents::rank() == 1,
                 "Only one-dimensional views are supported.");
-  return for_each_simd_impl(bool_c<Extents::rank_dynamic == 0>, abi,
+  return for_each_simd_impl(bool_c<Extents::rank_dynamic() == 0>, abi,
                             std::move(f), first, rows...);
 }
 
 } // namespace detail
 
-template <typename Abi, typename F, typename FirstRow, typename... Rows>
-std::enable_if_t<is_simd_abi_v<Abi>, F>
-for_each_simd(const Abi& abi, F f, const FirstRow& first, const Rows&... rows) {
-  return detail::for_each_simd_impl(abi, std::move(f), first, rows...);
+template <typename Abi, typename F, typename... Rows>
+std::enable_if_t<conjunction<is_simd_abi<Abi>, is_view<Rows>...>::value, F>
+for_each_simd(const Abi& abi, F f, const Rows&... rows) {
+  return detail::for_each_simd_impl(abi, std::move(f), rows...);
 }
 
 template <typename F, typename... Rows>
@@ -832,7 +842,7 @@ make_permutated_extent_array(const extents<Es...>&) {
   index eA = e[A];
   e[A] = e[B];
   e[B] = eA;
-  return detail::as_std_array(e);
+  return as_std_array(e);
 }
 
 template <int A, int B, typename E, std::size_t... Is>
@@ -853,14 +863,18 @@ using permutate_extents_t = decltype(permutate_extents<A, B>(E()));
 
 template <typename S> struct tensor_map;
 template <typename S> using tensor_map_t = typename tensor_map<S>::type;
-template <typename T, index... Es>
-struct tensor_map<mdspan<T, extents<Es...>>> {
+template <typename T, index... Es> struct tensor_map<mdspan<T, Es...>> {
   using type = Eigen::TensorMap<Eigen::Tensor<T, sizeof...(Es)>>;
 };
+template <typename T, index... Es, std::size_t... Is>
+tensor_map_t<mdspan<T, Es...>> make_tensor_impl(std::index_sequence<Is...>,
+                                                const mdspan<T, Es...>& view) {
+  return tensor_map_t<mdspan<T, Es...>>(view.data(), view.extent(Is)...);
+}
+
 template <typename T, index... Es>
-tensor_map_t<mdspan<T, extents<Es...>>>
-make_tensor(const mdspan<T, extents<Es...>>& view) {
-  return tensor_map_t<mdspan<T, extents<Es...>>>(view.data(), Es...);
+tensor_map_t<mdspan<T, Es...>> make_tensor(const mdspan<T, Es...>& view) {
+  return make_tensor_impl(std::make_index_sequence<sizeof...(Es)>(), view);
 }
 
 template <int A, int B, int Rank>

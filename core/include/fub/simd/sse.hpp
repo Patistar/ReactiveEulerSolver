@@ -63,27 +63,27 @@ public:
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_from(const U* mem, ElementAlignmentTag) noexcept {
+  copy_from(const U* mem, element_alignment_tag) noexcept {
     m_value = _mm_loadu_pd(mem);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_from(const U* mem, VectorAlignmentTag) noexcept {
+  copy_from(const U* mem, vector_alignment_tag) noexcept {
     assert(boost::alignment::is_aligned(memory_alignment_v<simd_type, U>, mem));
     m_value = _mm_load_pd(mem);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_to(U* mem, VectorAlignmentTag) const noexcept {
+  copy_to(U* mem, vector_alignment_tag) const noexcept {
     assert(boost::alignment::is_aligned(memory_alignment_v<simd_type, U>, mem));
     _mm_store_pd(mem, m_value);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_to(U* mem, ElementAlignmentTag) const noexcept {
+  copy_to(U* mem, element_alignment_tag) const noexcept {
     _mm_storeu_pd(mem, m_value);
   }
 
@@ -171,26 +171,26 @@ public:
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_from(const U* mem, ElementAlignmentTag) noexcept {
+  copy_from(const U* mem, element_alignment_tag) noexcept {
     m_value = _mm_loadu_pd(mem);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_to(U* mem, ElementAlignmentTag) const noexcept {
+  copy_to(U* mem, element_alignment_tag) const noexcept {
     _mm_storeu_pd(mem, m_value);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_from(const U* mem, VectorAlignmentTag) noexcept {
+  copy_from(const U* mem, vector_alignment_tag) noexcept {
     assert(boost::alignment::is_aligned(memory_alignment_v<simd, U>, mem));
     m_value = _mm_load_pd(mem);
   }
 
   template <typename U>
   std::enable_if_t<std::is_convertible<U, value_type>::value, void>
-  copy_to(U* mem, VectorAlignmentTag) const noexcept {
+  copy_to(U* mem, vector_alignment_tag) const noexcept {
     assert(boost::alignment::is_aligned(memory_alignment_v<simd, U>, mem));
     _mm_store_pd(mem, m_value);
   }
@@ -285,7 +285,7 @@ public:
 
   template <typename U>
   std::enable_if_t<std::is_convertible<double, U>::value, void>
-  copy_to(U* mem, ElementAlignmentTag) const&& noexcept {
+  copy_to(U* mem, element_alignment_tag) const&& noexcept {
     native_type value = _mm_and_pd(static_cast<native_type>(m_mask),
                                    static_cast<native_type>(m_simd));
     _mm_storeu_pd(mem, value);
@@ -293,7 +293,7 @@ public:
 
   template <typename U>
   std::enable_if_t<std::is_convertible<double, U>::value, void>
-  copy_to(U* mem, VectorAlignmentTag) const&& noexcept {
+  copy_to(U* mem, vector_alignment_tag) const&& noexcept {
     native_type value = _mm_and_pd(static_cast<native_type>(m_mask),
                                    static_cast<native_type>(m_simd));
     assert(boost::alignment::is_aligned(memory_alignment_v<simd_type, U>, mem));

@@ -21,121 +21,12 @@
 #ifndef FUB_SIMD_SCALAR_HPP
 #define FUB_SIMD_SCALAR_HPP
 
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <type_traits>
+#include "fub/simd/simd_fwd.hpp"
 
 namespace fub {
 
 ////////////////////////////////////////////////////////////////////////////////
-// Forward Declerations for SIMD related types.
-
-namespace simd_abi {
-struct scalar {};
-template <typename T> struct native_abi { using type = scalar; };
-template <typename T> using native = typename native_abi<T>::type;
-}; // namespace simd_abi
-
-/// @brief The default Simd type can not be constructed.
-template <typename T, typename Abi> class simd_mask {
-public:
-  simd_mask() = delete;
-  simd_mask(const simd_mask&) = delete;
-  ~simd_mask() = delete;
-  simd_mask& operator=(const simd_mask&) = delete;
-};
-
-/// @brief The default Simd type can not be constructed.
-template <typename T, typename Abi = simd_abi::native<T>> class simd {
-public:
-  using value_type = T;
-  using abi_type = Abi;
-  using mask_type = simd_mask<T, Abi>;
-
-  simd() = delete;
-  simd(const simd&) = delete;
-  ~simd() = delete;
-  simd& operator=(const simd&) = delete;
-};
-
-template <typename M, typename T> class const_where_expression;
-template <typename M, typename T> class where_expression;
-
-template <typename T, typename Abi>
-where_expression<typename simd<T, Abi>::mask_type, simd<T, Abi>>
-where(const typename simd<T, Abi>::mask_type& mask,
-      simd<T, Abi>& simd) noexcept {
-  return {mask, simd};
-}
-
-template <typename T, typename Abi>
-const_where_expression<typename simd<T, Abi>::mask_type, const simd<T, Abi>>
-where(const typename simd<T, Abi>::mask_type& mask,
-      const simd<T, Abi>& simd) noexcept {
-  return {mask, simd};
-}
-
-struct ElementAlignmentTag {};
-static constexpr ElementAlignmentTag element_alignment;
-
-struct VectorAlignmentTag {};
-static constexpr VectorAlignmentTag vector_alignment;
-
-////////////////////////////////////////////////////////////////////////////////
-// Traits
-
-// is it a known simd type ?
-
-template <typename Simd> struct is_simd : std::false_type {};
-template <typename T, typename Abi>
-struct is_simd<simd<T, Abi>> : std::true_type {};
-template <typename Simd> static constexpr bool is_simd_v = is_simd<Simd>::value;
-
-// is it a known mask ?
-
-template <typename SimdMask> struct is_simd_mask : std::false_type {};
-template <typename T, typename Abi>
-struct is_simd_mask<simd_mask<T, Abi>> : std::true_type {};
-template <typename Simd>
-static constexpr bool is_simd_mask_v = is_simd_mask<Simd>::value;
-
-// which ABI to use (SSE, AVX, ...)
-
-template <typename Abi> struct is_simd_abi : std::false_type {};
-template <> struct is_simd_abi<simd_abi::scalar> : std::true_type {};
-template <typename Simd>
-static constexpr bool is_simd_abi_v = is_simd_abi<Simd>::value;
-
-// load with or without alignment
-
-template <typename T> struct is_simd_flag_type : std::false_type {};
-template <> struct is_simd_flag_type<ElementAlignmentTag> : std::true_type {};
-template <> struct is_simd_flag_type<VectorAlignmentTag> : std::true_type {};
-template <typename Simd>
-static constexpr bool is_simd_flag_type_v = is_simd_flag_type<Simd>::value;
-
-// simd size (number of elements in a vector)
-
-template <typename Simd> struct simd_size;
-template <typename T, typename Abi>
-struct simd_size<simd<T, Abi>>
-    : std::integral_constant<int, simd<T, Abi>::size()> {};
-template <typename Simd>
-static constexpr int simd_size_v = simd_size<Simd>::value;
-
-// get alignment size for a specified SIMD type
-
-template <typename Simd, typename U> struct memory_alignment {};
-template <typename Simd, typename U>
-static constexpr int memory_alignment_v = memory_alignment<Simd, U>::value;
-
-template <typename T, typename U>
-struct memory_alignment<simd<T, simd_abi::scalar>, U>
-    : std::integral_constant<int, alignof(T)> {};
-
-////////////////////////////////////////////////////////////////////////////////
-// Scalar SIMD Specialisation
+//                                                    Scalar SIMD Specialisation
 
 /// @brief Simd wrapper for the scalar case (SISD case).
 template <typename T> class simd<T, simd_abi::scalar> {
@@ -144,28 +35,65 @@ public:
   using abi_type = simd_abi::scalar;
   using mask_type = simd_mask<value_type, abi_type>;
   using native_type = T;
-  static constexpr int size() noexcept { return 1; }
+
+  // Constructors
 
   simd() = default;
 
-  // Implicit value conversion
+  /// Implicit conversion from value.
+  /// 
+  /// Effect: Initialises m_value with u.
+  ///
+  /// Throws: nothing
+  ///
+  /// Postcondition: m_value == u
   template <
       typename U,
       std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr>
-  simd(U&& u) : m_value(u) {}
+  simd(U&& u) noexcept : m_value(u) {}
 
-  // Load and Store to Memory
+  /// Construct by load from memory location.
+  /// 
+  /// Effect: As if
+  ///     simd<T, simd_abi::scalar> v;
+  ///     v.copy_from(memory, flag)
+  ///
+  /// Throws: nothing
+  ///
+  /// Postcondition: m_value == *memory
+  template <
+      typename U, typename AlignmentFlag,
+      std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr,
+      std::enable_if_t<is_simd_flag_type<AlignmentFlag>::value>* = nullptr>
+  simd(const U* memory, AlignmentFlag /* flag */) noexcept : m_value(*memory) {}
 
-  template <typename U, typename Flags>
-  constexpr std::enable_if_t<std::is_convertible<U, value_type>::value, void>
+  // Observers
+
+  static constexpr int size() noexcept { return 1; }
+
+  /// Load a value from memory.
+  ///
+  /// Note: There are no alignment restrictions in the scalar case.
+  ///
+  /// Throws: Nothing.
+  template <
+      typename U, typename AlignmentFlag,
+      std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr,
+      std::enable_if_t<is_simd_flag_type<AlignmentFlag>::value>* = nullptr>
+  constexpr void
   copy_from(const U* mem, Flags) noexcept {
     m_value = *mem;
   }
 
+  /// Store a value to memory.
+  ///
+  /// Note: There are no alignment restrictions in the scalar case.
+  ///
+  /// Throws: Nothing.
   template <typename U, typename Flags>
-  constexpr std::enable_if_t<std::is_convertible<value_type, U>::value, void>
+  constexpr std::enable_if_t<std::is_convertible<value_type, U>::value>
   copy_to(U* mem, Flags) const noexcept {
-    *mem = m_value;
+    *mem = static_cast<U>(m_value);
   }
 
   // Element Access
@@ -444,6 +372,21 @@ simd<T, simd_abi::scalar> sqrt(const simd<T, simd_abi::scalar>& x) noexcept {
 template <typename T>
 simd<T, simd_abi::scalar> abs(const simd<T, simd_abi::scalar>& x) noexcept {
   return x < 0 ? simd<T, simd_abi::scalar>(-static_cast<T>(x)) : x;
+}
+
+template <typename T>
+simd<T, simd_abi::scalar> exp(const simd<T, simd_abi::scalar>& x) noexcept {
+  return std::exp(static_cast<T>(x));
+}
+
+template <typename T>
+simd<T, simd_abi::scalar> log(const simd<T, simd_abi::scalar>& x) noexcept {
+  return std::log(static_cast<T>(x));
+}
+
+template <typename T>
+simd<T, simd_abi::scalar> round(const simd<T, simd_abi::scalar>& x) noexcept {
+  return std::round(static_cast<T>(x));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

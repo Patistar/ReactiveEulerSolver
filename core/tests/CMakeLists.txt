@@ -20,6 +20,9 @@ target_link_libraries(test.core.extents ReactiveEulerSolver_core)
 add_executable(test.core.simd test.core.simd.cpp)
 target_link_libraries(test.core.simd ReactiveEulerSolver_core)
 
+add_executable(test.core.layout test.core.layout.cpp)
+target_link_libraries(test.core.layout ReactiveEulerSolver_core)
+
 add_executable(test.core.optional test.core.optional.cpp)
 target_link_libraries(test.core.optional ReactiveEulerSolver_core)
 

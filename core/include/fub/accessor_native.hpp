@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -18,27 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/serial/grid.hpp"
+#ifndef FUB_CORE_ACCESSOR_NATIVE_HPP
+#define FUB_CORE_ACCESSOR_NATIVE_HPP
 
-#include <type_traits>
+#include <cstddef>
 
-#include "fub/optional.hpp"
-
-struct Density {};
-
-struct Equation {
-  using complete_state = std::tuple<Density>;
+namespace fub {
+template <typename T> struct accessor_native {
+  using pointer = T*;
+  using reference = T&;
+  static constexpr reference access(pointer ptr, std::ptrdiff_t /* size */,
+                                    std::ptrdiff_t n) noexcept {
+    return *(ptr + n);
+  }
+  template <typename S> using rebind = accessor_native<S>;
 };
+} // namespace fub
 
-int main()
-{
-    using fub::ready_future;
-    using fub::serial::grid_node;
-    using fub::extents;
-    using fub::dynamic_extent;
-    static_assert(std::is_assignable<grid_node<Equation, extents<dynamic_extent>>&, const grid_node<Equation, extents<dynamic_extent>>&>::value, "grid_node is not copyable.");
-
-    ready_future<grid_node<Equation, extents<dynamic_extent>>> future_node(grid_node<Equation, extents<dynamic_extent>>(fub::serial::dummy_location{}, extents<dynamic_extent>(32)));
-    grid_node<Equation, extents<dynamic_extent>> node = std::move(future_node);
-    assert(size(node.get_patch_view().get().extents()) == 32);
-}
+#endif

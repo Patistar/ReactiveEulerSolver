@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_LAYOUT_LEFT_HPP
-#define FUB_CORE_LAYOUT_LEFT_HPP
+#ifndef FUB_CORE_LAYOUT_SIMD_HPP
+#define FUB_CORE_LAYOUT_SIMD_HPP
 
 #include "fub/algorithm.hpp"
 #include "fub/extents.hpp"
@@ -30,7 +30,7 @@
 
 namespace fub {
 
-struct layout_left {
+struct layout_simd_padded {
   template <typename Extents> class mapping : private Extents {
   public:
     static_assert(is_extents_v<Extents>,
@@ -57,8 +57,16 @@ struct layout_left {
 
     constexpr const Extents& get_extents() const noexcept { return *this; }
 
+    /// Returns the required span size after adding padding in each dimensino according to the specified simd alignment.
+    ///
+    /// Throws: Nothing.
     constexpr index_type required_span_size() const noexcept {
-      return size(get_extents());
+      index_type array[Extents::rank()] = as_array(get_extents());
+      index_type alignment = memory_alignment_v<simd<T, Abi>>;
+      for (std::size_t dim = 0; dim < Extents::rank(); ++dim) {
+        array[dim] += (alignment - (array[dim] % alignment));
+      }
+      return fub::accumulate(array, index_type(1), std::multiply<>{});
     }
 
     /// Returns the codomain index for specified multi dimensional index
@@ -127,14 +135,14 @@ struct layout_left {
 
 template <typename Extents>
 constexpr typename Extents::index_type
-static_required_span_size(const layout_left::mapping<Extents>&) noexcept {
+static_required_span_size(const layout_simd::mapping<Extents>&) noexcept {
   typename Extents::index_type sz = size(Extents());
   return sz ? sz : dynamic_extent;
 }
 
 template <typename Extents>
 constexpr index_array_t<Extents>
-next(const layout_left::mapping<Extents>& mapping,
+next(const layout_simd::mapping<Extents>& mapping,
      index_array_t<Extents> index) noexcept {
   assert(is_in_range(mapping.get_extents(), index));
   std::size_t r = 0;
@@ -149,7 +157,7 @@ next(const layout_left::mapping<Extents>& mapping,
 }
 
 template <typename Extents, typename Function>
-constexpr Function for_each_index(const layout_left::mapping<Extents>& mapping,
+constexpr Function for_each_index(const layout_simd::mapping<Extents>& mapping,
                                   Function fun) {
   using index_type = typename Extents::index_type;
   Extents extents = mapping.get_extents();

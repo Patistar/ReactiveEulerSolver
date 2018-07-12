@@ -26,7 +26,7 @@
 
 TEST_CASE("Create some empty spans") {
   std::array<int, 4> array{{0, 1, 2, 3}};
-  fub::mdspan<int, fub::extents<2, 2>> span{array.data(), fub::extents<2, 2>()};
+  fub::mdspan<int, 2, 2> span{array.data(), fub::extents<2, 2>()};
   REQUIRE(span);
   REQUIRE(span(0, 0) == 0);
   REQUIRE(span(1, 0) == 1);

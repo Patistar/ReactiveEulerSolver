@@ -18,19 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_NATIVE_ACCESSOR_HPP
-#define FUB_CORE_NATIVE_ACCESSOR_HPP
+#include "fub/layout_left.hpp"
+#include "fub/extents.hpp"
 
-#include "fub/type_traits.hpp"
-
-namespace fub {
-struct native_accessor {
-  template <typename T> using pointer = T*;
-  template <typename T> using reference = T&;
-  template <typename T> static constexpr T& access(T* ptr, index n) noexcept {
-    return *(ptr + n);
-  }
-};
-} // namespace fub
-
-#endif
+int main() {
+    using namespace fub;
+    constexpr layout_left::mapping<extents<2, 2>> mapping;
+    static_assert(mapping(0, 0) == 0, "");
+    static_assert(mapping(1, 0) == 1, "");
+    static_assert(mapping(0, 1) == 2, "");
+    static_assert(mapping(1, 1) == 3, "");
+}

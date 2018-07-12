@@ -101,11 +101,11 @@ using pmr_storage_descriptor =
 //                                                                 [class.patch]
 // {{{
 template <typename Variables, typename Extents,
-          // #ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
-          //           typename Descriptor = pmr_storage_descriptor>
-          // #else
+#ifdef FUB_WITH_POLYMORPHIC_ALLOCATOR
+          typename Descriptor = pmr_storage_descriptor>
+#else
           typename Descriptor = storage_descriptor<>>
-// #endif
+#endif
 class patch {
 public:
   using extents_type = Extents;
@@ -156,7 +156,7 @@ public:
   ///     struct Density {};
   ///     patch<std::tuple<Density>, extents<16, 16>> block{};
   ///     auto view = block.get<Density>();
-  ///     static_assert(std::is_same_v<view, mdspan<double, extents<16, 16>>);
+  ///     static_assert(std::is_same_v<view, mdspan<double, 16, 16>);
   ///
   /// The example sets up a block containing a single dense variable called
   /// `Density`. We use the `get` method to obtain a view of data associated

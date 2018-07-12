@@ -21,318 +21,316 @@
 /// @file This file introduces `extents<E0, ..., En>`, a compact
 /// multi-dimensional size type. Each integral extent `Ei` stands an upper bound
 /// in dimension `i` and can either be a compile-time constant signed integral
-/// value or `dyn`. Each compile-time sized extent does not take any extra byte.
-///
-/// Example 1:
-///     constexpr extents<2, 4> e;
-///     static_assert(sizeof(e) == sizeof(char));
-///     static_assert(e.get(0) == 2);
-///     static_assert(e.get(1) == 4);
-///     static_assert(e.size() == 8);
-///
-/// Example 2:
-///     constexpr extents<2, dyn> e(4);
-///     static_assert(sizeof(e) == sizeof(std::ptrdiff_t));
-///     static_assert(e.get(0) == 2);
-///     static_assert(e.get(1) == 4);
-///     static_assert(e.size() == 8);
-///
-/// Example 3:
-///     constexpr extents<dyn, dyn> e(2, 4);
-///     static_assert(sizeof(e) == 2 * sizeof(std::ptrdiff_t));
-///     static_assert(e.get(0) == 2);
-///     static_assert(e.get(1) == 4);
-///     static_assert(e.size() == 8);
+/// value or `dynamic_extent`. Each compile-time sized extent does not take any
+/// extra byte.
 
 #ifndef FUB_CORE_EXTENTS_HPP
 #define FUB_CORE_EXTENTS_HPP
 
-#include "fub/algorithm.hpp"
+#include "fub/span.hpp"
 #include "fub/tuple.hpp"
 #include "fub/type_traits.hpp"
-
-#include <range/v3/algorithm/count.hpp>
-#include <range/v3/algorithm/equal.hpp>
-
 #include <array>
 
 namespace fub {
-template <typename E> struct extents_rank {
-  static constexpr int value = E::rank;
-};
-template <typename E>
-static constexpr int extents_rank_v = extents_rank<E>::value;
-
-template <typename E> struct extents_rank_dynamic {
-  static constexpr int value = E::rank_dynamic;
-};
-
-template <typename E>
-static constexpr int extents_rank_dynamic_v = extents_rank_dynamic<E>::value;
-
 namespace detail {
+/// This is the storage type for the extents class and only takes storage for
+/// dynamic extents.
+///
+/// This class is also responsible for accessing all extents.
+template <std::size_t Rank, std::size_t DynamicRank,
+          std::ptrdiff_t... StaticExtents>
+class extents_storage;
 
-template <int Rank, int Dynamic, index... Es> class extents_;
-
-/// @brief Extents implementation if all extents are compile-time known.
-template <int Rank, index... Es> class extents_<Rank, 0, Es...> {
+/// This is the class template specialisation if all extents are statically
+/// known.
+///
+/// In this case no extra storage is going to be used.
+template <std::size_t Rank, std::ptrdiff_t... StaticExtents>
+class extents_storage<Rank, 0, StaticExtents...> {
 public:
-  static constexpr int rank_dynamic = 0;
-  static constexpr int rank = Rank;
+  static_assert(Rank == sizeof...(StaticExtents),
+                "Rank does not match sizeof...(StaticExtents)!");
+  static_assert(conjunction<bool_constant<(StaticExtents > 0)>...>::value,
+                "Some static extent is equal to dynamic_extent!");
 
-  extents_() = default;
+  // [mdspan.extents.obs], Observers of the domain multi-index space
 
-  /// @brief This Constructor throws an exception if any specified extent is not
-  /// equal to the compile time known extent.
-  explicit extents_(const std::array<index, Rank>& extents) {
-    constexpr index check[rank]{Es...};
-    if (!ranges::equal(check, extents)) {
-      throw std::invalid_argument{
-          "Specified extents do not match the compile time known extents."};
-    }
+  /// \brief Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank() noexcept { return Rank; }
+
+  /// \brief Returns 0.
+  static constexpr std::size_t rank_dynamic() noexcept { return 0; }
+
+  /// \brief Returns the n-th Static Extent.
+  static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
+    const std::ptrdiff_t static_extents[Rank]{StaticExtents...};
+    return static_extents[n];
   }
 
-  constexpr explicit extents_(const index (&extents)[rank]) {
-    constexpr index check[rank]{Es...};
-    if (!ranges::equal(check, extents)) {
-      throw std::invalid_argument{
-          "Specified extents do not match the compile time known extents."};
-    }
-  }
-
-  constexpr explicit operator std::array<index, rank>() const noexcept {
-    return {{Es...}};
-  }
-
-  constexpr index size() const noexcept {
-    constexpr index extents[rank]{Es...};
-    // Internal Compiler Error for gcc-6:
-#ifdef __clang__
-    return fub::accumulate(extents, index(1), std::multiplies<>());
-#else
-    index product = 1;
-    for (int i = 0; i < rank; ++i) {
-      product *= extents[i];
-    }
-    return product;
-#endif
-  }
-
-  static constexpr index static_get(int dim) noexcept {
-    constexpr index es[rank]{Es...};
-    return es[dim];
-  }
-
-  constexpr index get(int dim) const noexcept { return static_get(dim); }
-
-  template <typename Archive> void serialize(Archive&, unsigned) {}
-};
-
-template <typename T, std::size_t Rank, std::size_t... Is>
-constexpr std::array<T, Rank> as_std_array(const T (&array)[Rank], std::integer_sequence<std::size_t, Is...>) {
-  return std::array<T, Rank>{{array[Is]...}};
-}
-
-template <typename T, std::size_t Rank>
-constexpr std::array<T, Rank> as_std_array(const T (&array)[Rank]) {
-  return as_std_array(array, std::make_integer_sequence<std::size_t, Rank>{});
-}
-
-/// @brief Extents implementation if all extents are runtime known.
-template <int Rank, index... Es> class extents_<Rank, Rank, Es...> {
-  index m_extents[Rank];
-
-public:
-  static constexpr int rank_dynamic = Rank;
-  static constexpr int rank = Rank;
-
-  /// @brief Constructs an empty extents of size zero.
-  constexpr extents_() = default;
-
-  explicit extents_(const std::array<index, Rank>& extents)
-  {
-    std::copy(extents.begin(), extents.end(), std::begin(m_extents));
-  }
-
-  constexpr explicit extents_(const index (&array)[rank]) 
-  {
-    for (int i = 0; i < rank; ++i) {
-      m_extents[i] = array[i];
-    }
-  }
-
-  template <typename... Is, typename = std::enable_if_t<
-                                conjunction<std::is_integral<Is>...>::value &&
-                                (sizeof...(Is) == Rank)>>
-  constexpr explicit extents_(Is... extents)
-      : m_extents{static_cast<index>(extents)...} {}
-
-  constexpr explicit operator std::array<index, Rank>() const noexcept {
-    return as_std_array(m_extents);
-  }
-
-  constexpr index size() const noexcept {
-    // Internal Compiler Error for gcc-6:
-#ifdef __clang__
-    return fub::accumulate(m_extents, index(1), std::multiplies<>());
-#else
-    index product = 1;
-    for (int i = 0; i < rank; ++i) {
-      product *= m_extents[i];
-    }
-    return product;
-#endif
-  }
-
-  static constexpr index static_get(int) noexcept { return dyn; }
-
-  constexpr index get(int dim) const noexcept { return m_extents[dim]; }
-
-  template <typename Archive> void serialize(Archive& ar, unsigned) {
-    ar & m_extents;
+  /// \brief Returns the N-th Extent.
+  ///
+  /// In this case where all extents are known at compile time, this returns
+  /// `static_extent(n)`.
+  constexpr std::ptrdiff_t extent(size_t n) const noexcept {
+    return static_extent(n);
   }
 };
 
-/// @brief Extents implementation for the case where we have mixed
-/// compile-time AND runtime sizes.
-///
-/// In this case we store the runtime extents in an internal std::array and map
-/// the requested dimension `get(dim)` to the proper internal index.
-///
-/// @todo Construction of an extent of this type is not canonic.
-template <int Rank, int Dynamic, index... Es> class extents_ {
-  index m_dynamic_extents[Dynamic];
-
+template <std::size_t Rank, std::ptrdiff_t... StaticExtents>
+class extents_storage<Rank, Rank, StaticExtents...> {
 public:
-  static constexpr int rank_dynamic = Dynamic;
-  static constexpr int rank = Rank;
+  static_assert(Rank == sizeof...(StaticExtents),
+                "Rank does not match sizeof...(StaticExtents)!");
+  static_assert(
+      conjunction<bool_constant<StaticExtents == dynamic_extent>...>::value,
+      "Not all static extents are equal to dynamic_extent!");
 
-  static_assert(rank_dynamic < rank, "Dynamic rank can not be larger than the total rank.");
+  // [mdspan.extents.constructors]
 
-  constexpr extents_() = default;
+  extents_storage() = default;
 
-  template <typename... Is, typename = std::enable_if_t<
-                                conjunction<std::is_integral<Is>...>::value &&
-                                (sizeof...(Is) == rank_dynamic)>>
-  constexpr explicit extents_(Is... dynamic_extents)
-      : m_dynamic_extents{static_cast<index>(dynamic_extents)...} {}
+  template <typename... IndexType,
+            typename = std::enable_if_t<conjunction<
+                std::is_convertible<IndexType, std::ptrdiff_t>...>::value>,
+            typename = std::enable_if_t<sizeof...(IndexType) == Rank>>
+  constexpr explicit extents_storage(IndexType... extent) noexcept
+      : m_dynamic_extents{static_cast<std::ptrdiff_t>(extent)...} {}
 
-  explicit extents_(const std::array<index, rank>& a) : m_dynamic_extents{} {
-    constexpr std::array<index, rank> es{{Es...}};
-    int dynamic_extents_counter{0};
-    for (int dim = 0; dim < rank; ++dim) {
-      if (es[dim] == dyn) {
-        m_dynamic_extents[dynamic_extents_counter] = a[dim];
-        ++dynamic_extents_counter;
-      } else {
-        if (es[dim] != a[dim]) {
-          throw std::invalid_argument{
-              "Specified extents do not match the compile time known extents."};
-        }
-      }
-    }
+  constexpr explicit extents_storage(
+      const std::array<std::ptrdiff_t, Rank>& extents) noexcept
+      : m_dynamic_extents{extents} {}
+
+  // [mdspan.extents.obs], Observers of the domain multi-index space
+
+  /// \brief Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank() noexcept { return Rank; }
+
+  /// \brief Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank_dynamic() noexcept { return Rank; }
+
+  /// \brief Returns dynamic_extent.
+  static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
+    return dynamic_extent;
   }
 
-   constexpr explicit extents_(const index (&array)[rank]) 
-    : m_dynamic_extents{} {
-    constexpr index es[rank]{Es...};
-    int dynamic_extents_counter{0};
-    for (int dim = 0; dim < rank; ++dim) {
-      if (es[dim] == dyn) {
-        m_dynamic_extents[dynamic_extents_counter] = array[dim];
-        ++dynamic_extents_counter;
-      } else {
-        if (es[dim] != array[dim]) {
-          throw std::invalid_argument{
-              "Specified extents do not match the compile time known extents."};
-        }
-      }
-    }
-  }
-
-  static constexpr index static_get(int dim) noexcept {
-    index es[rank]{Es...};
-    return es[dim];
-  }
-
-  constexpr index get(int dim) const noexcept {
-    constexpr index es[rank]{Es...};
-    if (es[dim] == dyn) {
-      // NOT CONSTEXPR:
-      // int count = fub::count(ranges::begin(es), ranges::end(es) + dim, dyn);
-      int count = 0;
-      for (int i = 0; i < dim; ++i) {
-        if (es[i] == dyn) {
-          count += 1;
-        }
-      }
-      return m_dynamic_extents[count];
-    } else {
-      return es[dim];
-    }
+  /// \brief Returns the N-th Extent.
+  constexpr std::ptrdiff_t extent(size_t n) const noexcept {
+    return m_dynamic_extents[n];
   }
 
 private:
-  template <int... Is>
-  constexpr auto as_array(std::integer_sequence<int, Is...>) const noexcept {
-    return std::array<index, rank>{{get(Is)...}};
+  std::array<std::ptrdiff_t, Rank> m_dynamic_extents{};
+};
+
+template <std::size_t Rank, std::size_t RankDynamic,
+          std::ptrdiff_t... StaticExtents>
+class extents_storage {
+public:
+  // [mdspan.extents.constructors]
+
+  extents_storage() = default;
+
+  template <typename... IndexType,
+            typename = std::enable_if_t<conjunction<
+                std::is_convertible<IndexType, std::ptrdiff_t>...>::value>,
+            typename = std::enable_if_t<sizeof...(IndexType) == RankDynamic>>
+  constexpr explicit extents_storage(IndexType... extent) noexcept
+      : m_dynamic_extents{static_cast<std::ptrdiff_t>(extent)...} {}
+
+  constexpr explicit extents_storage(
+      const std::array<std::ptrdiff_t, RankDynamic>& extents) noexcept
+      : m_dynamic_extents{extents} {}
+
+  // [mdspan.extents.obs], Observers of the domain multi-index space
+
+  /// \brief Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank() noexcept { return Rank; }
+
+  /// \brief Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank_dynamic() noexcept { return RankDynamic; }
+
+  /// \brief Returns dynamic_extent.
+  static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
+    constexpr std::ptrdiff_t static_extents[Rank]{StaticExtents...};
+    return static_extents[n];
   }
 
 public:
-  constexpr explicit operator std::array<index, rank>() const noexcept {
-    return as_array(make_int_sequence<rank>());
+  /// \brief Returns the N-th Extent.
+  constexpr std::ptrdiff_t extent(size_t n) const noexcept {
+    constexpr std::ptrdiff_t static_extents[Rank]{StaticExtents...};
+    if (static_extents[n] != dynamic_extent) {
+      return static_extents[n];
+    }
+    return m_dynamic_extents[find_dynamic_extent_index(n)];
   }
 
-  constexpr index size() const noexcept {
-    auto es = static_cast<std::array<index, rank>>(*this);
-    return fub::accumulate(es, index(1), std::multiplies<>());
-  }
+private:
+  std::array<std::ptrdiff_t, RankDynamic> m_dynamic_extents{};
 
-  template <typename Archive> void serialize(Archive& ar, unsigned) {
-    ar& m_dynamic_extents;
+  static constexpr std::size_t
+  find_dynamic_extent_index(std::size_t n) noexcept {
+    constexpr std::ptrdiff_t static_extents[Rank]{StaticExtents...};
+    std::size_t dynamic_extent_index = 0;
+    for (std::size_t dim = 0; dim < n; ++dim) {
+      if (static_extents[dim] == dynamic_extent) {
+        ++dynamic_extent_index;
+      }
+    }
+    return dynamic_extent_index;
   }
 };
 
+template <typename... IndexType>
+constexpr std::size_t count_dynamic_extents(IndexType... extent) noexcept {
+  constexpr std::size_t Rank = sizeof...(IndexType);
+  std::ptrdiff_t extents[Rank]{static_cast<std::ptrdiff_t>(extent)...};
+  std::size_t counter = 0;
+  for (std::size_t dim = 0; dim < Rank; ++dim) {
+    if (extents[dim] == dynamic_extent) {
+      ++counter;
+    }
+  }
+  return counter;
+}
 } // namespace detail
 
-template <index... Es>
+template <std::ptrdiff_t... StaticExtents>
 class extents
-    : private detail::extents_<sizeof...(Es), fub::count({Es...}, dyn), Es...> {
+    : private detail::extents_storage<
+          sizeof...(StaticExtents),
+          detail::count_dynamic_extents(StaticExtents...), StaticExtents...> {
+private:
+  using base_type =
+      detail::extents_storage<sizeof...(StaticExtents),
+                              detail::count_dynamic_extents(StaticExtents...),
+                              StaticExtents...>;
+
 public:
-  using base = detail::extents_<sizeof...(Es), fub::count({Es...}, dyn), Es...>;
-  static constexpr int rank = base::rank;
-  static constexpr int rank_dynamic = base::rank_dynamic;
+  // Type Definitions
 
-  using base::base;
-  using base::get;
-  using base::serialize;
-  using base::size;
-  using base::static_get;
+  using index_type = std::ptrdiff_t;
 
-  using base::operator std::array<index, rank>;
+  // [mdspan.extents.constructors]
+
+  using base_type::base_type;
+
+  // [mdspan.extents.static_observers]
+
+  using base_type::rank;
+  using base_type::rank_dynamic;
+  using base_type::static_extent;
+
+  // [mdspan.extents.observers]
+
+  using base_type::extent;
 };
 
-template <index... Es, index... Fs>
-constexpr std::enable_if_t<(sizeof...(Es) == sizeof...(Fs)), bool>
-operator==(const extents<Es...>& e1, const extents<Fs...>& e2) noexcept {
-  constexpr int rank = sizeof...(Es);
-  for (int i = 0; i < rank; ++i) {
-    if (e1.get(i) != e2.get(i)) {
+// [mdspan.extents.traits.is_extent]
+
+template <typename E> struct is_extents : std::false_type {};
+template <std::ptrdiff_t... StaticExtents>
+struct is_extents<extents<StaticExtents...>> : std::true_type {};
+#ifdef FUB_WITH_INLINE_VARIABLES
+template <typename E> inline constexpr bool is_extents_v = is_extents<E>::value;
+#else
+template <typename E> static constexpr bool is_extents_v = is_extents<E>::value;
+#endif
+
+/// Returns: `true` if `lhs.rank() == rhs.rank()` and `lhs.extents(r) ==
+/// rhs.extents(r)` for all `r` in the range `[0, lhs.rank())`, or false
+/// otherwise.
+template <std::ptrdiff_t... StaticExtentsL, std::ptrdiff_t... StaticExtentsR>
+constexpr bool operator==(const extents<StaticExtentsL...>& lhs,
+                          const extents<StaticExtentsR...>& rhs) noexcept {
+  if (lhs.rank() != rhs.rank()) {
+    return false;
+  }
+  for (std::size_t r = 0; r < lhs.rank(); ++r) {
+    if (lhs.extent(r) != rhs.extent(r)) {
       return false;
     }
   }
   return true;
 }
 
-template <index... Es, index... Fs>
-constexpr std::enable_if_t<(sizeof...(Es) == sizeof...(Fs)), bool>
-operator!=(const extents<Es...>& e1, const extents<Fs...>& e2) noexcept {
-  return !(e1 == e2);
+template <std::ptrdiff_t... StaticExtentsL, std::ptrdiff_t... StaticExtentsR>
+constexpr bool operator!=(const extents<StaticExtentsL...>& left,
+                          const extents<StaticExtentsR...>& right) noexcept {
+  return !(left == right);
 }
 
-template <index... Es>
-constexpr auto as_array(const extents<Es...>& e) noexcept {
-  return static_cast<std::array<index, sizeof...(Es)>>(e);
+template <std::ptrdiff_t... StaticExtents>
+constexpr std::ptrdiff_t size(const extents<StaticExtents...>& e) noexcept {
+  std::ptrdiff_t count = 1;
+  for (std::size_t dim = 0; dim < e.rank(); ++dim) {
+    count *= e.extent(dim);
+  }
+  return count;
+}
+
+namespace detail {
+template <std::ptrdiff_t... StaticExtents, std::size_t... Is>
+constexpr std::array<std::ptrdiff_t, sizeof...(StaticExtents)>
+as_array_impl(const extents<StaticExtents...>& e,
+              std::index_sequence<Is...>) noexcept {
+  return {{e.extent(Is)...}};
+}
+
+template <typename T, std::size_t N, std::size_t... Is>
+constexpr std::array<T, N>
+as_std_array_impl(const T (&array)[N], std::index_sequence<Is...>) noexcept {
+  return {{array[Is]...}};
+}
+} // namespace detail
+
+template <typename Extents>
+using index_array_t = std::array<typename Extents::index_type, Extents::rank()>;
+
+template <typename Extents>
+constexpr bool is_in_range(const Extents& e,
+                           const index_array_t<Extents>& array) noexcept {
+  for (std::size_t r = 0; r < Extents::rank(); ++r) {
+    if (array[r] < 0 || e.extent(r) <= array[r]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <std::ptrdiff_t... StaticExtents>
+constexpr std::array<std::ptrdiff_t, sizeof...(StaticExtents)>
+as_array(const extents<StaticExtents...>& e) noexcept {
+  return detail::as_array_impl(
+      e, std::make_index_sequence<sizeof...(StaticExtents)>());
+}
+
+template <typename T, std::size_t N>
+constexpr std::array<T, N> as_std_array(const T (&array)[N]) noexcept {
+  return detail::as_std_array_impl(array, std::make_index_sequence<N>());
+}
+
+template <typename E,
+          typename std::enable_if_t<is_extents<E>::value, int*> = nullptr>
+constexpr std::array<std::ptrdiff_t, E::rank_dynamic()> filter_dynamic_extents(
+    const std::array<std::ptrdiff_t, E::rank()>& array) noexcept {
+  constexpr std::size_t RankDynamic = E::rank_dynamic();
+  std::ptrdiff_t dynamic_extents[RankDynamic]{};
+  std::size_t counter = 0;
+  for (std::size_t r = 0; r < E::rank(); ++r) {
+    if (E::static_extent(r) == dynamic_extent) {
+      dynamic_extents[counter++] = array[r];
+    }
+  }
+  assert(counter == RankDynamic);
+  return as_std_array(dynamic_extents);
+}
+
+template <std::ptrdiff_t... StaticExtents>
+constexpr std::array<std::ptrdiff_t, extents<StaticExtents...>::rank_dynamic()>
+get_dynamic_extents(const extents<StaticExtents...>& e) noexcept {
+  return filter_dynamic_extents<extents<StaticExtents...>>(as_array(e));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,49 +344,67 @@ struct grow_extent {
 
 template <std::size_t I, index Extent, index Width>
 struct grow_extent<I, I, Extent, Width> {
+  static_assert(Extent > 0 && Width >= 0,
+                "This is only allowed to be instantiated if Extent and Width "
+                "are positive.");
   static constexpr index value = Extent + Width;
 };
 
-template <int Dim, index... Es, int... Is>
+template <std::ptrdiff_t... StaticExtents> struct static_grow_impl {
+  using Result = extents<StaticExtents...>;
+  template <typename E,
+            typename std::enable_if_t<(E::rank_dynamic() > 0), int*> = nullptr>
+  constexpr Result operator()(const E& e) noexcept {
+    return Result(get_dynamic_extents(e));
+  }
+
+  template <typename E,
+            typename std::enable_if_t<(E::rank_dynamic() == 0), int*> = nullptr>
+  constexpr Result operator()(const E& e) noexcept {
+    return Result();
+  }
+};
+
+template <int Dim, index... Es, std::size_t... Is>
 constexpr auto grow_impl(const extents<Es...>& e, int_constant<Dim>,
-                         std::false_type,
-                         std::integer_sequence<int, Is...>) noexcept {
-  constexpr int rank = extents<Es...>::rank;
-  index native[rank]{e.get(Is)...};
-  native[Dim] += 1;
-  return extents<grow_extent<Dim, Is, Es, 1>::value...>(native);
+                         std::false_type, std::index_sequence<Is...>) noexcept {
+  return static_grow_impl<grow_extent<Is, Dim, Es, 1>::value...>{}(e);
 }
 
 /// Grow for the case that Dim is a static extent
 template <int Dim, index... Es>
 constexpr auto grow_impl(const extents<Es...>& e, int_constant<Dim> dim,
                          std::false_type) noexcept {
-  constexpr int rank = extents<Es...>::rank;
-  return grow_impl(e, dim, std::false_type{}, make_int_sequence<rank>());
+  constexpr std::size_t Rank = extents<Es...>::rank();
+  return grow_impl(e, dim, std::false_type{}, std::make_index_sequence<Rank>());
 }
 
-template <int Dim, index... Es, int... Is>
+template <int Dim, index... Es, std::size_t... Is>
 constexpr extents<Es...> grow_impl(const extents<Es...>& e, int_constant<Dim>,
                                    std::true_type,
-                                   std::integer_sequence<int, Is...>) noexcept {
-  constexpr int rank = extents<Es...>::rank;
-  index native[rank]{e.get(Is)...};
+                                   std::index_sequence<Is...>) noexcept {
+  using E = extents<Es...>;
+  index native[E::rank()]{e.extent(Is)...};
   native[Dim] += 1;
-  return extents<Es...>(native);
+  const std::array<index, E::rank_dynamic()> dynamic_extents =
+      filter_dynamic_extents<E>(as_std_array(native));
+  return E(dynamic_extents);
 }
 
 template <int Dim, index... Es>
 constexpr extents<Es...> grow_impl(const extents<Es...>& e, int_constant<Dim>,
                                    std::true_type) noexcept {
-  constexpr int rank = extents<Es...>::rank;
-  return grow_impl(e, int_c<Dim>, std::true_type{}, make_int_sequence<rank>{});
+  constexpr std::size_t rank = extents<Es...>::rank();
+  return grow_impl(e, int_c<Dim>, std::true_type{},
+                   std::make_index_sequence<rank>{});
 }
 } // namespace detail
 
 template <int Dim, index... Es>
-constexpr auto grow(const extents<Es...>& e, int_constant<Dim> dim) noexcept {
-  return detail::grow_impl(e, dim,
-                           bool_c<extents<Es...>::static_get(Dim) == dyn>);
+constexpr auto grow(const extents<Es...>& e,
+                    int_constant<Dim> dim = int_constant<Dim>()) noexcept {
+  return detail::grow_impl(
+      e, dim, bool_c<extents<Es...>::static_extent(Dim) == dynamic_extent>);
 }
 // }}}
 
@@ -404,19 +420,38 @@ template <std::size_t ReplaceIndex, index ReplaceWith, index Value>
 struct replace_index<ReplaceIndex, ReplaceWith, ReplaceIndex, Value>
     : index_constant<ReplaceWith> {};
 
+template <std::ptrdiff_t... StaticExtents> struct replace_extent_impl {
+  using Result = extents<StaticExtents...>;
+
+  template <typename E>
+  constexpr Result operator()(const E&, size_constant<0>) {
+    return Result{};
+  }
+
+  template <typename E, std::size_t RankDynamic>
+  constexpr Result operator()(const E& extents, size_constant<RankDynamic>) {
+    static_assert(Result::rank() == E::rank(), "");
+    static_assert(Result::rank_dynamic() == RankDynamic, "");
+    static_assert(Result::rank_dynamic() <= E::rank_dynamic(), "");
+    return Result{filter_dynamic_extents<Result>(as_array(extents))};
+  }
+};
+
 template <int Dim, int Value, index... Es, std::size_t... Is>
-constexpr auto replace_extent(const extents<Es...>&, int_constant<Dim>,
+constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim>,
                               int_constant<Value>,
                               std::index_sequence<Is...>) noexcept {
-  std::array<index, sizeof...(Is)> replaced{
-      {replace_index<Dim, Value, Is, Es>::value...}};
-  return extents<replace_index<Dim, Value, Is, Es>::value...>(replaced);
+  using Result = extents<replace_index<Dim, Value, Is, Es>::value...>;
+  return replace_extent_impl<replace_index<Dim, Value, Is, Es>::value...>{}(
+      e, size_c<Result::rank_dynamic()>);
 }
 } // namespace detail
 
 template <int Dim, int Value, index... Es>
-constexpr auto replace_extent(const extents<Es...>& e, int_constant<Dim> dim,
-                              int_constant<Value> value) noexcept {
+constexpr auto
+replace_extent(const extents<Es...>& e,
+               int_constant<Dim> dim = int_constant<Dim>(),
+               int_constant<Value> value = int_constant<Value>()) noexcept {
   return detail::replace_extent(e, dim, value,
                                 std::make_index_sequence<sizeof...(Es)>());
 }

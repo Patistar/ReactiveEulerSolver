@@ -39,7 +39,7 @@ struct Pressure {
   using value_type = double;
 };
 
-using Extents = fub::extents<16, fub::dyn>;
+using Extents = fub::extents<16, fub::dynamic_extent>;
 using Patch = fub::patch<std::tuple<Density, Velocity, Pressure>, Extents>;
 
 template <typename... Vars> using View = fub::patch_view<Extents, Vars...>;

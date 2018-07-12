@@ -19,51 +19,57 @@
 // SOFTWARE.
 
 #include "fub/extents.hpp"
-#include <cstdio>
 
 int main() {
-  using fub::dyn;
-  {
-    constexpr fub::extents<2, 2> e;
-    static_assert(e.size() == 4, "Static Size is broken.");
-    static_assert(e.get(0) == 2, "Static Access is broken.");
-    static_assert(e.get(1) == 2, "Static Access is broken.");
-  }
+  using fub::dynamic_extent;
+  using fub::extents;
 
-  {
-    constexpr fub::extents<2, dyn> e(2);
-    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
-  }
+  constexpr extents<2, 2> e_static;
+  static_assert(size(e_static) == 4, "Static Size is broken.");
+  static_assert(e_static.extent(0) == 2, "Static Access is broken.");
+  static_assert(e_static.extent(1) == 2, "Static Access is broken.");
 
-  {
-    constexpr fub::extents<dyn, 2> e(2);
-    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
-  }
+  constexpr extents<2, dynamic_extent> e_mixed(2);
+  static_assert(e_static == e_mixed, "");
+  static_assert(e_mixed.extent(0) == 2, "");
+  static_assert(e_mixed.extent(1) == 2, "");
 
-  {
-    constexpr fub::extents<dyn, dyn> e(2, 2);
-    static_assert(e == fub::extents<2, 2>(), "Only values shall matter.");
-  }
+  constexpr extents<dynamic_extent, dynamic_extent> e_dynamic(2, 2);
+  static_assert(e_static == e_dynamic, "");
+  static_assert(e_mixed == e_dynamic, "");
+  static_assert(e_dynamic.extent(0) == 2, "");
+  static_assert(e_dynamic.extent(1) == 2, "");
 
-  {
-    constexpr fub::extents<2, 2> e;
-    constexpr auto e2 = fub::grow(e, fub::int_c<1>);
-    static_assert(std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, 3>>::value, "Types are wrong.");
-    static_assert(e2 == fub::extents<2, 3>(), "Equality Operator failed, but types are correct.");
-  }
+  constexpr std::array<std::ptrdiff_t, 2> array = as_array(e_mixed);
+  static_assert(array[0] == 2, "");
+  static_assert(array[1] == 2, "");
+  constexpr std::array<std::ptrdiff_t, 1> dynamic =
+      get_dynamic_extents(e_mixed);
+  static_assert(dynamic[0] == 2, "");
 
-  {
-    constexpr fub::extents<dyn, 2> e(2);
-    constexpr auto e2 = fub::grow(e, fub::int_c<1>);
-    static_assert(std::is_same<std::decay_t<decltype(e2)>, fub::extents<dyn, 3>>::value, "Types are wrong.");
-    static_assert(e2 == fub::extents<2, 3>(), "Equality Operator failed, but types are correct.");
-  }
+  constexpr extents<2, dynamic_extent> grow_1_e_mixed = fub::grow<1>(e_mixed);
+  static_assert(grow_1_e_mixed == extents<2, 3>(), "");
 
-  {
-    constexpr fub::extents<2, dyn> e(2);
-    constexpr auto e2 = fub::grow(e, fub::int_c<1>);
-    static_assert(
-        std::is_same<std::decay_t<decltype(e2)>, fub::extents<2, dyn>>::value, "Grow is broken.");
-    static_assert(e2 == fub::extents<2, 3>(), "Comparison between mixed extents types is broken.");
-  }
+  constexpr extents<3, dynamic_extent> grow_0_e_mixed = fub::grow<0>(e_mixed);
+  static_assert(grow_0_e_mixed == extents<3, 2>(), "");
+
+  constexpr extents<dynamic_extent, dynamic_extent> grow_1_e_dynamic =
+      fub::grow<1>(e_dynamic);
+  static_assert(grow_1_e_dynamic == extents<2, 3>(), "");
+
+  constexpr extents<dynamic_extent, dynamic_extent> grow_0_e_dynamic =
+      fub::grow<0>(e_dynamic);
+  static_assert(grow_0_e_dynamic == extents<3, 2>(), "");
+
+  constexpr extents<2, 3> grow_1_e_static = fub::grow<1>(e_static);
+  static_assert(grow_1_e_static == extents<2, 3>(), "");
+
+  constexpr extents<3, 2> grow_0_e_static = fub::grow<0>(e_static);
+  static_assert(grow_0_e_static == extents<3, 2>(), "");
+
+  constexpr extents<4, dynamic_extent> replace_0 = fub::replace_extent<0, 4>(e_mixed);
+  static_assert(replace_0 == extents<4, 2>(), "");
+
+  constexpr extents<2, 4> replace_1 = fub::replace_extent<1, 4>(e_mixed);
+  static_assert(replace_1 == extents<2, 4>(), "");
 }

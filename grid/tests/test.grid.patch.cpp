@@ -48,21 +48,18 @@ TEST_CASE("2D patch with simple variables") {
   auto density = block.get<Density>();
   auto velocity = block.get<Velocity>();
   auto pressure = block.get<Pressure>();
-  REQUIRE(
-      std::is_same<mdspan<double, extents<16, 16>>, decltype(density)>::value);
+  REQUIRE(std::is_same<mdspan<double, 16, 16>, decltype(density)>::value);
   REQUIRE(density.size() == 16 * 16);
   REQUIRE(velocity.size() == 16 * 16);
   REQUIRE(pressure.size() == 16 * 16);
 }
-
 
 TEST_CASE("Using the dynamic allocator") {
   using Vars = std::tuple<Density, Velocity, Pressure>;
   using Storage = fub::storage_descriptor<>;
   patch<Vars, extents<16, 16>, Storage> block{};
   auto density = block.get<Density>();
-  REQUIRE(
-      std::is_same<mdspan<double, extents<16, 16>>, decltype(density)>::value);
+  REQUIRE(std::is_same<mdspan<double, 16, 16>, decltype(density)>::value);
   REQUIRE(density.size() == 16 * 16);
 }
 
@@ -101,8 +98,7 @@ TEST_CASE("Using the pmr allocator") {
     REQUIRE(resource.num_allocates == 3);
     REQUIRE(resource.num_deallocates == 0);
     auto density = block.get<Density>();
-    REQUIRE(std::is_same<mdspan<double, extents<16, 16>>,
-                         decltype(density)>::value);
+    REQUIRE(std::is_same<mdspan<double, 16, 16>, decltype(density)>::value);
     REQUIRE(density.size() == 16 * 16);
   }
   REQUIRE(resource.num_allocates == 3);

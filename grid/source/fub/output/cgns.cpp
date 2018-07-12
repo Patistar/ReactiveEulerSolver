@@ -120,7 +120,7 @@ namespace {
 template <int Rank> struct dynamic_extents {
   template <typename> struct impl;
   template <int... Is> struct impl<std::integer_sequence<int, Is...>> {
-    using type = extents<(Is, dyn)...>;
+    using type = extents<(Is, dynamic_extent)...>;
   };
   using type = typename impl<std::make_integer_sequence<int, Rank>>::type;
 };

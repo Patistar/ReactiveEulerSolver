@@ -27,6 +27,7 @@
 #include "fub/simd/scalar.hpp"
 #include "fub/simd/sse.hpp"
 
+#include "fub/tuple.hpp"
 #include "fub/utility.hpp"
 
 #include <array>
@@ -62,6 +63,7 @@ template <typename T, typename Abi, int... Is>
 simd<T, Abi> power_impl(std::integer_sequence<int, Is...>,
                         simd<T, Abi> x) noexcept {
   simd<T, Abi> one{1.0};
+#if __cpp_fold_expressions >= 201603
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-value"
@@ -69,6 +71,10 @@ simd<T, Abi> power_impl(std::integer_sequence<int, Is...>,
   return (one * ... * (Is, x));
 #ifdef __clang__
 #pragma clang diagnostic pop
+#endif
+#else
+  return foldl(std::make_tuple(int_c<Is>...), one,
+               [&](T product, auto) { return product * x; });
 #endif
 }
 
@@ -80,7 +86,15 @@ simd<T, Abi> power(simd<T, Abi> x) noexcept {
 template <typename T, typename Abi, typename... Ts, int... Is>
 simd<T, Abi> polynomial_impl(std::integer_sequence<int, Is...>, simd<T, Abi> x,
                              Ts... cs) noexcept {
+#if __cpp_fold_expressions >= 201603
   return (x + ... + (power<Is + 1>(x) * cs));
+#else
+  return foldl(std::make_tuple(std::make_pair(int_c<Is>, cs)...), x,
+               [](T sum, auto term) {
+                 using I = remove_cvref_t<decltype(term.first)>;
+                 return sum + power<I::value + 1>(term.second);
+               });
+#endif
 }
 
 template <typename T, typename Abi, typename... Ts>
@@ -131,7 +145,8 @@ simd<T, Abi> log(simd<T, Abi> x) noexcept {
   return x;
 }
 
-template <typename T, typename Abi, typename = std::enable_if_t<std::is_floating_point<T>::value>>
+template <typename T, typename Abi,
+          typename = std::enable_if_t<std::is_floating_point<T>::value>>
 simd<T, Abi> log10(simd<T, Abi> x) noexcept {
   const simd<T, Abi> ln10 = 2.30258509299;
   return ln10 * log(x);

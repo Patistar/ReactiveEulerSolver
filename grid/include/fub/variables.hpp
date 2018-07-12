@@ -78,7 +78,7 @@ constexpr std::ptrdiff_t size_impl(std::true_type, V,
 template <typename V, typename Extents>
 constexpr std::ptrdiff_t size_impl(std::false_type, V,
                                    const Extents& extents) noexcept {
-  return extents.size();
+  return size(extents);
 }
 
 template <typename V, typename W, typename T>
@@ -128,32 +128,37 @@ constexpr auto get_pointer_impl(std::true_type, V, S&& storage, index i = 0) {
   return V::get_pointer(std::forward<S>(storage), i);
 }
 
-template <typename V, typename W, typename E>
+template <typename V, typename W, index... Es>
 constexpr decltype(auto)
 view_impl(std::false_type, V, W,
           typename detected_or<
               typename detected_or<double, detail::value_type_t, V>::type*,
               detail::pointer_t, V>::type ptr,
-          const E& extents) noexcept {
-  return mdspan<typename detected_or<double, detail::value_type_t, V>::type, E>{
-      ptr, extents};
+          const extents<Es...>& e) noexcept {
+  return mdspan<typename detected_or<double, detail::value_type_t, V>::type,
+                Es...>{ptr, e};
 }
 
-template <typename V, typename W, typename E>
+template <typename V, typename W, index... Es>
 constexpr decltype(auto) view_impl(
     std::false_type, V, W,
     typename detected_or<
         const typename detected_or<double, detail::value_type_t, V>::type*,
         detail::const_pointer_t, V>::type ptr,
-    const E& extents) noexcept {
+    const extents<Es...>& e) noexcept {
   return mdspan<
-      const typename detected_or<double, detail::value_type_t, V>::type, E>{
-      ptr, extents};
+      const typename detected_or<double, detail::value_type_t, V>::type, Es...>{
+      ptr, e};
 }
 
-template <typename V, typename S>
+template <typename V, typename S, typename = std::enable_if_t<!is_mdspan_v<S>>>
 constexpr auto get_pointer_impl(std::false_type, V, S&& storage, index i = 0) {
   return storage.data() + i;
+}
+
+template <typename V, typename T, typename E, typename L, typename A>
+constexpr auto get_pointer_impl(std::false_type, V, const basic_mdspan<T, E, L, A>& storage, index i = 0) {
+  return storage.span().data() + i;
 }
 
 } // namespace detail
@@ -327,7 +332,8 @@ template <typename V, typename... Vars> struct vector_variable {
 
   static_assert(
       conjunction<std::is_same<
-          scalar_type, typename variable_traits<Vars>::value_type>...>::value, "value types do not match.");
+          scalar_type, typename variable_traits<Vars>::value_type>...>::value,
+      "value types do not match.");
   using value_type = std::array<scalar_type, rank>;
 
   struct pointer {
@@ -358,9 +364,10 @@ template <typename V, typename... Vars> struct vector_variable {
     return {store.data() + i, size};
   }
 
-  template <typename Extents>
-  static pointer get_pointer(const mdspan<scalar_type, Extents>& view,
-                             index i = 0) noexcept {
+  template <typename Extents, typename Layout, typename Accessor>
+  static pointer
+  get_pointer(const basic_mdspan<scalar_type, Extents, Layout, Accessor>& view,
+              index i = 0) noexcept {
     return {view.data() + i, view.size()};
   }
 
@@ -392,10 +399,10 @@ template <typename V, typename... Vars> struct vector_variable {
     return {store.data() + i, size};
   }
 
-  template <typename Extents>
-  static const_pointer
-  get_pointer(const mdspan<const scalar_type, Extents>& view,
-              index i = 0) noexcept {
+  template <typename Extents, typename Layout, typename Accessor>
+  static const_pointer get_pointer(
+      const basic_mdspan<const scalar_type, Extents, Layout, Accessor>& view,
+      index i = 0) noexcept {
     return {view.data() + i, view.size()};
   }
 
@@ -437,22 +444,21 @@ template <typename V, typename... Vars> struct vector_variable {
     return rank * variable_traits<V>::size(extents);
   }
 
-  template <typename W, typename Extents>
-  static mdspan<scalar_type, Extents> view(W, pointer p,
-                                           const Extents& extents) noexcept {
+  template <typename W, index... Extents>
+  static mdspan<scalar_type, Extents...>
+  view(W, pointer p, const extents<Extents...>& e) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
     static_assert(I::value < rank, "Variable not found.");
-    return mdspan<scalar_type, Extents>{p.native + I::value * p.stride,
-                                        extents};
+    return mdspan<scalar_type, Extents...>{p.native + I::value * p.stride, e};
   }
 
-  template <typename W, typename Extents>
-  static mdspan<const scalar_type, Extents>
-  view(W, const_pointer p, const Extents& extents) noexcept {
+  template <typename W, index... Extents>
+  static mdspan<const scalar_type, Extents...>
+  view(W, const_pointer p, const extents<Extents...>& e) noexcept {
     using I = variable_find_index<W, meta::list<V, Vars...>>;
     static_assert(I::value < rank, "Variable not found.");
-    return mdspan<const scalar_type, Extents>{p.native + I::value * p.stride,
-                                              extents};
+    return mdspan<const scalar_type, Extents...>{p.native + I::value * p.stride,
+                                                 e};
   }
 };
 
@@ -560,7 +566,7 @@ template <typename... Vars> class quantities_ref {
 public:
   quantities_ref() = delete;
   quantities_ref(pointer<Vars>... pointers) noexcept : m_pointers{pointers...} {
-    assert(foldl(m_pointers, true, [](bool not_null, auto ptr) -> bool { 
+    assert(foldl(m_pointers, true, [](bool not_null, auto ptr) -> bool {
       return not_null && ptr;
     }));
   }

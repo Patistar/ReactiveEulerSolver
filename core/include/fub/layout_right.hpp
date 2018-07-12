@@ -33,76 +33,114 @@ namespace fub {
 struct layout_right {
   template <typename Extents> class mapping : private Extents {
   public:
-    static constexpr int rank = Extents::rank;
+    using index_type = typename Extents::index_type;
 
-    using Extents::Extents;
+    constexpr mapping() = default;
+    constexpr mapping(const mapping&) = default;
+    constexpr mapping(mapping&&) = default;
+    mapping& operator=(const mapping&) noexcept = default;
+    mapping& operator=(mapping&&) noexcept = default;
 
-    explicit mapping(const Extents& extents) : Extents{extents} {}
+    /// \note This is explicit opposed to P0009
+    explicit constexpr mapping(const Extents& extents) : Extents{extents} {}
 
-    const Extents& extents() const noexcept { return *this; }
+    constexpr const Extents& get_extents() const noexcept { return *this; }
 
-    template <typename... Indices,
-              typename = std::enable_if_t<(sizeof...(Indices) == rank)>>
-    constexpr index operator()(Indices... indices) const noexcept {
-      return do_mapping(std::array<index, rank>{{indices...}},
-                        std::make_integer_sequence<int, Extents::rank>());
+    constexpr index_type required_span_size() const noexcept {
+      return size(get_extents());
     }
 
-    template <int R> constexpr index stride() const noexcept {
-      return do_stride(std::make_integer_sequence<int, R>());
+    template <
+        typename... IndexType,
+        typename = std::enable_if_t<
+            conjunction<std::is_convertible<IndexType, index_type>...>::value>,
+        typename = std::enable_if_t<(sizeof...(IndexType) == Extents::rank())>>
+    constexpr index_type operator()(IndexType... indices) const noexcept {
+      return do_mapping(std::make_index_sequence<Extents::rank()>(),
+                        indices...);
     }
 
-    constexpr optional<std::array<index, rank>>
-    next(const std::array<index, rank>& indices) const noexcept {
-      return do_next(indices, std::integral_constant<int, Extents::rank - 1>{});
+    constexpr index_type stride(std::size_t r) const noexcept {
+      index_type stride = 1;
+      for (std::size_t dim = r + 1; dim < Extents::rank(); ++dim) {
+        stride *= get_extents().extent(dim);
+      }
+      return stride;
+    }
+
+    static constexpr bool is_always_unique() noexcept { return true; }
+    static constexpr bool is_always_contiguous() noexcept { return true; }
+    static constexpr bool is_always_strided() noexcept { return true; }
+
+    constexpr bool is_unique() const noexcept { return true; }
+    constexpr bool is_contiguous() const noexcept { return true; }
+    constexpr bool is_strided() const noexcept { return true; }
+
+    template <class OtherExtents>
+    constexpr bool operator==(const mapping<OtherExtents>& other) const
+        noexcept {
+      return get_extents() == other.get_extents();
+    }
+
+    template <class OtherExtents>
+    constexpr bool operator!=(const mapping<OtherExtents>& other) const
+        noexcept {
+      return !(*this == other);
     }
 
   private:
-    template <int Dim>
-    constexpr optional<std::array<index, rank>>
-    do_next(std::array<index, rank> indices,
-            std::integral_constant<int, Dim>) const noexcept {
-      static_assert(0 <= Dim && Dim < Extents::rank,
-                    "Dimension is out of range.");
-      ++indices[Dim];
-      if (indices[Dim] < extents().get(Dim)) {
-        return indices;
-      }
-      indices[Dim] = 0;
-      return do_next(indices, std::integral_constant<int, Dim - 1>());
-    }
-
-    constexpr optional<std::array<index, rank>>
-    do_next(std::array<index, rank> indices,
-            std::integral_constant<int, 0>) const noexcept {
-      ++indices[0];
-      if (indices[0] < extents().get(0)) {
-        return indices;
-      }
-      return {};
-    }
-
-    template <int... Is>
-    constexpr index do_mapping(const std::array<index, Extents::rank>& idx,
-                               std::integer_sequence<int, Is...>) const
-        noexcept {
-      std::array<index, sizeof...(Is)> strides{{stride<Is>()...}};
-      index sum = 0;
-      for (std::size_t i = 0; i < sizeof...(Is); ++i) {
-        sum += strides[i] * idx[Extents::rank - 1 - i];
-      }
+    template <std::size_t... Is, typename... IndexType>
+    constexpr index_type do_mapping(std::index_sequence<Is...>,
+                                    IndexType... indices) const noexcept {
+      const index_type is[Extents::rank()]{indices...};
+      const index_type strides[Extents::rank()]{stride(Is)...};
+      index_type sum = fub::transform_reduce(strides, is, index_type(0));
       return sum;
-    }
-
-    template <int... Rs>
-    constexpr index do_stride(std::integer_sequence<int, Rs...>) const
-        noexcept {
-      std::array<index, sizeof...(Rs)> exts{{extents().get(Rs)...}};
-      index prod = fub::accumulate(exts, index(1), std::multiplies<>());
-      return prod;
     }
   };
 };
+
+template <typename Extents>
+constexpr typename Extents::index_type
+static_required_span_size(const layout_right::mapping<Extents>&) noexcept {
+  typename Extents::index_type sz = size(Extents());
+  return sz ? sz : dynamic_extent;
+}
+
+
+template <typename Extents>
+constexpr index_array_t<Extents>
+next(const layout_right::mapping<Extents>& mapping,
+     index_array_t<Extents> index) noexcept {
+  assert(is_in_range(mapping.get_extents(), index));
+  std::size_t r = Extents::rank();
+  index[r - 1] += 1;
+  while (0 < r && index[r - 1] >= mapping.get_extents().extent(r - 1)) {
+    index[r - 1] = 0;
+    r -= 1;
+    index[r] += 1;
+  }
+  assert(is_in_range(mapping.get_extents(), index));
+  return index;
+}
+
+template <typename Extents, typename Function>
+constexpr Function for_each_index(const layout_right::mapping<Extents>& mapping,
+                                  Function fun) {
+  using index_type = typename Extents::index_type;
+  Extents extents = mapping.get_extents();
+  index_type sz = size(extents);
+  if (sz == 0) {
+    return fun;
+  }
+  std::array<index_type, Extents::rank()> index{};
+  while (sz > 0) {
+    fub::invoke(fun, index);
+    index = next(mapping, index);
+    sz -= 1;
+  }
+  return fun;
+}
 
 } // namespace fub
 

@@ -23,7 +23,7 @@ public:
 };
 
 struct function_type {
-  static void invoke() {}
+  static void invoke(component_client client) {}
 };
 
 struct action_type
@@ -33,11 +33,7 @@ struct action_type
 int hpx_main() {
   const std::vector<hpx::id_type> localities = hpx::find_all_localities();
   component_client node(localities[0]);
-#ifdef NO_DATAFLOW
-  hpx::async(action_type(), node.get_id()).get();
-#else
-  hpx::dataflow(action_type(), node.get_id()).get();
-#endif
+  component_client moved_to = std::move(node);
   return hpx::finalize();
 }
 

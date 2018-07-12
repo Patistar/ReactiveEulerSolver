@@ -95,14 +95,15 @@ template <class Bool> using negation = meta::not_c<Bool::value>;
 //                                                               [meta.constant]
 
 using index = std::ptrdiff_t;
-static constexpr index dyn{-1};
 
 template <bool Bool> using bool_constant = std::integral_constant<bool, Bool>;
 template <index I> using index_constant = std::integral_constant<index, I>;
 template <int I> using int_constant = std::integral_constant<int, I>;
+template <std::size_t I> using size_constant = std::integral_constant<std::size_t, I>;
 template <int I> static constexpr int_constant<I> int_c{};
 template <bool B> static constexpr bool_constant<B> bool_c{};
 template <index I> static constexpr index_constant<I> index_c{};
+template <std::size_t I> static constexpr size_constant<I> size_c{};
 
 template <index N>
 using make_index_sequence = std::make_integer_sequence<index, N>;
@@ -128,6 +129,14 @@ using invoke_result_t =
 template <typename F, typename... Args>
 using is_invocable = is_detected<invoke_result_t, F, Args...>;
 #endif
+
+template <typename T>
+struct remove_cvref {
+    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+};
+
+template <typename T>
+using remove_cvref_t = typename remove_cvref<T>::type;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                   [meta.size]
@@ -205,8 +214,7 @@ template <typename Var> struct value_type {
 };
 template <typename Var> using value_type_t = typename value_type<Var>::type;
 
-using ranges::data;
-using ranges::size;
+
 
 } // namespace fub
 

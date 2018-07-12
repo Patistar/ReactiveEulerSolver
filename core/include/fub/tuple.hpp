@@ -50,7 +50,7 @@ public:
   constexpr decltype(auto) operator()(F&& fun, T&& tuple) {
     return impl(
         std::forward<F>(fun), std::forward<T>(tuple),
-        std::make_index_sequence<std::tuple_size<std::decay_t<T>>::value>());
+        std::make_index_sequence<std::tuple_size<remove_cvref_t<T>>::value>());
   }
 };
 

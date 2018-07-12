@@ -102,7 +102,7 @@ struct layout_right {
 
 template <typename Extents>
 constexpr typename Extents::index_type
-static_required_span_size(const layout_right::mapping<Extents>&) noexcept {
+static_required_span_size(layout_right, const Extents&) noexcept {
   typename Extents::index_type sz = size(Extents());
   return sz ? sz : dynamic_extent;
 }

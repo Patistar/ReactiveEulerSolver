@@ -25,11 +25,13 @@
 #include "fub/extents.hpp"
 #include "fub/span.hpp"
 #include "fub/type_traits.hpp"
+#include "fub/simd.hpp"
 
 #include <array>
 
 namespace fub {
 
+template <typename T, typename Abi>
 struct layout_simd_padded {
   template <typename Extents> class mapping : private Extents {
   public:
@@ -37,6 +39,8 @@ struct layout_simd_padded {
                   "Extents must satisfy the extents concept.");
 
     using index_type = typename Extents::index_type;
+    using value_type = remove_cvref_t<T>;
+    using simd_type = simd<value_type, Abi>;
 
     // CONSTRUCTORS
 
@@ -51,7 +55,7 @@ struct layout_simd_padded {
     /// Throws: Nothing.
     ///
     /// Postcondition: get_extents() == extents.
-    constexpr mapping(const Extents& extents) : Extents{extents} {} // NOLINT
+    constexpr mapping(const Extents& extents) : Extents(extents) {} 
 
     // OBSERVERS
 
@@ -61,12 +65,12 @@ struct layout_simd_padded {
     ///
     /// Throws: Nothing.
     constexpr index_type required_span_size() const noexcept {
-      index_type array[Extents::rank()] = as_array(get_extents());
-      index_type alignment = memory_alignment_v<simd<T, Abi>>;
+      constexpr index_type width = memory_alignment_v<simd_type>;
+      index_type factor = 1;
       for (std::size_t dim = 0; dim < Extents::rank(); ++dim) {
-        array[dim] += (alignment - (array[dim] % alignment));
+        factor *= width;
       }
-      return fub::accumulate(array, index_type(1), std::multiply<>{});
+      return size(get_extents()) * factor;
     }
 
     /// Returns the codomain index for specified multi dimensional index
@@ -133,45 +137,15 @@ struct layout_simd_padded {
   };
 };
 
-template <typename Extents>
+template <typename T, typename Abi, typename Extents>
 constexpr typename Extents::index_type
-static_required_span_size(const layout_simd::mapping<Extents>&) noexcept {
+static_required_span_size(layout_simd_padded<T, Abi>, const Extents& extents) noexcept {
   typename Extents::index_type sz = size(Extents());
-  return sz ? sz : dynamic_extent;
-}
-
-template <typename Extents>
-constexpr index_array_t<Extents>
-next(const layout_simd::mapping<Extents>& mapping,
-     index_array_t<Extents> index) noexcept {
-  assert(is_in_range(mapping.get_extents(), index));
-  std::size_t r = 0;
-  index[r] += 1;
-  while (r < Extents::rank() && index[r] >= mapping.get_extents().extent(r)) {
-    index[r] = 0;
-    r += 1;
-    index[r] += 1;
+  if (sz) {
+    typename layout_simd_padded<T, Abi>::template mapping<Extents> m(extents);
+    return m.required_span_size();
   }
-  assert(is_in_range(mapping.get_extents(), index));
-  return index;
-}
-
-template <typename Extents, typename Function>
-constexpr Function for_each_index(const layout_simd::mapping<Extents>& mapping,
-                                  Function fun) {
-  using index_type = typename Extents::index_type;
-  Extents extents = mapping.get_extents();
-  index_type sz = size(extents);
-  if (sz == 0) {
-    return fun;
-  }
-  std::array<index_type, Extents::rank()> index{};
-  while (sz > 0) {
-    fub::invoke(fun, index);
-    index = next(mapping, index);
-    sz -= 1;
-  }
-  return fun;
+  return dynamic_extent;
 }
 
 } // namespace fub

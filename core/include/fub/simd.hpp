@@ -161,7 +161,7 @@ simd<T, Abi> pow(simd<T, Abi> a, simd<T, Abi> b) noexcept {
 template <typename T, typename Abi>
 std::ostream& operator<<(std::ostream& out, const simd<T, Abi>& v) {
   constexpr int width = simd_size_v<simd<T, Abi>>;
-  constexpr int alignment = memory_alignment_v<simd<T, Abi>, T>;
+  constexpr int alignment = memory_alignment_v<simd<T, Abi>>;
   alignas(alignment) std::array<T, width> array;
   v.copy_to(array.data(), vector_alignment);
   out << "(" << array[0];

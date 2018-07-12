@@ -34,7 +34,7 @@
 namespace fub {
 namespace euler {
 
-/// @brief This method is a MUSCL-type flux method which deploys a limited state
+/// This method is a MUSCL-type flux method which deploys a limited state
 /// reconstruction on a halftime-level.
 ///
 /// State reconstruction happens for the primitve variables `T` (temperature),
@@ -43,16 +43,16 @@ namespace euler {
 template <typename RiemannSolver> struct muscl_hancock_method {
   godunov_method<RiemannSolver> m_godunov_method{};
 
-  /// @brief The default constructor depends on godunov_method's default
+  /// The default constructor depends on godunov_method's default
   /// constructor
   muscl_hancock_method() = default;
 
-  /// @brief Initialises the internal godunov_method with the specified riemann
+  /// Initialises the internal godunov_method with the specified riemann
   /// problem solver.
   explicit muscl_hancock_method(const RiemannSolver& rps)
       : m_godunov_method(rps) {}
 
-  /// @brief Directly intialises this method by the godunov method.
+  /// Directly intialises this method by the godunov method.
   explicit muscl_hancock_method(const godunov_method<RiemannSolver>& method)
       : m_godunov_method(method) {}
 
@@ -66,7 +66,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
   template <int Rank>
   using velocity_states_t = typename velocity_states<Rank>::type;
 
-  /// @brief Returns the primtive state vector for a specified Mechanism
+  /// Returns the primtive state vector for a specified Mechanism
   ///
   /// The state vector contains velocity, pressure and temperature plus all
   /// relative species mass fractions, including the first species.
@@ -75,16 +75,16 @@ template <typename RiemannSolver> struct muscl_hancock_method {
       concat_t<velocity_states_t<Rank>, quantities<Pressure, Temperature>,
                as_quantities_t<species_tuple_t<ideal_gas<Mechanism, Rank>>>>;
 
-  /// @brief Returns all primtive variables as a tuple
+  /// Returns all primtive variables as a tuple
   template <typename Mechanism, int Rank>
   using primitive_tuple_t = as_tuple_t<primitive_state_t<Mechanism, Rank>>;
 
-  /// @brief Returns a simd-enabled primtive state vector type for the specified
+  /// Returns a simd-enabled primtive state vector type for the specified
   /// simd abi.
   template <typename Mechanism, int Rank, typename Abi>
   using primitive_simd_t = add_simd_t<primitive_state_t<Mechanism, Rank>, Abi>;
 
-  /// @brief We use this function as a building block to compute limited slopes
+  /// We use this function as a building block to compute limited slopes
   template <typename T, typename Abi>
   static simd<T, Abi> minmod(const simd<T, Abi>& a,
                              const nodeduce_t<simd<T, Abi>>& b) noexcept {
@@ -94,7 +94,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return m;
   }
 
-  /// @brief We deploy Monotonized central-difference (MC) Limiter
+  /// We deploy Monotonized central-difference (MC) Limiter
   template <typename T, typename Abi>
   static simd<T, Abi>
   compute_limited_slope(const simd<T, Abi>& left,
@@ -105,7 +105,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return van_leer_limiter * left;
   }
 
-  /// @brief Returns the slope vector for a specified stencil
+  /// Returns the slope vector for a specified stencil
   template <typename Mechanism, int Rank, typename Abi>
   static auto
   compute_slopes(const ideal_gas<Mechanism, Rank>&, const Abi&,
@@ -124,12 +124,18 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return slope;
   }
 
-  /// @brief Returns a state vector containing all primitive variables.
+  /// Returns a state vector which contains all primitive variables.
   ///
   /// If neccessary this function will compute the variables if they are not
   /// directly available in the specified state.
   ///
-  /// Note that the equation knows how to compute them.
+  /// Requires: is_mechansim_v<Mechanism>
+  /// Requires: is_simd_abi_v<Abi>
+  /// Requires: 0 < Rank
+  ///
+  /// Throws: Nothing.
+  ///
+  /// Note: that the equation knows how to compute them.
   template <typename Mechanism, int Rank, typename Abi, typename State>
   static primitive_simd_t<Mechanism, Rank, Abi>
   as_primitive_state(const ideal_gas<Mechanism, Rank>& eq, const Abi& abi,
@@ -148,7 +154,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     return w;
   }
 
-  /// @brief We use this pair-like type to give the states some names.
+  /// We use this pair-like type to give the states some names.
   template <typename Mechanism, int Rank, typename Abi> struct evolved_states {
     using state_type =
         add_simd_t<complete_state_t<ideal_gas<Mechanism, Rank>>, Abi>;
@@ -156,7 +162,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     state_type right;
   };
 
-  /// @brief Returns two complete states located at left and right face
+  /// Returns two complete states located at left and right face
   /// boundaries for the halftime-level. This function expects a cell centered
   /// base state with specified limited slope `dwdx`.
   template <typename Mechanism, int Rank, typename Abi>
@@ -225,10 +231,12 @@ template <typename RiemannSolver> struct muscl_hancock_method {
     std::array<S, array_size> Y;
     evolved_states<Mechanism, Rank, Abi> states;
 
-    // Construct left state
+    // Construct left state, Pressure
     S p = w[pressure] + 0.5 * (lambda * dpdt - dwdx[pressure]);
+    // Construct first velocity dimension (special case)
     std::array<S, Rank> u;
     u[0] = w[velocity<0>] + 0.5 * (lambda * dudt - dwdx[velocity<0>]);
+    // Construct other velocity dimensions
     for_each_tuple_element(
         [&](auto dim) {
           static constexpr int Dim = decltype(dim)::value;
@@ -237,7 +245,9 @@ template <typename RiemannSolver> struct muscl_hancock_method {
               w[velocity<Dim>] + 0.5 * (lambda * dvdt - dwdx[velocity<Dim>]);
         },
         tail_t<as_tuple_t<std::make_integer_sequence<int, Rank>>>());
+    // Construct left state, Temperature
     S T = w[temperature] + 0.5 * (lambda * dTdt - dwdx[temperature]);
+    // Construct left state, Species
     for_each_tuple_element(
         [&](auto species) {
           Y[as_index(species)] =
@@ -245,6 +255,7 @@ template <typename RiemannSolver> struct muscl_hancock_method {
               0.5 * (lambda * dYdt[as_index(species)] - dwdx[species]);
         },
         species_tuple(equation));
+    // Store Results into states.left
     states.left = equation.set_velocity(abi, equation.set_TPY(abi, T, p, Y), u);
 
     // Construct right state

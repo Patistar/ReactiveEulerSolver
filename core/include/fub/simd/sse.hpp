@@ -161,8 +161,17 @@ public:
       std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr>
   simd(U&& u) : m_value{_mm_set1_pd(u)} {}
 
+  template <
+      typename U, typename Alignment,
+      std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr>
+  simd(const U* u, Alignment alignment) noexcept {
+    copy_from(u, alignment);
+  }
+
   // Implicit cast from native type
   simd(const native_type& value) noexcept : m_value{value} {}
+
+
   // Explicit cast into native type
   explicit operator const native_type&() const noexcept { return m_value; }
   explicit operator native_type&() noexcept { return m_value; }
@@ -193,6 +202,18 @@ public:
   copy_to(U* mem, vector_alignment_tag) const noexcept {
     assert(boost::alignment::is_aligned(memory_alignment_v<simd, U>, mem));
     _mm_store_pd(mem, m_value);
+  }
+
+    // Element Access
+
+  constexpr value_type operator[](int i) const noexcept {
+    union accessor_sse {
+      double array[2];
+      __m128d native;
+    };
+    accessor_sse access{};
+    access.native = m_value;
+    return access.array[i];
   }
 
   friend simd operator+(const simd& x, const simd& y) noexcept {

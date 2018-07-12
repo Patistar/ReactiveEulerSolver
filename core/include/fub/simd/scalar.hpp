@@ -28,7 +28,7 @@ namespace fub {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                    Scalar SIMD Specialisation
 
-/// @brief Simd wrapper for the scalar case (SISD case).
+/// Simd wrapper for the scalar case (SISD case).
 template <typename T> class simd<T, simd_abi::scalar> {
 public:
   using value_type = T;
@@ -81,7 +81,7 @@ public:
       std::enable_if_t<std::is_convertible<U, value_type>::value>* = nullptr,
       std::enable_if_t<is_simd_flag_type<AlignmentFlag>::value>* = nullptr>
   constexpr void
-  copy_from(const U* mem, Flags) noexcept {
+  copy_from(const U* mem, AlignmentFlag) noexcept {
     m_value = *mem;
   }
 

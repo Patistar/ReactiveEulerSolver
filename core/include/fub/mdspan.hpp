@@ -99,6 +99,7 @@ template <typename T, typename Extents, typename Layout, typename Accessor>
 class basic_mdspan {
 public:
   using element_type = T;
+  using extents_type = Extents;
   using layout = Layout;
   using accessor = Accessor;
   using value_type = std::remove_const_t<element_type>;
@@ -112,8 +113,9 @@ public:
 
   constexpr basic_mdspan() = default;
 
-  constexpr basic_mdspan(pointer ptr, const Extents& extents)
-      : m_storage(ptr, mapping(extents)) {}
+  template <typename... Args, typename std::enable_if_t<std::is_constructible<Extents, Args...>::value, void*> = nullptr>
+  constexpr basic_mdspan(pointer ptr, Args&&... args)
+      : m_storage(ptr, mapping(extents_type(std::forward<Args>(args)...))) {}
 
   constexpr basic_mdspan(pointer ptr, const mapping& m,
                          const accessor& a = accessor())
@@ -176,7 +178,7 @@ public:
     return m_storage.get_accessor();
   }
 
-  constexpr basic_span<element_type, static_required_span_size(mapping()),
+  constexpr basic_span<element_type, static_required_span_size(layout(), extents_type()),
                        accessor>
   span() const noexcept {
     return {m_storage.get_pointer(), size(), get_accessor()};

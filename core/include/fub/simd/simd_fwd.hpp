@@ -135,8 +135,8 @@ static constexpr int simd_size_v = simd_size<Simd>::value;
 ////////////////////////////////////////////////////////////////////////////////
 //                                           [simd.type_traits.memory_alignment]
 
-template <typename Simd, typename U> struct memory_alignment {};
-template <typename Simd, typename U>
+template <typename Simd, typename U = typename Simd::value_type> struct memory_alignment {};
+template <typename Simd, typename U = typename Simd::value_type>
 static constexpr int memory_alignment_v = memory_alignment<Simd, U>::value;
 
 template <typename T, typename U>

@@ -141,11 +141,13 @@ public:
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
 #if __cplusplus >= 201703L
-  constexpr basic_span(pointer p, [[maybe_unused]] index_type size, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer p, [[maybe_unused]] index_type size,
+                       accessor a = accessor()) noexcept
 #elif defined(NDEBUG)
   constexpr basic_span(pointer p, index_type, accessor a = accessor()) noexcept
 #else
-  constexpr basic_span(pointer p, index_type size, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer p, index_type size,
+                       accessor a = accessor()) noexcept
 #endif
       : m_storage{p, a} {
     assert(N <= size);
@@ -156,11 +158,13 @@ public:
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
 #if __cplusplus >= 201703L
-  constexpr basic_span(pointer first, [[maybe_unused]] pointer last, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer first, [[maybe_unused]] pointer last,
+                       accessor a = accessor()) noexcept
 #elif defined(NDEBUG)
   constexpr basic_span(pointer first, pointer, accessor a = accessor()) noexcept
 #else
-  constexpr basic_span(pointer first, pointer last, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer first, pointer last,
+                       accessor a = accessor()) noexcept
 #endif
       : m_storage{first, a} {
     assert(N <= (last - first));
@@ -174,7 +178,8 @@ public:
   ///
   /// Postcondition: get_pointer() = pointer(&arr[0])
   template <std::size_t M, typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(element_type (&arr)[M], accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(element_type (&arr)[M],
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{&arr[0], a} {}
 
   /// Implicit conversion from const `std::array`s.
@@ -189,7 +194,8 @@ public:
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::const_pointer, pointer>::value>,
             typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(const std::array<S, M>& arr, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(const std::array<S, M>& arr,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{arr.data(), a} {}
 
   /// Implicit conversion from mutable `std::array`s.
@@ -204,14 +210,16 @@ public:
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::pointer, pointer>::value>,
             typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(std::array<S, M>& arr, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(std::array<S, M>& arr,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{arr.data(), a} {}
 
   template <typename S, index_type M, typename A,
             typename = std::enable_if_t<std::is_convertible<
                 typename basic_span<S, M, A>::pointer, pointer>::value>,
             typename = std::enable_if_t<N <= M>>
-  constexpr basic_span(const basic_span<S, M, A>& s, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(const basic_span<S, M, A>& s,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{s.data(), a} {}
 
   constexpr basic_span(const basic_span& s) noexcept = default;
@@ -225,7 +233,8 @@ public:
       typename = std::enable_if_t<!is_span<std::decay_t<Container>>::value>,
       typename = std::enable_if_t<std::is_convertible<
           detected_t<detail::data_t, Container>, pointer>::value>>
-  constexpr basic_span(Container&& container, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(Container&& container,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{ranges::data(container), a} {
     assert(N <= ranges::size(container));
   }
@@ -317,25 +326,30 @@ public:
 
   constexpr basic_span() = default;
 
-  constexpr basic_span(pointer p, index_type size, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer p, index_type size,
+                       accessor a = accessor()) noexcept
       : m_storage{p, size, a} {}
-  constexpr basic_span(pointer first, pointer last, accessor a = accessor()) noexcept
+  constexpr basic_span(pointer first, pointer last,
+                       accessor a = accessor()) noexcept
       : m_storage{first, last - first, a} {}
 
   template <std::size_t M>
-  constexpr basic_span(element_type (&arr)[M], accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(element_type (&arr)[M],
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{&arr[0], static_cast<index_type>(M), a} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::const_pointer, pointer>::value>>
-  constexpr basic_span(const std::array<S, M>& arr, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(const std::array<S, M>& arr,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{arr.data(), arr.size(), a} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::pointer, pointer>::value>>
-  constexpr basic_span(std::array<S, M>& arr, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(std::array<S, M>& arr,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{arr.data(), arr.size(), a} {}
 
   template <
@@ -347,7 +361,8 @@ public:
       typename = std::enable_if_t<!is_span<std::decay_t<Container>>::value>,
       typename = std::enable_if_t<std::is_convertible<
           detected_t<detail::data_t, Container>, pointer>::value>>
-  constexpr basic_span(Container&& container, accessor a = accessor()) noexcept // NOLINT
+  constexpr basic_span(Container&& container,
+                       accessor a = accessor()) noexcept // NOLINT
       : m_storage{container.data(),
                   static_cast<std::ptrdiff_t>(container.size()), a} {}
 
@@ -406,9 +421,9 @@ public:
 
   /// Returns true if this span points to something different than nullptr.
   ///
-  /// @note This makes span<T> contextually convertible to bool.
+  /// Note: This makes span<T> contextually convertible to bool.
   ///
-  /// @example
+  /// Example:
   ///     span<int> s = nullptr;
   ///     // ...
   ///     if (s) {

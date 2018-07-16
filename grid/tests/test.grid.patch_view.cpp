@@ -26,18 +26,13 @@
 
 #include <iostream>
 
-struct Density {
-  using value_type = double;
-};
-
+struct Density {};
+struct Pressure {};
 struct Velocity {
   using value_type = int;
 };
 static constexpr Velocity velocity{};
 
-struct Pressure {
-  using value_type = double;
-};
 
 using Extents = fub::extents<16, fub::dynamic_extent>;
 using Patch = fub::patch<std::tuple<Density, Velocity, Pressure>, Extents>;

@@ -29,6 +29,9 @@ if (DEFINED HPX_FOUND AND HPX_FOUND)
     DEPENDENCIES ReactiveEulerSolver.grid Catch2)
 endif()
 
+add_executable(test.grid.variable_accessor test.grid.variable_accessor.cpp)
+target_link_libraries(test.grid.variable_accessor ReactiveEulerSolver.grid_includes Catch2)
+
 add_executable(test.grid.interval_map test.grid.interval_map.cpp)
 target_link_libraries(test.grid.interval_map ReactiveEulerSolver.grid)
 

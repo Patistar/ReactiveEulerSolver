@@ -31,6 +31,11 @@ if (NOT TARGET eigen)
 endif()
 list(APPEND FUB_GRID_DEPENDENCIES eigen)
 
+add_library(ReactiveEulerSolver.grid_includes INTERFACE)
+target_include_directories(ReactiveEulerSolver.grid_includes INTERFACE include)
+target_link_libraries(ReactiveEulerSolver.grid_includes INTERFACE 
+  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
+
 add_library(ReactiveEulerSolver.grid source/fub/output/cgns.cpp)
 target_include_directories(ReactiveEulerSolver.grid PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.grid PUBLIC 

@@ -25,24 +25,154 @@
 #include "fub/quantities_ref.hpp"
 #include "fub/variables.hpp"
 
-#include <boost/mp11.hpp>
+#include <boost/hana/experimental/types.hpp>
+#include <boost/hana/ext/std/integral_constant.hpp>
+#include <boost/hana/for_each.hpp>
+#include <boost/hana/if.hpp>
+#include <boost/hana/range.hpp>
+#include <boost/hana/type.hpp>
+
+#include <array>
 
 namespace fub {
+namespace hana = boost::hana;
+namespace detail {
+template <typename Variable, typename ProtoAccessor, typename DefaultType>
+struct variable_accessor_impl {
+  template <typename V> using value_type_t = typename V::value_type;
 
-template <typename VariableList, typename ProtoAccessor = accessor_native<>,
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_value_type(hana::basic_type<V>) {
+    return hana::type_c<detected_or_t<DefaultType, value_type_t, Variable>>;
+  }
+
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_element_type(hana::basic_type<V>) {
+    constexpr auto is_const = hana::trait<std::is_const>;
+    constexpr auto add_const = hana::metafunction<std::add_const>;
+    constexpr auto value_type = get_value_type(hana::type_c<V>);
+    return hana::if_(is_const(hana::type_c<V>), add_const(value_type),
+                     value_type);
+  }
+
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_accessor(hana::basic_type<V>) {
+    using element_type = typename decltype(get_element_type(hana::type_c<V>))::type;
+    using Result = typename ProtoAccessor::template rebind<element_type>;
+    return hana::type_c<Result>;
+  }
+
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_value_storage(hana::basic_type<V>) {
+    using value_type = typename decltype(get_value_type(hana::type_c<V>))::type;
+    return hana::if_(hana::bool_c<variable_traits<V>::size() == 1>, value_type,
+                     hana::type_c<std::array<value_type, size>>);
+  }
+
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_pointer_storage(hana::basic_type<V>) {
+    using accessor = typename decltype(get_accessor(hana::type_c<V>))::type;
+    return hana::type_c<typename accessor::pointer>;
+  }
+
+  template <typename V,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr auto get_const_pointer_storage(hana::basic_type<V>) {
+    using accessor = typename decltype(get_accessor(hana::type_c<V>))::type;
+    return hana::type_c<typename accessor::const_pointer>;
+  }
+
+  using value_storage =
+      typename decltype(get_value_storage(hana::type_c<Variable>))::type;
+
+  using pointer_storage =
+      typename decltype(get_pointer_storage(hana::type_c<Variable>))::type;
+
+  using const_pointer_storage = typename decltype(
+      get_const_pointer_storage(hana::type_c<Variable>))::type;
+
+  /// Transforms a value storage tuple into pointer storage tuple where each
+  /// tuple entry points to the value tuple entry.
+  /// @{
+  static constexpr pointer_storage to_pointer_storage(std::true_type,
+                                                      value_storage& value) {
+    return std::addressof(value);
+  }
+
+  static constexpr pointer_storage to_pointer_storage(std::false_type,
+                                                      value_storage& value) {
+    return value.data();
+  }
+
+  static constexpr pointer_storage to_pointer_storage(value_storage& value) {
+    return to_pointer_storage(bool_c<variable_traits<Variable>::size() == 1>,
+                              value);
+  }
+  /// @}
+
+  /// Transforms a const value storage tuple into pointer to const storage tuple
+  /// where each tuple entry points to the value tuple entry.
+  /// @{
+  static constexpr const_pointer_storage
+  to_pointer_storage(std::true_type, const value_storage& value) {
+    return std::addressof(value);
+  }
+
+  static constexpr const_pointer_storage
+  to_pointer_storage(std::false_type, const value_storage& value) {
+    return value.data();
+  }
+
+  static constexpr const_pointer_storage
+  to_pointer_storage(const value_storage&) {
+    return to_pointer_storage(bool_c<variable_traits<Variable>::size() == 1>,
+                              value);
+  }
+  /// @}
+
+  /// Returns a reference to a variable value with specified storage, total
+  /// extents and a given offset.
+  template <typename V, std::ptrdiff_t... Es,
+            typename = std::enable_if_t<std::is_same<V, Variable>::value>>
+  static constexpr decltype(auto)
+  access(hana::basic_type<V>, const pointer_storage& pointer,
+         const fub::extents<Es...>& extents, std::ptrdiff_t offset) {
+    const std::ptrdiff_t size = fub::size(extents);
+    assert(0 <= offset && offset < size);
+    typename decltype(get_accessor(hana::type_c<V>))::type accessor {}
+    return accessor.access(pointer, size, offset);
+  }
+};
+} // namespace detail
+
+template <typename Variable, typename ProtoAccessor = accessor_native<>,
           typename DefaultType = double>
-struct variable_accessor {
+struct variable_accessor
+    : private detail::variable_accessor_impl<Variable, ProtoAccessor,
+                                             DefaultType> {
+private:
+  using base =
+      detail::variable_accessor_impl<Variable, ProtoAccessor, DefaultType>;
+
 public:
+  // Variable dependent Typedefs
+
   template <typename V>
-  using value_type = double; // detected_or<DefaultType, value_type_t, V>;
+  using value_type =
+      typename decltype(base::get_value_type(hana::type_c<V>))::type;
 
   template <typename V>
   using element_type =
-      std::conditional_t<std::is_const<V>::value,
-                         std::add_const_t<value_type<V>>, value_type<V>>;
+      typename decltype(base::get_element_type(hana::type_c<V>))::type;
 
   template <typename V>
-  using accessor = typename ProtoAccessor::template rebind<element_type<V>>;
+  using accessor =
+      typename decltype(base::get_accessor_type(hana::type_c<V>))::type;
 
   template <typename V> using pointer = typename accessor<V>::pointer;
 
@@ -51,48 +181,35 @@ public:
 
   template <typename V> using reference = typename accessor<V>::reference;
 
-private:
-  template <template <typename...> class List, typename... Vars>
-  static constexpr std::tuple<
-      std::array<value_type<Vars>, variable_traits<Vars>::size()>...>
-  value_storage_impl(const List<Vars...>&);
-
   template <typename V>
-  static constexpr std::tuple<std::array<value_type<V>, variable_traits<V>::size()>>
-  value_storage_impl(const V&);
+  using const_reference = typename accessor<std::add_const_t<V>>::reference;
 
-  template <template <typename...> class List, typename... Vars>
-  static constexpr std::tuple<pointer<Vars>...>
-  pointer_storage_impl(const List<Vars...>&);
+  // Storage related Typedefs
 
-  template <typename V>
-  static constexpr std::tuple<pointer<V>> pointer_storage_impl(const V&);
+  using value_storage = typename decltype(
+      base::get_value_storage(std::declval<VariableList>()))::type;
 
-  template <template <typename...> class List, typename... Vars>
-  static constexpr std::tuple<const_pointer<Vars>...>
-  const_pointer_storage_impl(const List<Vars...>&);
+  using pointer_storage = typename decltype(
+      base::get_pointer_storage(std::declval<VariableList>()))::type;
 
-  template <typename V>
-  static constexpr std::tuple<const_pointer<V>>
-  const_pointer_storage_impl(const V&);
+  using const_pointer_storage = typename decltype(
+      base::const_pointer_storage(std::declval<VariableList>()))::type;
 
-public:
-  using value_storage = decltype(
-      variable_accessor::value_storage_impl(std::declval<VariableList>()));
-
-  using pointer_storage = decltype(
-      variable_accessor::pointer_storage_impl(std::declval<VariableList>()));
-
-  using const_pointer_storage =
-      decltype(variable_accessor::const_pointer_storage_impl(
-          std::declval<VariableList>()));
-
+  /// Transforms a value storage tuple into pointer storage tuple where each
+  /// tuple entry points to the value tuple entry.
   static constexpr pointer_storage to_pointer_storage(value_storage&);
-  static constexpr const_pointer_storage to_pointer_storage(const value_storage&);
 
+  /// Transforms a const value storage tuple into pointer to const storage tuple
+  /// where each tuple entry points to the value tuple entry.
+  static constexpr const_pointer_storage
+  to_pointer_storage(const value_storage&);
+
+  /// Returns a reference to a variable value with specified storage, total
+  /// extents and a given offset.
   template <typename V, std::ptrdiff_t... Es>
-  static constexpr reference<V> access(const pointer_storage&, extents<Es...>,
-                                       std::ptrdiff_t);
+  static constexpr reference<V>
+  access(hana::basic_tuple<V> variable, const pointer_storage& storage,
+         const extents<Es...>& extents, std::ptrdiff_t offset);
 }; // namespace fub
 
 template <typename VL, typename A, typename T>
@@ -100,9 +217,9 @@ constexpr typename variable_accessor<VL, A, T>::pointer_storage
 variable_accessor<VL, A, T>::to_pointer_storage(value_storage& storage) {
   pointer_storage pointers;
   constexpr std::size_t N = std::tuple_size<pointer_storage>::value;
-  boost::mp11::tuple_for_each(
-      as_tuple_t<std::make_index_sequence<N>>(),
-      [&](auto i) { std::get<i()>(pointers) = std::get<i()>(storage).data(); });
+  hana::for_each(hana::make_range(hana::int_c<0>, hana::int_c<N>), [&](auto i) {
+    std::get<i()>(pointers) = std::get<i()>(storage).data();
+  });
   return pointers;
 }
 
@@ -111,18 +228,24 @@ constexpr typename variable_accessor<VL, A, T>::const_pointer_storage
 variable_accessor<VL, A, T>::to_pointer_storage(const value_storage& storage) {
   pointer_storage pointers;
   constexpr std::size_t N = std::tuple_size<pointer_storage>::value;
-  boost::mp11::tuple_for_each(
-      as_tuple_t<std::make_index_sequence<N>>(),
-      [&](auto i) { std::get<i()>(pointers) = std::get<i()>(storage).data(); });
+  hana::for_each(hana::make_range(hana::int_c<0>, hana::int_c<N>), [&](auto i) {
+    std::get<i()>(pointers) = std::get<i()>(storage).data();
+  });
   return pointers;
 }
 
 template <typename VL, typename A, typename T>
 template <typename V, std::ptrdiff_t... Es>
 constexpr typename variable_accessor<VL, A, T>::template reference<V>
-variable_accessor<VL, A, T>::access(const pointer_storage& pointers,
-                                    extents<Es...> e, std::ptrdiff_t n) {
-  return *std::get<0>(pointers);
+variable_accessor<VL, A, T>::access(hana::type<V>,
+                                    const pointer_storage& pointers,
+                                    const extents<Es...>& total_extents,
+                                    std::ptrdiff_t offset) {
+  constexpr auto index =
+      hana::index_if(hana_types(), hana::equal.to(hana::type_c<V>));
+  static_assert(index != hana::nothing,
+                "Could not find specified Variable in the VariableList.");
+  return *std::get<*index>(pointers);
 }
 
 } // namespace fub

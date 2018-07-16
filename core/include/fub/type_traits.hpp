@@ -70,6 +70,9 @@ using detected_t =
 template <class Default, template <class...> class Op, class... Args>
 using detected_or = traits_detail::detector<Default, void, Op, Args...>;
 
+template <class Default, template <class...> class Op, class... Args>
+using detected_or_t = typename detected_or<Default, Op, Args...>::type;
+
 template <class Expected, template <typename...> class Op, class... Args>
 using is_detected_exact = std::is_same<Expected, detected_t<Op, Args...>>;
 

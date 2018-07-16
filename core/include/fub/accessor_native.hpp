@@ -24,13 +24,18 @@
 #include <cstddef>
 
 namespace fub {
-template <typename T> struct accessor_native {
+template <typename T = void> struct accessor_native {
   using pointer = T*;
   using reference = T&;
   static constexpr reference access(pointer ptr, std::ptrdiff_t /* size */,
                                     std::ptrdiff_t n) noexcept {
     return *(ptr + n);
   }
+  template <typename S> using rebind = accessor_native<S>;
+};
+
+template <> struct accessor_native<void> {
+  using pointer = void*;
   template <typename S> using rebind = accessor_native<S>;
 };
 } // namespace fub

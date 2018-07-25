@@ -28,10 +28,10 @@ TEST_CASE("Create a simd span mutable") {
   using simd_type = fub::simd<double>;
   alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{{1, 2, 3, 4, 5, 6, 7, 8}};
   fub::simd_span<double> span(array.data(), 4);
-  REQUIRE(span.size() == array.size() / fub::simd_size_v<simd_type>);
+  REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
   REQUIRE(array[0] == 1);
   span[0] = simd_type(42);
-  for (int i = 0; i < fub::simd_size_v<simd_type>; ++i) {
+  for (int i = 0; i < fub::simd_size_v<double>; ++i) {
     REQUIRE(array[i] == 42);
   }
   REQUIRE(std::is_assignable<simd_type, decltype(span[0])>::value);
@@ -41,7 +41,7 @@ TEST_CASE("Create a simd span to const") {
   using simd_type = fub::simd<double>;
   alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{{1, 2, 3, 4, 5, 6, 7, 8}};
   fub::simd_span<const double> span(array.data(), 4);
-  REQUIRE(span.size() == array.size() / fub::simd_size_v<simd_type>);
+  REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
   REQUIRE(array[0] == 1);
   REQUIRE(!std::is_assignable<decltype(span[0]), simd_type>::value);
   const fub::simd<double> s = span[0];

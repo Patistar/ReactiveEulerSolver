@@ -18,24 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_SIMD_NATIVE_HPP
-#define FUB_SIMD_NATIVE_HPP
+#ifndef FUB_GRID_HANA_HPP
+#define FUB_GRID_HANA_HPP
 
-#include "fub/simd/avx.hpp"
-#include "fub/simd/avx512.hpp"
-#include "fub/simd/scalar.hpp"
-#include "fub/simd/sse.hpp"
+#include <boost/hana/tuple.hpp>
 
 namespace fub {
-namespace simd_abi {
-#if defined(FUB_SIMD_HAS_AVX512)
-template <> struct native_abi<double> { using type = simd_abi::avx512f; };
-#elif defined(FUB_SIMD_HAS_AVX)
-template <> struct native_abi<double> { using type = simd_abi::avx; };
-#elif defined(FUB_SIMD_HAS_SSE)
-template <> struct native_abi<double> { using type = simd_abi::sse; };
-#endif
-} // namespace simd_abi
+namespace hana = boost::hana;
+
+template <typename... Ts> using tuple_t = hana::tuple<hana::type<Ts>...>;
+
+template <typename... Ts>
+static constexpr tuple_t<Ts...> to_types(const hana::tuple<Ts...>&) noexcept {
+  return {};
+}
 } // namespace fub
 
 #endif

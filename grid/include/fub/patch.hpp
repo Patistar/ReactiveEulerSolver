@@ -43,50 +43,46 @@ namespace fub {
 
 /// @brief This storage descriptor uses an user defined allocator to allocate
 /// create data on blocks.
-template <typename Allocator = std::allocator<void>> struct storage_descriptor {
-  using proto_allocator = Allocator;
-  proto_allocator allocator;
+template <typename ProtoAllocator = std::allocator<void>,
+          typename LayoutPolicy = layout_left,
+          typename ProtoAccessor = accessor_native<void>>
+struct storage_descriptor {
+  ProtoAllocator proto_allocator;
+  ProtoAccessor proto_accessor;
 
-  template <typename Var, typename Extents, typename ProtoAlloc>
-  static auto make_vector(std::true_type, Var, const Extents& extents,
-                          const ProtoAlloc& alloc) {
-    using T = typename Var::scalar_type;
-    using Traits = std::allocator_traits<proto_allocator>;
-    using Alloc = typename Traits::template rebind_alloc<T>;
-    const std::ptrdiff_t size = variable_traits<Var>::size(extents);
-    return std::vector<T, Alloc>(size, Alloc{alloc});
+  template <typename Variable, typename Extents, typename VariablesAccessor>
+  static auto make_vector(Variable variable, Extents extents,
+                          ProtoAllocator proto_alloc,
+                          VariablesAccessor accessor) {
+    using ValueType = typename VariableAccessor::template value_type<Variable>;
+    using Traits = std::allocator_traits<ProtoAllocator>;
+    typename Traits::template rebind_alloc<ValueType> allocator(proto_alloc);
+    typename LayoutPolicy::template mapping<Extents> mapping(extents);
+    const std::ptrdiff_t variable_size = accessor.size(variable);
+    const std::ptrdiff_t span_size = mapping.required_span_size();
+    return std::vector<T, Alloc>(span_size * variable_size, alloc);
   }
 
-  template <typename Var, typename Extents, typename ProtoAlloc>
-  static auto make_vector(std::false_type, Var, const Extents& extents,
-                          const ProtoAlloc& alloc) {
-    using T = typename variable_traits<Var>::value_type;
-    using Traits = std::allocator_traits<proto_allocator>;
-    using Alloc = typename Traits::template rebind_alloc<T>;
-    const std::ptrdiff_t size = variable_traits<Var>::size(extents);
-    return std::vector<T, Alloc>(size, Alloc{alloc});
+  template <typename Variables, typename Extents>
+  auto make_storage(Variables variables, Extents extents) const {
+    variable_accessor<Variables, ProtoAccessor> accessor(proto_accessor);
+    return hana::unpack(variables, [=](auto... vars) {
+      return hana::make_tuple(
+          make_vector(vars, extents, proto_allocator, accessor)...);
+    });
   }
 
-  template <typename Extents, typename... Vars>
-  auto make_storage(const Extents& extents,
-                    const std::tuple<Vars...>& vars) const {
-    return fub::apply(
-        [&extents, alloc = allocator](auto... vs) {
-          return std::make_tuple(make_vector(
-              is_detected<detail::variables_tuple_t, decltype(vs)>{}, vs,
-              extents, alloc)...);
-        },
-        vars);
-  }
-
-  template <typename Variable, typename S, typename Extents, typename Vars>
-  static auto view(S&& storage, const Extents& extents, const Vars&) {
-    // using pointer = typename variable_traits<Variable>::pointer;
-    using index = variable_find_index<Variable, Vars>;
-    using Holder = std::tuple_element_t<index::value, Vars>;
-    auto&& variable_storage = std::get<index::value>(storage);
-    auto p = variable_traits<Holder>::get_pointer(variable_storage);
-    return variable_traits<Holder>::view(Variable(), p, extents);
+  template <typename Variable, typename VariablesList, typename Storage,
+            typename Extents>
+  static auto view(Variable variable, Variables variables, Storage&& storage,
+                   Extents extents) {
+    variable_accessor<Variables, ProtoAccessor> variable_accessor(
+        proto_accessor);
+    auto span = variable_accessor.make_span(variable, storage, extents);
+    using Accessor = typename ProtoAccessor::template rebind<T>;
+    Accessor accessor(proto_accessor);
+    return basic_mdspan<T, Extents, LayoutPolicy, Accessor>(span, extents,
+                                                            accessor);
   }
 };
 
@@ -148,11 +144,10 @@ public:
   /// @brief Returns the storage descriptor of this block.
   const Descriptor& descriptor() const noexcept { return m_descriptor; }
 
-  /// @brief Returns a view to mutable data associated to this block for a
+  /// Returns a view to mutable data associated to this block for a
   /// specified Variable type.
   ///
   /// Example:
-  ///
   ///     struct Density {};
   ///     patch<std::tuple<Density>, extents<16, 16>> block{};
   ///     auto view = block.get<Density>();
@@ -201,16 +196,17 @@ public:
   }
 
   friend void swap(patch& b1, patch& b2) noexcept {
-    std::swap(b1.m_extents, b2.m_extents);
-    std::swap(b1.m_descriptor, b2.m_descriptor);
-    std::swap(b1.m_storage, b2.m_storage);
+    using std::swap;
+    swap(b1.m_extents, b2.m_extents);
+    swap(b1.m_descriptor, b2.m_descriptor);
+    swap(b1.m_storage, b2.m_storage);
   }
 
 private:
   template <typename Archive>
   friend void serialize(Archive& archive, patch& p, unsigned) {
-    archive & p.m_extents;
-    for_each_tuple_element([&](auto& storage) { archive & storage; },
+    archive& p.m_extents;
+    for_each_tuple_element([&](auto& storage) { archive& storage; },
                            p.m_storage);
   }
 };

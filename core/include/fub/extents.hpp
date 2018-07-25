@@ -27,8 +27,7 @@
 #ifndef FUB_CORE_EXTENTS_HPP
 #define FUB_CORE_EXTENTS_HPP
 
-#include "fub/span.hpp"
-#include "fub/tuple.hpp"
+#include "fub/dynamic_extent.hpp"
 #include "fub/type_traits.hpp"
 #include <array>
 
@@ -51,8 +50,9 @@ class extents_storage<Rank, 0, StaticExtents...> {
 public:
   static_assert(Rank == sizeof...(StaticExtents),
                 "Rank does not match sizeof...(StaticExtents)!");
-  static_assert(conjunction<bool_constant<(StaticExtents > 0)>...>::value,
-                "Some static extent is equal to dynamic_extent!");
+  static_assert(
+      conjunction<bool_constant<(StaticExtents != dynamic_extent)>...>::value,
+      "Some static extent is equal to dynamic_extent!");
 
   // [mdspan.extents.obs], Observers of the domain multi-index space
 

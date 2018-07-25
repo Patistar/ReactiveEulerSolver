@@ -25,8 +25,6 @@
 #define FUB_TYPE_TRAITS_HPP
 
 #include <meta/meta.hpp>
-#include <range/v3/data.hpp>
-#include <range/v3/size.hpp>
 #include <range/v3/utility/functional.hpp>
 #include <tuple>
 #include <type_traits>
@@ -89,9 +87,19 @@ using std::experimental::conjunction;
 using std::experimental::disjunction;
 using std::experimental::negation;
 #else
-template <class... Bools> using conjunction = meta::and_c<Bools::value...>;
-template <class... Bools> using disjunction = meta::or_c<Bools::value...>;
-template <class Bool> using negation = meta::not_c<Bool::value>;
+template<class...> struct conjunction : std::true_type { };
+template<class B1> struct conjunction<B1> : B1 { };
+template<class B1, class... Bn>
+struct conjunction<B1, Bn...> 
+    : std::conditional_t<bool(B1::value), conjunction<Bn...>, B1> {};
+
+template<class...> struct disjunction : std::false_type { };
+template<class B1> struct disjunction<B1> : B1 { };
+template<class B1, class... Bn>
+struct disjunction<B1, Bn...> 
+    : std::conditional_t<bool(B1::value), B1, disjunction<Bn...>> {};
+
+template <class Bool> using negation = std::integral_constant<bool, !bool(Bool::value)>;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +110,8 @@ using index = std::ptrdiff_t;
 template <bool Bool> using bool_constant = std::integral_constant<bool, Bool>;
 template <index I> using index_constant = std::integral_constant<index, I>;
 template <int I> using int_constant = std::integral_constant<int, I>;
-template <std::size_t I> using size_constant = std::integral_constant<std::size_t, I>;
+template <std::size_t I>
+using size_constant = std::integral_constant<std::size_t, I>;
 template <int I> static constexpr int_constant<I> int_c{};
 template <bool B> static constexpr bool_constant<B> bool_c{};
 template <index I> static constexpr index_constant<I> index_c{};
@@ -133,13 +142,11 @@ template <typename F, typename... Args>
 using is_invocable = is_detected<invoke_result_t, F, Args...>;
 #endif
 
-template <typename T>
-struct remove_cvref {
-    using type = std::remove_cv_t<std::remove_reference_t<T>>;
+template <typename T> struct remove_cvref {
+  using type = std::remove_cv_t<std::remove_reference_t<T>>;
 };
 
-template <typename T>
-using remove_cvref_t = typename remove_cvref<T>::type;
+template <typename T> using remove_cvref_t = typename remove_cvref<T>::type;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                   [meta.size]
@@ -217,7 +224,40 @@ template <typename Var> struct value_type {
 };
 template <typename Var> using value_type_t = typename value_type<Var>::type;
 
+template <typename T, typename S = T> struct is_equality_comparable_impl {
+  template <typename L, typename R>
+  using equality_t = decltype(std::declval<L>() == std::declval<R>());
 
+  template <typename L, typename R>
+  using inequality_t = decltype(std::declval<L>() != std::declval<R>());
+
+  using type = conjunction<is_detected<equality_t, T, S>,
+                         is_detected<inequality_t, T, S>>;
+};
+
+template <typename T, typename S = T>
+struct is_equality_comparable : is_equality_comparable_impl<T, S>::type {};
+
+namespace detail {
+template <typename T, typename S, bool IsComparable>
+struct is_nothrow_equality_comparable_impl : bool_constant<false> {};
+
+template <typename T, typename S>
+struct is_nothrow_equality_comparable_impl<T, S, true> {
+  static constexpr bool is_nothrow_equal =
+      noexcept(std::declval<T>() == std::declval<S>());
+
+  static constexpr bool is_nothrow_inequal =
+      noexcept(std::declval<T>() != std::declval<S>());
+
+  static constexpr bool value = is_nothrow_equal && is_nothrow_inequal;
+};
+} // namespace detail
+
+template <typename T, typename S = T> struct is_nothrow_equality_comparable {
+  static constexpr bool value = detail::is_nothrow_equality_comparable_impl<
+      T, S, is_equality_comparable<T, S>::value>::value;
+};
 
 } // namespace fub
 

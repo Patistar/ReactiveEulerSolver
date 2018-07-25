@@ -11,15 +11,16 @@ int main() { std::optional<int> _; }
 "
         FUB_CORE_USE_STD_OPTIONAL)
 
-
+add_library(ReactiveEulerSolver_core_optional INTERFACE)
 if (FUB_CORE_USE_STD_OPTIONAL)
-  add_library(ReactiveEulerSolver_core_optional INTERFACE)
   target_compile_features(ReactiveEulerSolver_core_optional INTERFACE cxx_std_17)
 else()
-  find_package(Boost REQUIRED)
-  set(FUB_CORE_USE_BOOST_OPTIONAL ON)
-  add_library(ReactiveEulerSolver_core_optional INTERFACE)
-  target_compile_features(ReactiveEulerSolver_core_optional INTERFACE cxx_std_11)
+  if (NOT EXISTS ${CMAKE_SOURCE_DIR}/core/third-party/optional-lite/.git)
+    execute_process(COMMAND git submodule update --remote --init --depth=1 -- third-party/optional-lite
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/core)
+  endif()
+  add_subdirectory(${CMAKE_SOURCE_DIR}/core/third-party/optional-lite)
+  target_link_libraries(ReactiveEulerSolver_core_optional INTERFACE optional-lite)
 endif()
 
 unset(_mod_dir)

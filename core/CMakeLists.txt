@@ -24,6 +24,12 @@ if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt/.git)
 endif()
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third-party/fmt)
 
+
+###############################################################################
+#                                                Find Vc or throw a fatal error
+
+find_package(Vc REQUIRED)
+
 ###############################################################################
 #                                              Add range-v3 and define a target
 
@@ -49,11 +55,16 @@ add_library(ReactiveEulerSolver_core INTERFACE)
 
 # Add config.hpp to include directories
 target_include_directories(ReactiveEulerSolver_core
-  INTERFACE include ${CMAKE_BINARY_DIR})
+  INTERFACE include ${CMAKE_BINARY_DIR} ${Vc_INCLUDE_DIR})
 
 # Always Add dependencies to boost range-v3 and fmtlib
 target_link_libraries(ReactiveEulerSolver_core
   INTERFACE Boost::boost range-v3 fmt)
+
+# If std::optional is not available we add a dependency to nonstd::optional
+if (NOT FUB_CORE_USE_STD_OPTIONAL)
+  target_link_libraries(ReactiveEulerSolver_core INTERFACE optional-lite)
+endif()
 
 # If std::variant is not available we add a dependency to mpark::variant
 if (NOT FUB_CORE_USE_STD_VARIANT)

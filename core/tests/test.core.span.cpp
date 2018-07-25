@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -21,15 +21,14 @@
 #include "fub/span.hpp"
 
 #define CATCH_CONFIG_MAIN
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("sizeof spans are small") {
   REQUIRE(sizeof(fub::span<int>) == sizeof(int*) + sizeof(std::ptrdiff_t));
   REQUIRE(sizeof(fub::span<int, 1>) == sizeof(int*));
 }
 
-TEST_CASE("Create an empty span.")
-{
+TEST_CASE("Create an empty span.") {
   fub::span<int> s;
   REQUIRE(s.data() == nullptr);
   REQUIRE(s.size() == 0);
@@ -55,3 +54,21 @@ TEST_CASE("Is contextually convertible to bool.") {
   }
 }
 
+TEST_CASE("Construct from std::array") {
+  SECTION("static extents") {
+    const std::array<int, 3> array{1, 2, 3};
+    fub::span<const int, 3> span(array);
+    REQUIRE(span.size() == 3);
+    REQUIRE(span[0] == 1);
+    REQUIRE(span[1] == 2);
+    REQUIRE(span[2] == 3);
+  }
+  SECTION("dynamic extents") {
+    const std::array<int, 3> array{1, 2, 3};
+    fub::span<const int> span(array);
+    REQUIRE(span.size() == 3);
+    REQUIRE(span[0] == 1);
+    REQUIRE(span[1] == 2);
+    REQUIRE(span[2] == 3);
+  }
+}

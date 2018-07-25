@@ -21,45 +21,26 @@
 #ifndef FUB_CORE_ACCESSOR_NATIVE_HPP
 #define FUB_CORE_ACCESSOR_NATIVE_HPP
 
-#include <cstddef>
+#include "fub/type_traits.hpp"
 
 namespace fub {
 template <typename T = void> struct accessor_native {
+  using value_type = remove_cvref_t<T>;
+  using element_type = T;
   using pointer = T*;
-  using const_pointer = const T*;
   using reference = T&;
-  using const_reference = const T&;
-
+  static constexpr pointer to_pointer(element_type& element) {
+    return reinterpret_cast<pointer>(&element);
+  }
   static constexpr reference access(pointer ptr, std::ptrdiff_t /* size */,
                                     std::ptrdiff_t n) noexcept {
     return *(ptr + n);
   }
-  static constexpr const_reference access(const_pointer ptr,
-                                          std::ptrdiff_t /* size */,
-                                          std::ptrdiff_t n) noexcept {
-    return *(ptr + n);
-  }
-  
-  template <typename S> using rebind = accessor_native<S>;
-};
-
-template <typename T> struct accessor_native<const T> {
-  using pointer = const T*;
-  using const_pointer = const T*;
-  using reference = const T&;
-  using const_reference = const T&;
-  
-  static constexpr reference access(pointer ptr, std::ptrdiff_t /* size */,
-                                    std::ptrdiff_t n) noexcept {
-    return *(ptr + n);
-  }
-
   template <typename S> using rebind = accessor_native<S>;
 };
 
 template <> struct accessor_native<void> {
   using pointer = void*;
-  using const_pointer = const void*;
   template <typename S> using rebind = accessor_native<S>;
 };
 } // namespace fub

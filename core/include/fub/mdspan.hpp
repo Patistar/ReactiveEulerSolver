@@ -26,6 +26,7 @@
 #include "fub/layout_left.hpp"
 #include "fub/span.hpp"
 #include "fub/type_traits.hpp"
+#include "fub/tuple.hpp"
 
 #include <array>
 #include <cassert>
@@ -108,18 +109,27 @@ public:
   using index_type = typename Extents::index_type;
   using size_type = std::size_t;
   using mapping = typename layout::template mapping<Extents>;
+  using span_type =
+      basic_span<element_type,
+                 static_required_span_size(layout(), extents_type()), accessor>;
 
   // CONSTRUCTORS
 
   constexpr basic_mdspan() = default;
 
-  template <typename... Args, typename std::enable_if_t<std::is_constructible<Extents, Args...>::value, void*> = nullptr>
+  template <
+      typename... Args,
+      typename std::enable_if_t<std::is_constructible<Extents, Args...>::value,
+                                void*> = nullptr>
   constexpr basic_mdspan(pointer ptr, Args&&... args)
       : m_storage(ptr, mapping(extents_type(std::forward<Args>(args)...))) {}
 
   constexpr basic_mdspan(pointer ptr, const mapping& m,
                          const accessor& a = accessor())
       : m_storage(ptr, m, a) {}
+
+  constexpr basic_mdspan(span_type span, const mapping& m)
+      : m_storage(span.data(), m, span.get_accessor()) {}
 
   // [mdspan.basic.domobs], basic_mdspan observers of the domain multi-index
   // space
@@ -139,7 +149,10 @@ public:
   constexpr index_type extent(std::size_t n) const noexcept {
     return get_extents().extent(n);
   }
-  constexpr index_type size() const noexcept { using fub::size; return size(get_extents()); }
+  constexpr index_type size() const noexcept {
+    using fub::size;
+    return size(get_extents());
+  }
   constexpr index_type unique_size() const noexcept {
     return get_mapping().unique_size();
   }
@@ -178,7 +191,8 @@ public:
     return m_storage.get_accessor();
   }
 
-  constexpr basic_span<element_type, static_required_span_size(layout(), extents_type()),
+  constexpr basic_span<element_type,
+                       static_required_span_size(layout(), extents_type()),
                        accessor>
   span() const noexcept {
     return {m_storage.get_pointer(), size(), get_accessor()};

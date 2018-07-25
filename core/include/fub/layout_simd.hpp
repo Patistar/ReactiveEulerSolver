@@ -23,16 +23,15 @@
 
 #include "fub/algorithm.hpp"
 #include "fub/extents.hpp"
+#include "fub/simd.hpp"
 #include "fub/span.hpp"
 #include "fub/type_traits.hpp"
-#include "fub/simd.hpp"
 
 #include <array>
 
 namespace fub {
 
-template <typename T, typename Abi>
-struct layout_simd_padded {
+template <typename T, typename Abi> struct layout_simd_padded {
   template <typename Extents> class mapping : private Extents {
   public:
     static_assert(is_extents_v<Extents>,
@@ -55,13 +54,14 @@ struct layout_simd_padded {
     /// Throws: Nothing.
     ///
     /// Postcondition: get_extents() == extents.
-    constexpr mapping(const Extents& extents) : Extents(extents) {} 
+    constexpr mapping(const Extents& extents) : Extents(extents) {}
 
     // OBSERVERS
 
     constexpr const Extents& get_extents() const noexcept { return *this; }
 
-    /// Returns the required span size after adding padding in each dimensino according to the specified simd alignment.
+    /// Returns the required span size after adding padding in each dimensino
+    /// according to the specified simd alignment.
     ///
     /// Throws: Nothing.
     constexpr index_type required_span_size() const noexcept {
@@ -139,7 +139,8 @@ struct layout_simd_padded {
 
 template <typename T, typename Abi, typename Extents>
 constexpr typename Extents::index_type
-static_required_span_size(layout_simd_padded<T, Abi>, const Extents& extents) noexcept {
+static_required_span_size(layout_simd_padded<T, Abi>,
+                          const Extents& extents) noexcept {
   typename Extents::index_type sz = size(Extents());
   if (sz) {
     typename layout_simd_padded<T, Abi>::template mapping<Extents> m(extents);

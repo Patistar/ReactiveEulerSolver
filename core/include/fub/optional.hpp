@@ -30,8 +30,10 @@
 #include <optional>
 #elif defined(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL)
 #include <experimental/optional>
-#elif __has_include(<boost/optional.hpp>)
-#include <boost/optional.hpp>
+#elif __has_include("nonstd/optional.hpp")
+#include "nonstd/optional.hpp"
+// #elif __has_include(<boost/optional.hpp>)
+// #include <boost/optional.hpp>
 #else
 #error("No implementation for std::optional could be found.")
 #endif
@@ -44,9 +46,13 @@ using std::optional;
 #elif defined(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL)
 using std::experimental::nullopt;
 using std::experimental::optional;
-#else
-using boost::optional;
-static const auto nullopt = boost::none;
+#elif __has_include("nonstd/optional.hpp")
+// #else
+using nonstd::optional;
+using nonstd::nullopt;
+// #elif __has_include(<boost/optional.hpp>)
+// using boost::optional;
+// static const auto nullopt = boost::none;
 #endif
 
 } // namespace fub

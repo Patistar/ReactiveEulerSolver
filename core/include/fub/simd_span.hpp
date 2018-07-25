@@ -21,31 +21,35 @@
 #ifndef FUB_CORE_SIMD_SPAN_HPP
 #define FUB_CORE_SIMD_SPAN_HPP
 
-#include "fub/mdspan.hpp"
-#include "fub/layout_simd.hpp"
 #include "fub/accessor_simd.hpp"
+#include "fub/layout_simd.hpp"
+#include "fub/mdspan.hpp"
+#include "fub/simd.hpp"
 
 namespace fub {
 namespace detail {
 /// Returns by default a simd span with an unaligned accessor.
-template <typename T, typename Abi, std::ptrdiff_t Extent, typename Alignment> 
+template <typename T, typename Abi, std::ptrdiff_t Extent, typename Alignment>
 struct simd_span_detector {
-    using type = basic_mdspan<T, extents<Extent>, layout_simd_padded<T, Abi>, 
-                        accessor_simd_unaligned<T, Abi>>;
-}; 
+  using type = basic_mdspan<T, extents<Extent>, layout_simd_padded<T, Abi>,
+                            accessor_simd_unaligned<T, Abi>>;
+};
 
-/// This specialization returns a simd span with an aligned accessor if `vector_alignment_tag` is specified.
-template <typename T, typename Abi, std::ptrdiff_t Extent> 
-struct simd_span_detector<T, Abi, Extent, vector_alignment_tag> {
-    using type = basic_mdspan<T, extents<Extent>, layout_simd_padded<T, Abi>, 
-                        accessor_simd_aligned<T, Abi>>;
-}; 
-}
+/// This specialization returns a simd span with an aligned accessor if
+/// `vector_alignment_tag` is specified.
+template <typename T, typename Abi, std::ptrdiff_t Extent>
+struct simd_span_detector<T, Abi, Extent, flags::vector_aligned_tag> {
+  using type = basic_mdspan<T, extents<Extent>, layout_simd_padded<T, Abi>,
+                            accessor_simd_aligned<T, Abi>>;
+};
+} // namespace detail
 
-template <typename T, typename Abi = simd_abi::native<remove_cvref_t<T>>, std::ptrdiff_t Extent = dynamic_extent, 
-          typename Alignment = vector_alignment_tag> 
-using simd_span = typename detail::simd_span_detector<T, Abi, Extent, Alignment>::type;
+template <typename T, typename Abi = simd_abi::native<remove_cvref_t<T>>,
+          std::ptrdiff_t Extent = dynamic_extent,
+          typename Alignment = flags::vector_aligned_tag>
+using simd_span =
+    typename detail::simd_span_detector<T, Abi, Extent, Alignment>::type;
 
-}
+} // namespace fub
 
 #endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Maikel Nadolski
+// Copyright (c) 2017 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -18,22 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/simd.hpp"
+#ifndef FUB_CORE_DYNAMIC_EXTENT_HPP
+#define FUB_CORE_DYNAMIC_EXTENT_HPP
 
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+#include <cstddef>
 
-int main()
-{
-  using scalar_t = fub::simd<double, fub::simd_abi::scalar>;
-  using sse_t = fub::simd<double, fub::simd_abi::sse>;
-  scalar_t x = 1.;
-  where(x < 0, x) = 0.;
-  where(x >= 0, x) = -x;
+namespace fub {
+/// This is a magic value to denote runtime-known extents.
+static constexpr std::ptrdiff_t dynamic_extent{-1};
+} // namespace fub
 
-  sse_t y;
-  y[0] = -1;
-  y[1] = +1;
-  where(y < 0, y) = 0;
-  fmt::print("x: {}, y: {}\n", x, y);
-}
+#endif

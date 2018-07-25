@@ -22,24 +22,30 @@
 #define FUB_CORE_SPAN_HPP
 
 #include "fub/accessor_native.hpp"
+#include "fub/dynamic_extent.hpp"
 #include "fub/type_traits.hpp"
+
+#include <range/v3/data.hpp>
+#include <range/v3/size.hpp>
 
 #include <array>
 
 namespace fub {
-/// This is a magic value to denote runtime-known extents.
-static constexpr index dynamic_extent{-1};
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                               [span.storage]
 
 namespace detail {
+/// This class saves a member variable `m_size` in cases where the size of the
+/// span is a compile-time known.
 template <typename T, index Size, typename Accessor>
 class basic_span_storage : private Accessor {
 public:
   static_assert(Size > 0, "N must be positive for statically sized spans.");
 
   using accessor = Accessor;
+  using element_type = T;
+  using value_type = typename Accessor::value_type;
   using pointer = typename Accessor::pointer;
   using reference = typename Accessor::reference;
 
@@ -52,7 +58,7 @@ public:
   constexpr index size() const noexcept { return Size; }
 
   constexpr reference access(index n) const {
-    return get_accessor()(m_pointer, Size, n);
+    return get_accessor().access(m_pointer, Size, n);
   }
 
   constexpr pointer get_pointer() const noexcept { return m_pointer; }
@@ -63,6 +69,8 @@ private:
   pointer m_pointer;
 };
 
+/// This is the special case for runtime-known extents, where we have to store
+/// an extra member variable `m_size`.
 template <typename T, typename Accessor>
 class basic_span_storage<T, dynamic_extent, Accessor> : private Accessor {
 public:
@@ -117,10 +125,10 @@ template <typename T> static constexpr bool is_span_v = is_span<T>::value;
 
 template <typename T, index N, typename Accessor> class basic_span {
 public:
-  using element_type = T;
   using accessor = Accessor;
+  using element_type = typename accessor::element_type;
+  using value_type = typename accessor::value_type;
   using storage_type = detail::basic_span_storage<T, N, Accessor>;
-  using value_type = std::remove_cv_t<T>;
   using pointer = typename storage_type::pointer;
   using const_pointer =
       typename accessor::template rebind<const value_type>::pointer;
@@ -140,6 +148,10 @@ public:
   ///
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
+  ///
+  /// Throws: Nothing.
+  ///
+  /// Postcondition: get_pointer() == p
 #if __cplusplus >= 201703L
   constexpr basic_span(pointer p, [[maybe_unused]] index_type size,
                        accessor a = accessor()) noexcept
@@ -157,6 +169,10 @@ public:
   ///
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
+  ///
+  /// Throws: Nothing.
+  ///
+  /// Postcondition: get_pointer() == first
 #if __cplusplus >= 201703L
   constexpr basic_span(pointer first, [[maybe_unused]] pointer last,
                        accessor a = accessor()) noexcept
@@ -286,9 +302,9 @@ public:
 
   /// Returns always true since this span version can not be emtpy.
   ///
-  /// @note This makes span<T, N> contextually convertible to bool.
+  /// Note: This makes span<T, N> contextually convertible to bool.
   ///
-  /// @example
+  /// Example:
   ///     span<int, 3> s = ...;
   ///     // ...
   ///     if (s) {
@@ -339,18 +355,18 @@ public:
       : m_storage{&arr[0], static_cast<index_type>(M), a} {}
 
   template <typename S, std::size_t M,
-            typename = std::enable_if_t<std::is_convertible<
-                typename std::array<S, M>::const_pointer, pointer>::value>>
+            typename =
+                std::enable_if_t<std::is_convertible<const S*, pointer>::value>>
   constexpr basic_span(const std::array<S, M>& arr,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{arr.data(), arr.size(), a} {}
+      : m_storage{arr.data(), static_cast<index_type>(arr.size()), a} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::pointer, pointer>::value>>
   constexpr basic_span(std::array<S, M>& arr,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{arr.data(), arr.size(), a} {}
+      : m_storage{arr.data(), static_cast<index_type>(arr.size()), a} {}
 
   template <
       typename Container,
@@ -478,7 +494,7 @@ template <index N, typename T> span<T> drop(span<T> view) noexcept {
                  std::max(index{}, view.size() - N));
 }
 
-template <typename T> span<T> drop(const span<T>& view, index n) noexcept {
+template <typename T> span<T> drop(span<T> view, index n) noexcept {
   return span<T>(view.data() + std::min(view.size(), n),
                  std::max(index{}, view.size() - n));
 }
@@ -493,6 +509,11 @@ template <typename T> span<T> take(span<T> view, index n) noexcept {
     return {};
   }
   return span<T>(view.data(), n);
+}
+
+template <typename T>
+constexpr span<T> subspan(span<T> view, index lower, index length) noexcept {
+  return take(drop(view, lower), length);
 }
 
 } // namespace fub

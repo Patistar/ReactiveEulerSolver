@@ -22,7 +22,7 @@
 #include <array>
 
 #define CATCH_CONFIG_MAIN
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Create some empty spans") {
   std::array<int, 4> array{{0, 1, 2, 3}};

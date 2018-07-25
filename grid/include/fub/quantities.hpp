@@ -18,17 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_QUANTITIES_HPP
-#define FUB_QUANTITIES_HPP
+#ifndef FUB_GRID_QUANTITIES_HPP
+#define FUB_GRID_QUANTITIES_HPP
 
-#include "fub/variable_accessor_basic.hpp"
+#include "fub/accessor_simd.hpp"
+#include "fub/variable_accessor.hpp"
 
 namespace fub {
+struct accessor_arg_t {};
+static constexpr accessor_arg_t accessor_arg{};
 
-template <typename VariableList, typename Accessor> class basic_quantities {
+template <typename VariableList, typename Accessor>
+class basic_quantities : private Accessor {
 public:
-  using accessor = Accessor;
+  static_assert(
+      hana::not_(hana::any_of(hana::to_tuple(VariableList{}),
+                              hana::trait<std::is_const>)),
+      "basic_quantities<...> is a value type. No variable should be const");
 
+  using accessor = Accessor;
   using variable_list = VariableList;
 
   template <typename V>
@@ -38,37 +46,98 @@ public:
   using reference = typename accessor::template reference<V>;
 
   template <typename V>
-  using const_reference = typename accessor::template reference<std::add_const_t<V>>;
+  using const_reference =
+      typename accessor::template reference<std::add_const_t<V>>;
+
+  using storage = typename accessor::value_storage;
+
+  basic_quantities() = default;
+  basic_quantities(const basic_quantities&) = default;
+  basic_quantities(basic_quantities&&) = default;
+  basic_quantities& operator=(const basic_quantities&) = default;
+  basic_quantities& operator=(basic_quantities&&) = default;
 
   /// Constructs a quantities tuple from specified values.
-  explicit basic_quantities(const std::tuple<value_type<V>...>&, const accessor&);
+  explicit constexpr basic_quantities(const storage& s,
+                                      const accessor& a = accessor())
+      : Accessor(a), m_storage(s) {}
 
-  template <std::size_t I>
-  decltype(auto) get() noexcept;
+  /// Constructs a quantities tuple from specified values.
+  template <typename... Args>
+  explicit constexpr basic_quantities(accessor_arg_t, const accessor& a,
+                                      Args&&... args)
+      : basic_quantities(storage(std::forward<Args>(args)...), a) {}
 
-  template <std::size_t I>
-  decltype(auto) get() const noexcept;
+  /// Constructs a quantities tuple from specified values.
+  template <typename Arg, typename... Args,
+            typename = std::enable_if_t<
+                !std::is_same<remove_cvref_t<Arg>, storage>::value>>
+  explicit constexpr basic_quantities(Arg&& arg0, Args&&... args)
+      : basic_quantities(
+            storage(std::forward<Arg>(arg0), std::forward<Args>(args)...)) {}
+
+  const accessor& get_variable_accessor() const noexcept { return *this; }
+
+  const storage& get_storage() const noexcept { return m_storage; }
+  storage& get_storage() noexcept { return m_storage; }
+
+  template <std::size_t I> decltype(auto) get() noexcept {
+    constexpr auto variables =
+        get_variable_accessor().get_accessible_variables();
+    return get_variable_accessor().access(variables[size_c<I>], m_storage);
+  }
+
+  template <std::size_t I> decltype(auto) get() const noexcept {
+    constexpr auto variables =
+        get_variable_accessor().get_accessible_variables();
+    return get_variable_accessor().access(variables[size_c<I>], m_storage);
+  }
 
   template <typename V>
-  decltype(auto) get() noexcept;
+  reference<V> get(hana::basic_type<V> = hana::basic_type<V>()) noexcept {
+    return get_variable_accessor().access(hana::type_c<V>, m_storage);
+  }
 
   template <typename V>
-  decltype(auto) get() const noexcept;
+  const_reference<V> get(hana::basic_type<V> = hana::basic_type<V>()) const
+      noexcept {
+    return get_variable_accessor().access(hana::type_c<V>, m_storage);
+  }
 
-  template <typename V>
-  reference<V> operator[](const V&) noexcept;
+  template <typename V> reference<V> operator[](const V&) noexcept {
+    return get<V>();
+  }
 
-  template <typename V>
-  const_reference<V> operator[](const V&) const noexcept;
+  template <typename V> const_reference<V> operator[](const V&) const noexcept {
+    return get<V>();
+  }
 
-  static std::size_t size() const noexcept;
+  constexpr static std::size_t size() noexcept {
+    return hana::size(Accessor::get_accessible_variables())();
+  }
+
+  friend bool operator==(const basic_quantities& lhs,
+                         const basic_quantities& rhs) noexcept {
+    return lhs.m_storage == rhs.m_storage;
+  }
+
+  friend bool operator!=(const basic_quantities& lhs,
+                         const basic_quantities& rhs) noexcept {
+    return lhs.m_storage != rhs.m_storage;
+  }
 
 private:
-  typename accessor::value_storage_type m_storage;
-};
+  storage m_storage;
+}; // namespace fub
 
-template <typename VariableList> 
-using quantities = basic_quantities<VariableList, variable_accesor_basic>;
+template <typename... Variables>
+using quantities = basic_quantities<types<Variables...>,
+                                    variable_accessor<types<Variables...>>>;
+
+template <typename Variables, typename Abi = simd_abi::native<double>>
+using simd_quantities = basic_quantities<
+    Variables,
+    variable_accessor<Variables, fub::accessor_simd_aligned<void, Abi>>>;
 
 } // namespace fub
 

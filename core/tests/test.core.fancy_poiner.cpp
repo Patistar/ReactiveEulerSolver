@@ -2,7 +2,7 @@
 #include "fub/native_address.hpp"
 
 #define CATCH_CONFIG_MAIN
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 template <typename T> void test_nullable_concept_requirements() {
   using pointer = fub::fancy_pointer<T, fub::native_address>;

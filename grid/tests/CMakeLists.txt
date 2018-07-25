@@ -32,6 +32,12 @@ endif()
 add_executable(test.grid.variable_accessor test.grid.variable_accessor.cpp)
 target_link_libraries(test.grid.variable_accessor ReactiveEulerSolver.grid_includes Catch2)
 
+add_executable(test.grid.variable_assembly test.grid.variables_assembly.cpp)
+target_link_libraries(test.grid.variable_assembly ReactiveEulerSolver.grid_includes)
+
+add_executable(test.grid.variable_map test.grid.variable_map.cpp)
+target_link_libraries(test.grid.variable_map ReactiveEulerSolver.grid_includes Catch2)
+
 add_executable(test.grid.interval_map test.grid.interval_map.cpp)
 target_link_libraries(test.grid.interval_map ReactiveEulerSolver.grid)
 
@@ -44,5 +50,11 @@ target_link_libraries(test.grid.patch_view ReactiveEulerSolver.grid Catch2)
 add_executable(test.grid.uniform_cartesian_coordinates test.grid.uniform_cartesian_coordinates.cpp)
 target_link_libraries(test.grid.uniform_cartesian_coordinates ReactiveEulerSolver.grid Catch2)
 
+add_executable(test.grid.quantities test.grid.quantities.cpp)
+target_link_libraries(test.grid.quantities ReactiveEulerSolver.grid_includes Catch2)
+
+add_executable(test.grid.quantities_ref test.grid.quantities_ref.cpp)
+target_link_libraries(test.grid.quantities_ref ReactiveEulerSolver.grid_includes Catch2)
+
 add_executable(test.grid.variables test.grid.variables.cpp)
-target_link_libraries(test.grid.variables ReactiveEulerSolver.grid Catch2)
+target_link_libraries(test.grid.variables ReactiveEulerSolver.grid_includes Catch2)

@@ -16,3 +16,9 @@
 [submodule "solver/third-party/blaze"]
 	path = solver/third-party/blaze
 	url = https://bitbucket.org/blaze-lib/blaze.git
+[submodule "core/third-party/Vc"]
+	path = core/third-party/Vc
+	url = https://github.com/VcDevel/Vc.git
+[submodule "core/third-party/optional-lite"]
+	path = core/third-party/optional-lite
+	url = https://github.com/martinmoene/optional-lite.git

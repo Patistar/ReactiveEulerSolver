@@ -53,7 +53,8 @@ private:
   pointer m_pointer;
 };
 
-template <typename T, typename Abi, typename Alignment> class simd_proxy<const T, Abi, Alignment> {
+template <typename T, typename Abi, typename Alignment>
+class simd_proxy<const T, Abi, Alignment> {
 public:
   using element_type = const T;
   using pointer = const T*;
@@ -73,30 +74,55 @@ private:
   pointer m_pointer;
 };
 
+namespace detail {
+template <typename T, typename Abi> struct accessor_simd_element_type;
+template <typename T, typename Abi>
+using accessor_simd_element_type_t =
+    typename accessor_simd_element_type<T, Abi>::type;
+} // namespace detail
 
 template <typename T, typename Abi> struct accessor_simd_aligned {
-  using value_type = remove_cvref_t<T>;
-  using simd_type = simd<value_type, Abi>;
+  using element_type = detail::accessor_simd_element_type_t<T, Abi>;
+  using value_type = remove_cvref_t<element_type>;
   using pointer = T*;
-  using reference = simd_proxy<T, Abi, vector_alignment_tag>;
-  static constexpr reference access(pointer origin, std::ptrdiff_t /* size */, std::ptrdiff_t offset) noexcept {
+  using reference = simd_proxy<T, Abi, flags::vector_aligned_tag>;
+  static constexpr pointer to_pointer(element_type& element) {
+    return reinterpret_cast<pointer>(&element);
+  }
+  static constexpr reference access(pointer origin, std::ptrdiff_t /* size */,
+                                    std::ptrdiff_t offset) noexcept {
     pointer ptr = origin + offset;
-    assert(boost::alignment::is_aligned(ptr, memory_alignment_v<simd_type>));
+    assert(boost::alignment::is_aligned(ptr, memory_alignment_v<value_type>));
     return reference(ptr);
   }
   template <typename S> using rebind = accessor_simd_aligned<S, Abi>;
 };
 
 template <typename T, typename Abi> struct accessor_simd_unaligned {
-  using value_type = remove_cvref_t<T>;
+  using element_type = detail::accessor_simd_element_type_t<T, Abi>;
+  using value_type = remove_cvref_t<element_type>;
   using simd_type = simd<value_type, Abi>;
   using pointer = T*;
-  using reference = simd_proxy<T, Abi, element_alignment_tag>;
-  static constexpr reference access(pointer origin, std::ptrdiff_t /* size */, std::ptrdiff_t offset) noexcept {
+  using reference = simd_proxy<T, Abi, flags::element_aligned_tag>;
+  static constexpr pointer to_pointer(element_type& element) {
+    return reinterpret_cast<pointer>(&element);
+  }
+  static constexpr reference access(pointer origin, std::ptrdiff_t /* size */,
+                                    std::ptrdiff_t offset) noexcept {
     return reference(origin + offset);
   }
   template <typename S> using rebind = accessor_simd_unaligned<S, Abi>;
 };
+
+namespace detail {
+template <typename T, typename Abi> struct accessor_simd_element_type {
+  using type = simd<T, Abi>;
+};
+template <typename T, typename Abi>
+struct accessor_simd_element_type<const T, Abi> {
+  using type = const simd<T, Abi>;
+};
+} // namespace detail
 
 } // namespace fub
 

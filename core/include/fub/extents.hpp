@@ -56,19 +56,19 @@ public:
 
   // [mdspan.extents.obs], Observers of the domain multi-index space
 
-  /// \brief Returns sizeof...(StaticExtents)
+  /// Returns sizeof...(StaticExtents)
   static constexpr std::size_t rank() noexcept { return Rank; }
 
-  /// \brief Returns 0.
+  /// Returns 0.
   static constexpr std::size_t rank_dynamic() noexcept { return 0; }
 
-  /// \brief Returns the n-th Static Extent.
+  /// Returns the n-th Static Extent.
   static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
     const std::ptrdiff_t static_extents[Rank]{StaticExtents...};
     return static_extents[n];
   }
 
-  /// \brief Returns the N-th Extent.
+  /// Returns the N-th Extent.
   ///
   /// In this case where all extents are known at compile time, this returns
   /// `static_extent(n)`.
@@ -103,18 +103,18 @@ public:
 
   // [mdspan.extents.obs], Observers of the domain multi-index space
 
-  /// \brief Returns sizeof...(StaticExtents)
+  /// Returns sizeof...(StaticExtents)
   static constexpr std::size_t rank() noexcept { return Rank; }
 
-  /// \brief Returns sizeof...(StaticExtents)
+  /// Returns sizeof...(StaticExtents)
   static constexpr std::size_t rank_dynamic() noexcept { return Rank; }
 
-  /// \brief Returns dynamic_extent.
+  /// Returns dynamic_extent.
   static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
     return dynamic_extent;
   }
 
-  /// \brief Returns the N-th Extent.
+  /// Returns the N-th Extent.
   constexpr std::ptrdiff_t extent(size_t n) const noexcept {
     return m_dynamic_extents[n];
   }
@@ -144,20 +144,20 @@ public:
 
   // [mdspan.extents.obs], Observers of the domain multi-index space
 
-  /// \brief Returns sizeof...(StaticExtents)
+  /// Returns sizeof...(StaticExtents)
   static constexpr std::size_t rank() noexcept { return Rank; }
 
-  /// \brief Returns sizeof...(StaticExtents)
+  /// Returns sizeof...(StaticExtents)
   static constexpr std::size_t rank_dynamic() noexcept { return RankDynamic; }
 
-  /// \brief Returns dynamic_extent.
+  /// Returns dynamic_extent.
   static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
     constexpr std::ptrdiff_t static_extents[Rank]{StaticExtents...};
     return static_extents[n];
   }
 
 public:
-  /// \brief Returns the N-th Extent.
+  /// Returns the N-th Extent.
   constexpr std::ptrdiff_t extent(size_t n) const noexcept {
     constexpr std::ptrdiff_t static_extents[Rank]{StaticExtents...};
     if (static_extents[n] != dynamic_extent) {
@@ -196,6 +196,8 @@ constexpr std::size_t count_dynamic_extents(IndexType... extent) noexcept {
 }
 } // namespace detail
 
+/// An extents object defines a multidimensional index space which is the
+/// Cartesian product of integers extents `[0..N0) * [0..N1) * ...`
 template <std::ptrdiff_t... StaticExtents>
 class extents
     : private detail::extents_storage<
@@ -218,17 +220,33 @@ public:
 
   // [mdspan.extents.static_observers]
 
-  using base_type::rank;
-  using base_type::rank_dynamic;
-  using base_type::static_extent;
+  /// Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank() noexcept { return base_type::rank(); }
+
+  /// Returns sizeof...(StaticExtents)
+  static constexpr std::size_t rank_dynamic() noexcept {
+    return base_type::rank_dynamic();
+  }
+
+  /// Returns the `n`-th `StaticExtent`.
+  static constexpr std::ptrdiff_t static_extent(std::size_t n) noexcept {
+    return base_type::static_extent(n);
+  }
 
   // [mdspan.extents.observers]
 
-  using base_type::extent;
+  /// Returns the `n`-th run-time extent.
+  constexpr std::ptrdiff_t extent(size_t n) const noexcept {
+    return base_type::extent(n);
+  }
 };
 
 // [mdspan.extents.traits.is_extent]
 
+/// \ingroup type-traits
+/// This is true `std::true_type` iff `E` is `extents<Es...>`
+/// for some `std::ptrdiff_t... Es`.
+/// @{
 template <typename E> struct is_extents : std::false_type {};
 template <std::ptrdiff_t... StaticExtents>
 struct is_extents<extents<StaticExtents...>> : std::true_type {};
@@ -237,6 +255,7 @@ template <typename E> inline constexpr bool is_extents_v = is_extents<E>::value;
 #else
 template <typename E> static constexpr bool is_extents_v = is_extents<E>::value;
 #endif
+/// @}
 
 /// Returns: `true` if `lhs.rank() == rhs.rank()` and `lhs.extents(r) ==
 /// rhs.extents(r)` for all `r` in the range `[0, lhs.rank())`, or false

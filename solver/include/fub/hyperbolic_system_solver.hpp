@@ -235,14 +235,16 @@ struct hyperbolic_system_solver {
   get_next_time_step(const Grid& current, double cfl, duration limited_dt,
                      const Coordinates& coordinates,
                      const BoundaryCondition& boundary_condition) const {
-    auto stable_dt =
+    future<duration> stable_dt =
         get_time_step_size(current, coordinates, boundary_condition);
-    auto do_step = [=](future<duration> stable_dt) {
-      duration actual_dt = std::min(limited_dt, cfl * stable_dt.get());
-      return std::make_pair(
-          step(current, actual_dt, coordinates, boundary_condition), actual_dt);
-    };
-    return traits::dataflow(do_step, std::move(stable_dt));
+    return traits::dataflow(
+        [=](future<duration> stable_dt) {
+          duration actual_dt = std::min(limited_dt, cfl * stable_dt.get());
+          return std::make_pair(
+              step(current, actual_dt, coordinates, boundary_condition),
+              actual_dt);
+        },
+        std::move(stable_dt));
   }
 
   template <typename Archive> void serialize(Archive& archive, unsigned) {

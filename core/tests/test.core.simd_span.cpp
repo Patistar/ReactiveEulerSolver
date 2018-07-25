@@ -22,7 +22,7 @@
 #include <array>
 
 #define CATCH_CONFIG_MAIN
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("Create a simd span mutable") {
   using simd_type = fub::simd<double>;

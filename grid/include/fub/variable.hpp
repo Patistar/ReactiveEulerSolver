@@ -23,79 +23,114 @@
 #include "fub/hana.hpp"
 #include "fub/mdspan.hpp"
 #include "fub/optional.hpp"
+#include "fub/type_traits.hpp"
 #include "fub/variant.hpp"
 
 #include <boost/hana.hpp>
 
 namespace fub {
-
+namespace v1 {
 namespace hana = boost::hana;
 
+template <typename T> using static_size_fn = decltype(T::static_size());
+template <typename T> using size_memfn = decltype(std::declval<T>().size());
+
+/// This is a trait type which checks if the `T` fulfills the \b Variable
+/// requirements.
+///
+/// \see vector_variable
+template <typename T>
+struct is_variable : conjunction<is_regular<T>, is_detected<static_size_fn, T>,
+                                 is_detected<size_memfn, const T&>> {};
+
+/// This is a helper class which make it easier to create types which satisfy
+/// the \b Variable concept.
+///
+/// The intent is to derive from this class and to automatically satisfy all
+/// requirements to be used correctly within this framework.
+///
+/// *Example:*
+///
+/// \code
+/// // Density is a scalar variable
+/// struct Density : vector_variable<1> {};
+///
+/// // Momentum is vector variable of rank three, i.e. is has three elements.
+/// struct Momentum : vector_variable<3> {};
+///
+/// // Species is a vector variable of dynamic rank. i.e. its size is determined
+/// // at runtime.
+/// struct Species : vector_variable<dynamic_extent> {};
+/// \endcode
+///
+/// \tparam Rank The size of the variable.
+///
+/// The template parameter Rank can be either a positive integral or
+/// `dynamic_extent` which is for variables which have their size determined at
+/// run-time.
 template <std::ptrdiff_t Rank> class vector_variable : private extents<Rank> {
-private:
-  using Base = extents<Rank>;
-
 public:
-  using Base::Base;
+  using extents<Rank>::extents;
 
+  /// Returns the compile-time Rank of the variable.
+  ///
+  /// This is usefull in generic contexts if you want to check if a given
+  /// variable is statically sized at compile-time or dynamically sized at
+  /// run-time.
+  ///
+  /// \throws Nothing.
   static constexpr std::ptrdiff_t static_size() noexcept {
     return Base::static_extent(0);
   }
 
+  /// Returns the run-time Rank of the variable.
+  ///
+  /// \throws Nothing.
   constexpr std::ptrdiff_t size() const noexcept { return Base::extent(0); }
 };
+
+/// This is a conventient typedef for one-dimensional vector variables.
 using scalar_variable = vector_variable<1>;
 
+/// Returns true if two vector variables have the same size.
+///
+/// \note vector_variables are immutable, thus it makes sense to compare their
+/// run-time size and not their compile-time size.
 template <std::ptrdiff_t RankL, std::ptrdiff_t RankR>
 constexpr bool operator==(const vector_variable<RankL>& lhs,
                           const vector_variable<RankR>& rhs) noexcept {
   return lhs.size() == rhs.size();
 }
 
+/// Returns true if two vector variables have different sizes.
 template <std::ptrdiff_t RankL, std::ptrdiff_t RankR>
 constexpr bool operator!=(const vector_variable<RankL>& lhs,
                           const vector_variable<RankR>& rhs) noexcept {
   return lhs.size() != rhs.size();
 }
 
-namespace detail {
-
-template <typename T> using static_size_t = decltype(T::static_size());
-template <typename T> using size_t = decltype(std::declval<T>().size());
-template <typename T>
-struct is_variable : conjunction<is_detected<static_size_t, T>,
-                                 is_detected<size_t, const T&>> {};
-
-template <bool IsVariable, typename V, std::ptrdiff_t N>
-class tag_check_variable {
-  static_assert(IsVariable, "V does not fulfill the variable concept.");
-};
-
-template <bool OutOfRange, typename V, std::ptrdiff_t N>
-class tag_check_out_of_range {
-  static_assert(OutOfRange,
-                "N is out of range, i.e. dimension of V is lower than N.");
-};
-
+// This trait checks if `N` is a valid size
 template <std::ptrdiff_t N, std::ptrdiff_t Size>
 struct is_both_dynamic_or_less_than
     : std::integral_constant<
           bool, ((N == dynamic_extent && Size == dynamic_extent) || N < Size)> {
 };
 
-template <typename V, std::ptrdiff_t N>
-class tag_check_variable<true, V, N>
-    : public tag_check_out_of_range<
-          is_both_dynamic_or_less_than<N, V::static_size()>::value, V, N> {
-  using tag_check_out_of_range<
-      is_both_dynamic_or_less_than<N, V::static_size()>::value, V,
-      N>::tag_check_out_of_range;
-};
-
-template <typename V, std::ptrdiff_t N>
-class tag_check_out_of_range<true, V, N> : private extents<N> {
+/// This type is used to index into elements of a `V`.
+///
+/// \tparam V needs to fulfill the Variable concept.
+/// \tparam N the element index of the element in `V`.
+///
+/// N can be either a positive integral or `dynamic_extent`.
+template <typename V, std::ptrdiff_t N> class basic_tag : extents<N> {
 public:
   using extents<N>::extents;
+
+  static_assert(is_variable<V>::value,
+                "V does not fulfill the Variable concept.");
+
+  static_assert(is_both_dynamic_or_less_than<N, V::static_size()>::value,
+                "N is out of range.");
 
   static constexpr std::ptrdiff_t static_index() noexcept {
     return extents<N>::static_extent(0);
@@ -105,21 +140,20 @@ public:
   }
 };
 
-template <typename V, std::ptrdiff_t N>
-class basic_tag : public tag_check_variable<is_variable<V>::value, V, N> {
-  using tag_check_variable<is_variable<V>::value, V, N>::tag_check_variable;
-};
-
+/// This is a short-hand automatically create dynamic-sized tags from
+/// dynamic-sized variables.
 template <typename V, std::ptrdiff_t N = 0>
 using tag_t = std::conditional_t<V::static_size() == dynamic_extent,
                                  basic_tag<V, dynamic_extent>, basic_tag<V, N>>;
 
+/// Tags are equal if they have the same index and variable.
 template <typename T, std::ptrdiff_t N, typename S, std::ptrdiff_t M>
 constexpr bool operator==(const basic_tag<T, N>& lhs,
                           const basic_tag<S, M>& rhs) noexcept {
   return lhs.index() == rhs.index() && std::is_same<T, S>{};
 }
 
+/// This is equivalent to `!(lhs == rhs)`.
 template <typename T, std::ptrdiff_t N, typename S, std::ptrdiff_t M>
 constexpr bool operator!=(const basic_tag<T, N>& lhs,
                           const basic_tag<S, M>& rhs) noexcept {
@@ -128,6 +162,10 @@ constexpr bool operator!=(const basic_tag<T, N>& lhs,
 
 template <typename V, std::ptrdiff_t N = 0> static constexpr tag_t<V, N> tag{};
 
+#ifndef FUB_WITH_CONSTEXPR_LAMBDA
+// This is a helper function object to be callable in constexpr contexts.
+// It can be replaced in C++17 with a constexpr lambda object.
+// see class to_tag_tuple
 struct plus_size {
   template <typename V>
   constexpr std::ptrdiff_t operator()(std::ptrdiff_t size, V variable) const
@@ -136,13 +174,19 @@ struct plus_size {
   }
 };
 
-struct is_dynamic_extent {
+// This is a helper function object to be callable in constexpr contexts.
+// It can be replaced in C++17 with a constexpr lambda object.
+// see class to_tag_tuple
+struct is_dynamically_sized {
   template <typename V>
   constexpr auto operator()(hana::basic_type<V>) const noexcept {
     return hana::integral_constant<bool, V::static_size() == dynamic_extent>{};
   }
 };
 
+// This is a helper function object to be callable in constexpr contexts.
+// It can be replaced in C++17 with a constexpr lambda object.
+// see class to_tag_tuple
 struct plus_static_size {
   template <typename V>
   constexpr std::ptrdiff_t operator()(std::ptrdiff_t size,
@@ -150,7 +194,27 @@ struct plus_static_size {
     return size + V::static_size();
   }
 };
+#endif // FUB_WITH_CONSTEXPR_LAMBDAS
 
+/// \internal
+/// This is a function object which transforms a variable type into a tuple of
+/// different valid tag types.
+///
+/// *Example*:
+/// \code
+///   struct Density : vector_variable<1> {};
+///   struct Momentum : vector_variable<2> {};
+///   struct Species : vector_variable<dynamic_extent> {};
+///
+///   // Returns hana::tuple<tag_t<Density>>
+///   to_tag_tuple{}(hana::type_c<Density>);
+///
+///   // Returns hana::tuple<tag_t<Momentum, 0>, tag_t<Momentum, 1>>
+///   to_tag_tuple{}(hana::type_c<Momentum>);
+///
+///   // Returns hana::tuple<tag_t<Species, dynamic_extent>>
+///   to_tag_tuple{}(hana::type_c<Species>);
+/// \endcode
 class to_tag_tuple {
 private:
   template <typename V> struct to_tag {
@@ -182,7 +246,9 @@ public:
   }
 };
 
-template <typename... Tags> struct tag_variant : public variant<Tags...> {
+/// This class extents `variant` by defining equality operators with other `tag`
+/// types.
+template <typename... Tags> struct tag_variant : variant<Tags...> {
   using variant<Tags...>::variant;
 
   template <typename Tag>
@@ -197,7 +263,7 @@ template <typename... Tags> struct tag_variant : public variant<Tags...> {
   template <typename Tag, typename = std::enable_if_t<is_valid_tag_v<Tag>>>
   friend constexpr bool operator==(const Tag& tag,
                                    const tag_variant& variant) noexcept {
-    if (auto value = std::get_if<Tag>(&variant)) {
+    if (auto value = get_if<Tag>(&variant)) {
       return *value == tag;
     }
     return false;
@@ -223,6 +289,7 @@ template <typename... Tags> struct tag_variant : public variant<Tags...> {
 };
 
 template <bool, typename... Variables> class variable_list_impl {};
+
 template <typename... Variables>
 class variable_list_impl<true, Variables...>
     : private hana::tuple<Variables...> {
@@ -274,7 +341,9 @@ private:
         hana::transform(hana::tuple_t<Variables...>, to_tag_tuple()));
   }
 
-  using variant_type = list_cast_t<tag_variant, decltype(as_tags())>;
+  using variant_type =
+      list_cast_t<tag_variant,
+                  remove_cvref_t<decltype(variable_list_impl::as_tags())>>;
 
   template <typename V>
   std::tuple<basic_tag<V, dynamic_extent>, std::ptrdiff_t, std::ptrdiff_t>
@@ -334,22 +403,24 @@ public:
   }
 
   template <typename Variable, std::ptrdiff_t N>
-  constexpr auto variable(basic_tag<Variable, N>) const noexcept {
+  constexpr Variable variable(basic_tag<Variable, N>) const noexcept {
     auto index = hana::index_if(hana::tuple_t<Variables...>,
                                 hana::equal.to(hana::type_c<Variable>));
     return as_tuple()[*index];
   }
 
   constexpr optional<variant_type> variable(std::ptrdiff_t n) const noexcept {
-    constexpr auto tags = as_tags();
+    // GCC 6.3 needs to explicitly call this with variable_list_impl::as_tags
+    constexpr auto tags = variable_list_impl::as_tags();
     constexpr auto size = hana::size(tags);
     variant_type tag_array[size];
     std::ptrdiff_t counter = n;
     std::ptrdiff_t dest_index = 0;
-    hana::for_each(hana::make_range(hana::size_c<0>, size), [&](auto index) {
-      std::tie(tag_array[index], dest_index, counter) =
-          increase_index(tags[index], dest_index, counter);
-    });
+    hana::for_each(hana::make_range(hana::size_c<0>, size),
+                   [&, this](auto index) {
+                     std::tie(tag_array[index], dest_index, counter) =
+                         this->increase_index(tags[index], dest_index, counter);
+                   });
     if (0 <= dest_index && dest_index < size()) {
       return tag_array[dest_index];
     }
@@ -417,118 +488,15 @@ F for_each(const variable_list<Variables...>& list, F function) {
   return function;
 }
 
-template <typename Span, typename Mapping>
-class basic_variable_mdspan_storage : Mapping {
-public:
-  basic_variable_mdspan_storage() = default;
-  basic_variable_mdspan_storage(Span span, Mapping mapping) noexcept
-      : Mapping(mapping), m_span(span) {}
+} // namespace v1
 
-  constexpr Span span() const noexcept { return m_span; }
-
-  constexpr Mapping get_mapping() const noexcept { return *this; }
-
-private:
-  Span m_span;
-};
-
-template <typename Mapping, typename VariableList> struct compute_span_extents {
-  static constexpr std::ptrdiff_t
-  extent(hana::basic_type<Mapping>, hana::basic_type<VariableList>) noexcept {
-    if (Mapping::static_required_span_size() == dynamic_extent ||
-        VariableList::static_size() == dynamic_extent) {
-      return dynamic_extent;
-    }
-    return Mapping::static_required_span_size() * VariableList::static_size();
-  }
-
-  using type =
-      extents<extent(hana::type_c<Mapping>, hana::type_c<VariableList>)>;
-};
-
-template <typename Mapping, typename VariableList>
-using compute_span_extents_t =
-    typename compute_span_extents<Mapping, VariableList>::type;
-
-template <typename VariableList, typename T, typename Extents,
-          typename LayoutPolicy, typename Accessor>
-class basic_variable_mdspan : VariableList {
-public:
-  using variable_list = VariableList;
-  using extents = Extents;
-  using accessor = Accessor;
-  using layout_policy = LayoutPolicy;
-  using mapping = typename LayoutPolicy::template mapping<Extents>;
-  using element_type = typename Accessor::element_type;
-  using pointer = typename Accessor::pointer;
-  using mdspan = basic_mdspan<element_type, extents, layout_policy, accessor>;
-  using span_extents = compute_span_extents_t<mapping, variable_list>;
-  using span_type =
-      basic_span<element_type, span_extents::static_extent(0), accessor>;
-
-  template <typename Tag>
-  static constexpr bool is_valid_tag_v =
-      variable_list::template is_valid_tag_v<Tag>;
-
-  basic_variable_mdspan() = default;
-
-  constexpr basic_variable_mdspan(span_type data, variable_list list,
-                                  extents e = extents()) noexcept
-      : VariableList(list), m_storage(data, mapping(e)) {
-    assert(span().size() >= required_span_size());
-  }
-
-  template <typename Variable, std::ptrdiff_t N,
-            typename std::enable_if_t<is_valid_tag_v<Variable>>* = nullptr>
-  constexpr mdspan operator[](basic_tag<Variable, N> tag) const noexcept {
-    const variable_list variables = get_variable_list();
-    optional<std::ptrdiff_t> index = variables.index(tag);
-    assert(index);
-    mapping map = get_mapping();
-    const std::ptrdiff_t size = map.required_span_size();
-    return mdspan(subspan(span(), *index * size, size), map);
-  }
-
-  constexpr variable_list get_variable_list() const noexcept { return *this; }
-
-  constexpr span_type span() const noexcept { return m_storage.span(); }
-
-  constexpr mapping get_mapping() const noexcept {
-    return m_storage.get_mapping();
-  }
-
-  constexpr std::ptrdiff_t required_span_size() const noexcept {
-    return get_variable_list().size() * get_mapping().required_span_size();
-  }
-
-  friend constexpr bool operator==(const basic_variable_mdspan& lhs,
-                                   const basic_variable_mdspan& rhs) noexcept {
-    return lhs.span() == rhs.span() &&
-           lhs.get_variable_list() == rhs.get_variable_list() &&
-           lhs.get_mapping() == rhs.get_mapping();
-  }
-
-  friend constexpr bool operator!=(const basic_variable_mdspan& lhs,
-                                   const basic_variable_mdspan& rhs) noexcept {
-    return !(lhs == rhs);
-  }
-
-private:
-  basic_variable_mdspan_storage<span_type, mapping> m_storage;
-};
-
-template <typename VariableList, typename T, typename Extents>
-using variable_mdspan = basic_variable_mdspan<VariableList, T, Extents,
-                                              layout_left, accessor_native<T>>;
-
-} // namespace detail
-
-using detail::basic_tag;
-using detail::for_each;
-using detail::is_variable;
-using detail::tag;
-using detail::tag_t;
-using detail::variable_list;
-using detail::basic_variable_mdspan;
+using v1::basic_tag;
+using v1::basic_variable_mdspan;
+using v1::for_each;
+using v1::is_variable;
+using v1::tag;
+using v1::tag_t;
+using v1::variable_list;
+using v1::variable_mdspan;
 
 } // namespace fub

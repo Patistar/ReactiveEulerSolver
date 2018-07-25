@@ -33,6 +33,9 @@ namespace fub {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                          [traits.is_detected]
 
+/// \defgroup type-traits
+/// Type traits are used to enforce requirements on types with SFINAE.
+
 template <class...> using void_t = void;
 
 struct nonesuch {
@@ -42,7 +45,7 @@ struct nonesuch {
   void operator=(nonesuch const&) = delete;
 };
 
-namespace traits_detail {
+namespace detail {
 template <class Default, class AlwaysVoid, template <class...> class Op,
           class... Args>
 struct detector {
@@ -55,24 +58,48 @@ struct detector<Default, void_t<Op<Args...>>, Op, Args...> {
   using value_t = std::true_type;
   using type = Op<Args...>;
 };
-} // namespace traits_detail
 
 template <template <class...> class Op, class... Args>
 using is_detected =
-    typename traits_detail::detector<nonesuch, void, Op, Args...>::value_t;
+    typename detail::detector<nonesuch, void, Op, Args...>::value_t;
 
+/// \ingroup type-traits
+/// Returns the type of `Op<Args...>` or `nonesuch`
 template <template <class...> class Op, class... Args>
 using detected_t =
-    typename traits_detail::detector<nonesuch, void, Op, Args...>::type;
+    typename detail::detector<nonesuch, void, Op, Args...>::type;
 
 template <class Default, template <class...> class Op, class... Args>
-using detected_or = traits_detail::detector<Default, void, Op, Args...>;
+using detected_or = detail::detector<Default, void, Op, Args...>;
 
 template <class Default, template <class...> class Op, class... Args>
 using detected_or_t = typename detected_or<Default, Op, Args...>::type;
 
 template <class Expected, template <typename...> class Op, class... Args>
 using is_detected_exact = std::is_same<Expected, detected_t<Op, Args...>>;
+} // namespace detail
+
+/// \ingroup type-traits
+/// This is `std::true_type` if `Op<Args...>` is a valid SFINAE expression.
+template <template <class...> class Op, class... Args>
+struct is_detected : detail::is_detected<Op, Args...> {};
+
+/// \ingroup type-traits
+/// Returns the type of `Op<Args...>` or `nonesuch`
+template <template <class...> class Op, class... Args>
+using detected_t = detail::detected_t<Op, Args...>;
+
+/// \ingroup type-traits
+/// Returns the type of `Op<Args...>` or `Default`
+template <class Default, template <class...> class Op, class... Args>
+struct detected_or : detail::detected_or<Default, Op, Args...> {};
+
+/// \ingroup type-traits
+/// This is `std::true_type` if `Op<Args...>` is a valid SFINAE expression and
+/// the return type is exactly `Expected`.
+template <class Expected, template <typename...> class Op, class... Args>
+struct is_detected_exact
+    : detail::is_detected_exact<Expected, Op, Args...> {};
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                          [traits.conjunction]
@@ -87,19 +114,20 @@ using std::experimental::conjunction;
 using std::experimental::disjunction;
 using std::experimental::negation;
 #else
-template<class...> struct conjunction : std::true_type { };
-template<class B1> struct conjunction<B1> : B1 { };
-template<class B1, class... Bn>
-struct conjunction<B1, Bn...> 
+template <class...> struct conjunction : std::true_type {};
+template <class B1> struct conjunction<B1> : B1 {};
+template <class B1, class... Bn>
+struct conjunction<B1, Bn...>
     : std::conditional_t<bool(B1::value), conjunction<Bn...>, B1> {};
 
-template<class...> struct disjunction : std::false_type { };
-template<class B1> struct disjunction<B1> : B1 { };
-template<class B1, class... Bn>
-struct disjunction<B1, Bn...> 
+template <class...> struct disjunction : std::false_type {};
+template <class B1> struct disjunction<B1> : B1 {};
+template <class B1, class... Bn>
+struct disjunction<B1, Bn...>
     : std::conditional_t<bool(B1::value), B1, disjunction<Bn...>> {};
 
-template <class Bool> using negation = std::integral_constant<bool, !bool(Bool::value)>;
+template <class Bool>
+using negation = std::integral_constant<bool, !bool(Bool::value)>;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,14 +166,21 @@ template <typename F, typename... Args>
 using invoke_result_t =
     decltype(ranges::invoke(std::declval<F>(), std::declval<Args>()...));
 
+/// \ingroup type-traits
+/// This is `std::true_type` if a given object `f` of type `T` is callable by
+/// `fub::invoke(f, args...)` for `Args... args`.
 template <typename F, typename... Args>
-using is_invocable = is_detected<invoke_result_t, F, Args...>;
+struct is_invocable : is_detected<invoke_result_t, F, Args...> {};
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+//                                                         [traits.remove_cvref]
+
+/// \ingroup type-traits
+/// This is equivalent to `std::remove_cv_t<std::remove_reference_t<T>>`.
 template <typename T> struct remove_cvref {
   using type = std::remove_cv_t<std::remove_reference_t<T>>;
 };
-
 template <typename T> using remove_cvref_t = typename remove_cvref<T>::type;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,6 +259,10 @@ template <typename Var> struct value_type {
 };
 template <typename Var> using value_type_t = typename value_type<Var>::type;
 
+////////////////////////////////////////////////////////////////////////////////
+//                                               [traits.is_equality_comparable]
+//                                       [traits.is_nothrow_equality_comparable]
+
 template <typename T, typename S = T> struct is_equality_comparable_impl {
   template <typename L, typename R>
   using equality_t = decltype(std::declval<L>() == std::declval<R>());
@@ -232,9 +271,11 @@ template <typename T, typename S = T> struct is_equality_comparable_impl {
   using inequality_t = decltype(std::declval<L>() != std::declval<R>());
 
   using type = conjunction<is_detected<equality_t, T, S>,
-                         is_detected<inequality_t, T, S>>;
+                           is_detected<inequality_t, T, S>>;
 };
 
+/// \ingroup type-traits
+/// This is `std::true_type` if `T` and `S` are equality comparable.
 template <typename T, typename S = T>
 struct is_equality_comparable : is_equality_comparable_impl<T, S>::type {};
 
@@ -254,10 +295,22 @@ struct is_nothrow_equality_comparable_impl<T, S, true> {
 };
 } // namespace detail
 
+/// \ingroup type-traits
+/// This is `std::true_type` if `T` and `S` are nothrow equality comparable.
 template <typename T, typename S = T> struct is_nothrow_equality_comparable {
   static constexpr bool value = detail::is_nothrow_equality_comparable_impl<
       T, S, is_equality_comparable<T, S>::value>::value;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                           [traits.is_regular]
+
+/// \ingroup type-traits
+/// This type trait checks if a specified type `T` fulfills the Regular concept.
+template <typename T>
+struct is_regular
+    : conjunction<std::is_default_constructible<T>, std::is_copy_assignable<T>,
+                  is_equality_comparable<T>> {};
 
 } // namespace fub
 

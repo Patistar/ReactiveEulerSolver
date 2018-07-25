@@ -38,6 +38,7 @@ using std::visit;
 #include <mpark/variant.hpp>
 namespace fub {
 using mpark::get;
+using mpark::get_if;
 using mpark::in_place_index;
 using mpark::variant;
 using mpark::visit;

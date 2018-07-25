@@ -103,7 +103,9 @@ TEST_CASE("mixed variable list use cases") {
 }
 
 struct Mask : fub::scalar_variable {};
-struct MaskVariables : fub::variable_list<Mask> {};
+struct MaskVariables : fub::variable_list<Mask> {
+  using fub::variable_list<Mask>::variable_list;
+};
 
 TEST_CASE("variable map use case") {
   constexpr int Rank = 3;

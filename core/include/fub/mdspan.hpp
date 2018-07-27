@@ -25,8 +25,8 @@
 #include "fub/extents.hpp"
 #include "fub/layout_left.hpp"
 #include "fub/span.hpp"
-#include "fub/type_traits.hpp"
 #include "fub/tuple.hpp"
+#include "fub/type_traits.hpp"
 
 #include <array>
 #include <cassert>
@@ -34,6 +34,7 @@
 #include <vector>
 
 namespace fub {
+inline namespace v1 {
 
 // Forward Decleration of `mdspan`
 template <typename T, typename E, typename L, typename A> class basic_mdspan;
@@ -96,7 +97,8 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 //                                                               [mdspan.class]
 
-template <typename T, typename Extents, typename Layout, typename Accessor>
+template <typename T, typename Extents, typename Layout = layout_left,
+          typename Accessor = accessor_native<T>>
 class basic_mdspan {
 public:
   using element_type = T;
@@ -229,6 +231,7 @@ template <typename T, std::ptrdiff_t... Extents>
 using mdspan =
     basic_mdspan<T, extents<Extents...>, layout_left, accessor_native<T>>;
 
+} // namespace v1
 } // namespace fub
 
 #endif // !SPAN_HPP

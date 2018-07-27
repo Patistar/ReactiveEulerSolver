@@ -24,8 +24,6 @@
 #include <cassert>
 
 int main() { 
-    fub::optional<std::unique_ptr<int>> o{std::make_unique<int>(0)};
-    assert(o);
-    o.reset();
-    assert(!o);
+    static_assert(std::is_trivially_destructible<fub::optional<int>>::value, "");
+    static_assert(std::is_literal_type<fub::optional<int>>::value, "");
 }

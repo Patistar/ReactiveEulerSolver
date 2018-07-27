@@ -1,4 +1,4 @@
-#include "fub/variable_map.hpp"
+#include "fub/variable_list.hpp"
 
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
@@ -77,28 +77,29 @@ TEST_CASE("mixed variable list use cases") {
 
     // variable() is the inverse of index()
 
-    REQUIRE(state_variables.variable(0) == fub::tag<Density>);
-    REQUIRE(state_variables.variable(1) == fub::tag<Momentum<Rank>, 0>);
-    REQUIRE(state_variables.variable(2) == fub::tag<Momentum<Rank>, 1>);
-    REQUIRE(state_variables.variable(3) == fub::tag<Momentum<Rank>, 2>);
-    REQUIRE(state_variables.variable(4) == fub::tag<Energy>);
+    REQUIRE(state_variables.tag(0) == fub::tag<Density>);
+    REQUIRE(state_variables.tag(1) == fub::tag<Momentum<Rank>, 0>);
+    REQUIRE(state_variables.tag(2) == fub::tag<Momentum<Rank>, 1>);
+    REQUIRE(state_variables.tag(3) == fub::tag<Momentum<Rank>, 2>);
+    REQUIRE(state_variables.tag(4) == fub::tag<Energy>);
 
     // Iterate through all species
     for (int i = 0; i < N; ++i) {
-      REQUIRE(state_variables.variable(5 + i) == fub::tag_t<Species>(i));
+      REQUIRE(state_variables.tag(5 + i) == fub::tag_t<Species>(i));
     }
   }
 
   SECTION("traverse through all state variables") {
-    boost::hana::for_each(state_variables.as_tuple(), [&](auto variable) {
-      for_each(variable, [&](auto tag) {
-        auto index = state_variables.index(tag);
-        REQUIRE(index);
-        auto mapped_tag = state_variables.variable(*index);
-        REQUIRE(mapped_tag);
-        REQUIRE(mapped_tag == tag);
-      });
+    std::ptrdiff_t counter = 0;
+    for_each(state_variables, [&](auto tag) {
+      auto index = state_variables.index(tag);
+      REQUIRE(index);
+      auto mapped_tag = state_variables.tag(*index);
+      REQUIRE(mapped_tag);
+      REQUIRE(mapped_tag == tag);
+      counter += 1;
     });
+    REQUIRE(counter == state_variables.size());
   }
 }
 

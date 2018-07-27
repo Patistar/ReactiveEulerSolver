@@ -21,6 +21,7 @@
 #ifndef FUB_GRID_CONFIG_HPP
 #define FUB_GRID_CONFIG_HPP
 
+#cmakedefine FUB_WITH_CGNS
 #cmakedefine FUB_WITH_POLYMORPHIC_ALLOCATOR
 
 #endif

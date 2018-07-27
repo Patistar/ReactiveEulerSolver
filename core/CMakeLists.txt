@@ -6,8 +6,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 ###############################################################################
 #                                         Set the default C++ standard to C++14
 
-if (NOT DEFINED FUB_CORE_CXX_STANDARD)
-  set(FUB_CORE_CXX_STANDARD 14)
+if (NOT DEFINED FUB_WITH_CXX_STANDARD)
+  set(FUB_WITH_CXX_STANDARD 14)
 endif()
 
 ###############################################################################
@@ -42,7 +42,6 @@ target_include_directories(range-v3
   INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/range-v3/include)
 
-
 include(CheckOptional)
 include(CheckVariant)
 include(CheckClamp)
@@ -62,18 +61,18 @@ target_link_libraries(ReactiveEulerSolver_core
   INTERFACE Boost::boost range-v3 fmt)
 
 # If std::optional is not available we add a dependency to nonstd::optional
-if (NOT FUB_CORE_USE_STD_OPTIONAL)
+if (NOT FUB_WITH_STD_OPTIONAL)
   target_link_libraries(ReactiveEulerSolver_core INTERFACE optional-lite)
 endif()
 
 # If std::variant is not available we add a dependency to mpark::variant
-if (NOT FUB_CORE_USE_STD_VARIANT)
+if (NOT FUB_WITH_STD_VARIANT)
   target_link_libraries(ReactiveEulerSolver_core INTERFACE mpark_variant)
 endif()
 
-# Set the minmum required C++ to $FUB_CORE_CXX_STANDARD
+# Set the minmum required C++ to $FUB_WITH_CXX_STANDARD
 set_target_properties(ReactiveEulerSolver_core
-  PROPERTIES INTERFACE_COMPILE_FEATURES cxx_std_${FUB_CORE_CXX_STANDARD})
+  PROPERTIES INTERFACE_COMPILE_FEATURES cxx_std_${FUB_WITH_CXX_STANDARD})
 
 option(FUB_CORE_WITH_TESTS "Whether to compile tests." ON)
 

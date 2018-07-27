@@ -24,7 +24,7 @@
 #include <utility>
 
 namespace fub {
-#ifdef FUB_CORE_USE_STD_AS_CONST
+#ifdef FUB_WITH_STD_AS_CONST
 using std::as_const;
 #else
 template <class T> constexpr std::add_const_t<T>& as_const(T& t) noexcept {
@@ -34,6 +34,11 @@ template <class T> constexpr std::add_const_t<T>& as_const(T& t) noexcept {
 
 template <class T> struct nodeduce { using type = T; };
 template <class T> using nodeduce_t = typename nodeduce<T>::type;
+
+template <std::ptrdiff_t N>
+using make_index_sequence = std::make_integer_sequence<std::ptrdiff_t, N>;
+
+template <int N> using make_int_sequence = std::make_integer_sequence<int, N>;
 
 } // namespace fub
 

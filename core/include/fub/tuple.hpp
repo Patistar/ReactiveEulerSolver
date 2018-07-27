@@ -24,15 +24,9 @@
 #include "fub/algorithm.hpp"
 #include "fub/functional.hpp"
 
-#include <range/v3/utility/tuple_algorithm.hpp>
 #include <tuple>
 
-namespace fub {
-template <typename... Tuples>
-using tuple_cat_t = decltype(std::tuple_cat(std::declval<Tuples>()...));
-}
-
-#ifdef FUB_CORE_USE_STD_APPLY
+#ifdef FUB_WITH_STD_APPLY
 namespace fub {
 using std::apply;
 }
@@ -61,71 +55,4 @@ constexpr decltype(auto) apply(F&& fun, T&& tuple) {
 } // namespace fub
 #endif
 
-namespace fub {
-template <typename Tuple, typename T, typename F>
-T foldl(Tuple&& tuple, T&& init, F&& fun) noexcept {
-  return ranges::tuple_foldl(std::forward<Tuple>(tuple), std::forward<T>(init),
-                             std::forward<F>(fun));
-}
-
-template <typename F, typename... Ts>
-constexpr F for_each_tuple_element(F f, Ts&&... ts) {
-  (void)std::initializer_list<int>{
-      ((void)invoke(std::ref(f), std::forward<Ts>(ts)), 42)...};
-  return f;
-}
-
-template <typename F, typename... Ts>
-constexpr F for_each_tuple_element(F f, std::tuple<Ts...>&& tuple) {
-  fub::apply(
-      [&](auto&&... ts) {
-        (void)std::initializer_list<int>{
-            ((void)invoke(std::ref(f), std::forward<decltype(ts)>(ts)), 42)...};
-      },
-      std::move(tuple));
-  return f;
-}
-
-template <typename F, typename... Ts>
-constexpr F for_each_tuple_element(F f, const std::tuple<Ts...>& tuple) {
-  fub::apply(
-      [&](auto&&... ts) {
-        (void)std::initializer_list<int>{
-            ((void)invoke(std::ref(f), std::forward<decltype(ts)>(ts)), 42)...};
-      },
-      std::move(tuple));
-  return f;
-}
-
-template <typename F, typename... Ts>
-constexpr F for_each_tuple_element(F f, std::tuple<Ts...>& tuple) {
-  fub::apply(
-      [&](auto&&... ts) {
-        (void)std::initializer_list<int>{
-            ((void)invoke(std::ref(f), std::forward<decltype(ts)>(ts)), 42)...};
-      },
-      tuple);
-  return f;
-}
-
-#if __cpp_lib_make_from_tuple
-using std::make_from_tuple;
-#else
-namespace algorithm_detail {
-template <class T, class Tuple, std::size_t... I>
-constexpr T make_from_tuple_impl(Tuple&& t, std::index_sequence<I...>) {
-  return T(std::get<I>(std::forward<Tuple>(t))...);
-}
-} // namespace algorithm_detail
-
-template <class T, class Tuple> constexpr T make_from_tuple(Tuple&& t) {
-  return algorithm_detail::make_from_tuple_impl<T>(
-      std::forward<Tuple>(t),
-      std::make_index_sequence<
-          std::tuple_size<std::remove_reference_t<Tuple>>::value>{});
-}
-#endif
-
-} // namespace fub
-
-#endif // !TUPLE_HPP
+#endif // !FUB_CORE_TUPLE_HPP

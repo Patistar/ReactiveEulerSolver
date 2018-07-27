@@ -26,9 +26,9 @@
 
 #include "fub/core/config.hpp"
 
-#if defined(FUB_CORE_USE_STD_OPTIONAL)
+#if defined(FUB_WITH_STD_OPTIONAL)
 #include <optional>
-#elif defined(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL)
+#elif defined(FUB_WITH_STD_EXPERIMENTAL_OPTIONAL)
 #include <experimental/optional>
 #elif __has_include("nonstd/optional.hpp")
 #include "nonstd/optional.hpp"
@@ -40,10 +40,10 @@
 
 namespace fub {
 
-#if defined(FUB_CORE_USE_STD_OPTIONAL)
+#if defined(FUB_WITH_STD_OPTIONAL)
 using std::nullopt;
 using std::optional;
-#elif defined(FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL)
+#elif defined(FUB_WITH_STD_EXPERIMENTAL_OPTIONAL)
 using std::experimental::nullopt;
 using std::experimental::optional;
 #elif __has_include("nonstd/optional.hpp")

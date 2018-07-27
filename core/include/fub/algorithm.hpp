@@ -34,36 +34,39 @@
 #include <type_traits>
 
 namespace fub {
-#ifdef FUB_CORE_USE_STD_CLAMP
+#ifdef FUB_WITH_STD_CLAMP
 using std::clamp;
 #else
-template <class T, class Compare = std::less<T>>
-constexpr std::enable_if_t<std::is_arithmetic<T>::value, const T&>
-clamp(const T& v, const T& lo, const T& hi, Compare comp = Compare()) {
+template <class T, class Compare = std::less<T>,
+          typename = std::enable_if_t<std::is_arithmetic<T>::value>>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi,
+                         Compare comp = Compare()) {
   return assert(!comp(hi, lo)), comp(v, lo) ? lo : comp(hi, v) ? hi : v;
 }
 #endif
 
-/// @brief Constexpr version of std::accumulate.
-template <typename I, typename S, typename T, typename BinaryOp = std::plus<>>
-constexpr std::enable_if_t<
-  conjunction<ranges::InputIterator<I>, ranges::Sentinel<S, I>>::value, T>
-accumulate(I first, S last, T init, BinaryOp binary_op = BinaryOp()) {
+/// Constexpr version of std::accumulate.
+template <typename I, typename S, typename T, typename BinaryOp = std::plus<>,
+          typename = std::enable_if_t<conjunction<
+              ranges::InputIterator<I>, ranges::Sentinel<S, I>>::value>>
+constexpr T accumulate(I first, S last, T init,
+                       BinaryOp binary_op = BinaryOp()) {
   while (first != last) {
     init = ranges::invoke(binary_op, init, *first++);
   }
   return init;
 }
 
-/// @brief Ranged constexpr version of accumulate.
-template <typename R, typename T, typename BinaryOp = std::plus<>>
-constexpr std::enable_if_t<ranges::Range<R>::value, T>
-accumulate(R&& rng, T&& init, BinaryOp&& binary_op = BinaryOp()) {
+/// Ranged constexpr version of accumulate.
+template <typename R, typename T, typename BinaryOp = std::plus<>,
+          typename = std::enable_if_t<ranges::Range<R>::value, T>>
+constexpr T accumulate(R&& rng, T&& init, BinaryOp&& binary_op = BinaryOp()) {
   return fub::accumulate(ranges::begin(rng), ranges::end(rng),
                          std::forward<T>(init),
                          std::forward<BinaryOp>(binary_op));
 }
 
+/// Constexpr version of std::count for initializer lists.
 template <typename L>
 constexpr std::ptrdiff_t count(std::initializer_list<L>&& list,
                                const nodeduce_t<L>& needle) {
@@ -79,11 +82,12 @@ constexpr std::ptrdiff_t count(std::initializer_list<L>&& list,
   return counter;
 }
 
-template <typename I, typename S, typename T, typename Pred = std::equal_to<>>
-constexpr std::enable_if_t<
-    conjunction<ranges::InputIterator<I>, ranges::Sentinel<S, I>>::value,
-    std::ptrdiff_t>
-count(I first, S last, const T& needle, Pred pred = Pred()) {
+/// Constexpr version of std::count.
+template <typename I, typename S, typename T, typename Pred = std::equal_to<>,
+          typename = std::enable_if_t<conjunction<
+              ranges::InputIterator<I>, ranges::Sentinel<S, I>>::value>>
+constexpr std::ptrdiff_t count(I first, S last, const T& needle,
+                               Pred pred = Pred()) {
   std::ptrdiff_t counter{0};
   while (first != last) {
     if (ranges::invoke(pred, *first, needle)) {
@@ -94,22 +98,23 @@ count(I first, S last, const T& needle, Pred pred = Pred()) {
   return counter;
 }
 
+/// Constexpr version of std::count for Ranges.
 template <typename R, typename T, typename Pred = std::equal_to<>>
 constexpr std::enable_if_t<ranges::InputRange<R>::value, std::ptrdiff_t>
 count(R&& rng, const T& needle, Pred pred = Pred()) {
   return count(ranges::begin(rng), ranges::end(rng), needle, std::move(pred));
 }
 
+/// Constexpr version of std::transform_reduce (C++20).
 template <typename I, typename S, typename J, typename T,
           typename BinaryOp1 = std::plus<>,
-          typename BinaryOp2 = std::multiplies<>>
-constexpr std::enable_if_t<conjunction<ranges::InputIterator<I>,
-                               ranges::Sentinel<S, I>,
-                               ranges::InputIterator<J>>::value,
-                           T>
-transform_reduce(I left, S last, J right, T initial,
-                 BinaryOp1 binary_op1 = BinaryOp1(),
-                 BinaryOp2 binary_op2 = BinaryOp2()) {
+          typename BinaryOp2 = std::multiplies<>,
+          typename = std::enable_if_t<
+              conjunction<ranges::InputIterator<I>, ranges::Sentinel<S, I>,
+                          ranges::InputIterator<J>>::value>>
+constexpr T transform_reduce(I left, S last, J right, T initial,
+                             BinaryOp1 binary_op1 = BinaryOp1(),
+                             BinaryOp2 binary_op2 = BinaryOp2()) {
   while (left != last) {
     initial = ranges::invoke(binary_op1, initial,
                              fub::invoke(binary_op2, *left, *right));
@@ -119,21 +124,24 @@ transform_reduce(I left, S last, J right, T initial,
   return initial;
 }
 
+/// Constexpr version of std::transform_reduce (C++20) for Ranges.
 template <typename R, typename S, typename T, typename BinaryOp1 = std::plus<>,
-          typename BinaryOp2 = std::multiplies<>>
-constexpr std::enable_if_t<
-    conjunction<ranges::InputRange<R>, ranges::InputRange<S>>::value, T>
-transform_reduce(R&& left, S&& right, T initial,
-                 BinaryOp1 binary_op1 = BinaryOp1(),
-                 BinaryOp2 binary_op2 = BinaryOp2()) {
+          typename BinaryOp2 = std::multiplies<>,
+          typename = std::enable_if_t<
+              conjunction<ranges::InputRange<R>, ranges::InputRange<S>>::value>>
+constexpr T transform_reduce(R&& left, S&& right, T initial,
+                             BinaryOp1 binary_op1 = BinaryOp1(),
+                             BinaryOp2 binary_op2 = BinaryOp2()) {
   return fub::transform_reduce(ranges::begin(left), ranges::end(left),
                                ranges::begin(right), std::move(initial),
                                std::move(binary_op1), std::move(binary_op2));
 }
 
-template <typename A, typename I>
-constexpr std::enable_if_t<std::is_arithmetic<A>::value, bool>
-almost_equal(const A& x, const nodeduce_t<A>& y, const I& ulp) noexcept {
+/// Returns true, if x and y differ only by ulp many bits.
+template <typename A, typename I,
+          typename = std::enable_if_t<std::is_arithmetic<A>::value>>
+constexpr bool almost_equal(const A& x, const nodeduce_t<A>& y,
+                            const I& ulp) noexcept {
   constexpr A eps = std::numeric_limits<A>::epsilon();
   constexpr A min = std::numeric_limits<A>::min();
   const A diff = std::abs(x - y);

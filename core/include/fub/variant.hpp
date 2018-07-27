@@ -26,10 +26,11 @@
 
 #include "fub/core/config.hpp"
 
-#if defined(FUB_CORE_USE_STD_VARIANT)
+#if defined(FUB_WITH_STD_VARIANT)
 #include <variant>
 namespace fub {
 using std::get;
+using std::get_if;
 using std::in_place_index;
 using std::variant;
 using std::visit;

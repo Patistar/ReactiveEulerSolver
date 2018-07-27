@@ -30,7 +30,7 @@
 #
 # Users may modify the behaviour of this module with the following variables:
 #
-# * CGNS_ROOT_DIR
+# * CGNS_DIR
 # * CGNS_INCLUDE_DIR
 # * CGNS_LIBRARY
 #
@@ -45,7 +45,7 @@ include(FindPackageHandleStandardArgs)
 
 if (NOT CGNS_FOUND)
 
-  set(CGNS_SEARCH_DIR ${CGNS_ROOT_DIR})
+  set(CGNS_SEARCH_DIR ${CGNS_DIR})
 
   find_path(CGNS_INCLUDE_DIRS cgnslib.h
     HINTS ${CGNS_INCLUDE_DIR} ${CGNS_SEARCH_DIR}

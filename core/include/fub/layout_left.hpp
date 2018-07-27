@@ -24,13 +24,23 @@
 #include "fub/algorithm.hpp"
 #include "fub/extents.hpp"
 #include "fub/span.hpp"
+#include "fub/tuple.hpp"
 #include "fub/type_traits.hpp"
 
 #include <array>
 
 namespace fub {
 
+/// This layout creates mappings which do row first indexing (as in Fortran).
+///
+/// It holds for all valid `i` and `j` the equation
+/// \code mapping(i + 1, j) - mapping(1, j) == 1 \endcode
 struct layout_left {
+
+  /// This mapping does row first indexing (as in Fortran).
+  ///
+  /// It holds for all valid `i` and `j` the equation
+  /// \code mapping(i + 1, j) - mapping(1, j) == 1 \endcode
   template <typename Extents> class mapping : private Extents {
   public:
     static_assert(is_extents_v<Extents>,
@@ -38,8 +48,8 @@ struct layout_left {
 
     using index_type = typename Extents::index_type;
 
-    // CONSTRUCTORS
-
+    /// \name Constructors / Destructors
+    /// @{
     constexpr mapping() = default;
     constexpr mapping(const mapping&) = default;
     constexpr mapping(mapping&&) = default;
@@ -48,30 +58,31 @@ struct layout_left {
 
     /// Implicit Conversion from Extents.
     ///
-    /// Throws: Nothing.
+    /// \throws Nothing.
     ///
-    /// Postcondition: get_extents() == extents.
+    /// \post get_extents() == extents.
     constexpr mapping(const Extents& extents) : Extents{extents} {} // NOLINT
+    /// @}
 
-    // OBSERVERS
-
+    /// \name Observers
+    /// @{
     constexpr const Extents& get_extents() const noexcept { return *this; }
 
     constexpr index_type required_span_size() const noexcept {
       return size(get_extents());
     }
 
-    /// Returns the codomain index for specified multi dimensional index
+    /// \return Returns the codomain index for specified multi dimensional index
     /// coordinates.
     ///
-    /// Effect: Equivalent to offset in
-    ///
+    /// \effect Equivalent to offset in
+    /// \code
     ///    index_type offset = 0;
     ///    for(size_t k = 0; k < Extents::rank(); ++k) {
     ///      offset += i[k] * stride(k);
     ///    }
-    ///
-    /// Throws: Nothing.
+    /// \endcode
+    /// \throws Nothing.
     template <
         typename... IndexType,
         typename = std::enable_if_t<
@@ -82,9 +93,9 @@ struct layout_left {
                         indices...);
     }
 
-    /// Returns the stride value in a specified dimension r.
+    /// \return Returns the stride value in a specified dimension r.
     ///
-    /// Throws: Nothing.
+    /// \throws Nothing.
     constexpr index_type stride(std::size_t r) const noexcept {
       index_type stride = 1;
       for (std::size_t dim = 0; dim < r; ++dim) {
@@ -112,6 +123,7 @@ struct layout_left {
         noexcept {
       return !(*this == other);
     }
+    /// @}
 
   private:
     template <std::size_t... Is, typename... IndexType>
@@ -159,7 +171,7 @@ constexpr Function for_each_index(const layout_left::mapping<Extents>& mapping,
   }
   std::array<index_type, Extents::rank()> index{};
   while (sz > 0) {
-    fub::invoke(fun, index);
+    fub::apply(fun, index);
     index = next(mapping, index);
     sz -= 1;
   }

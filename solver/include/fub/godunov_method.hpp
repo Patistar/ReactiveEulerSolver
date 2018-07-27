@@ -32,20 +32,23 @@
 namespace fub {
 
 template <typename RiemannSolver> struct godunov_method {
+  // static_assert(is_riemann_solver<RiemannSolver>(),
+  //               "RiemannSolver does not fulfill the RiemannSolver concept");
+
   RiemannSolver m_riemann_solver;
 
   template <typename Abi, typename Equation, typename Coordinates, typename L,
             typename R, typename F>
   std::enable_if_t<is_simd_abi_v<Abi>>
-  compute_numeric_fluxes(const Abi &abi, const F &flux, const L &left,
-                         const R &right, std::chrono::duration<double>,
-                         const Coordinates &, const Equation &equation) const {
+  compute_numeric_fluxes(const Abi& abi, const F& flux, const L& left,
+                         const R& right, std::chrono::duration<double>,
+                         const Coordinates&, const Equation& equation) const {
     static_assert(
         conjunction<is_view<L>, is_view<R>, is_view<F>>::value,
         "compute_numeric_fluxes was not invoked with a patch_view type. "
         "Consider using the make_view function.");
     for_each_simd(abi,
-                  [&](auto abi, auto &&f, const auto &qL, const auto &qR) {
+                  [&](auto abi, auto&& f, const auto& qL, const auto& qR) {
                     f = m_riemann_solver.compute_numeric_flux(abi, qL, qR,
                                                               equation);
                   },
@@ -55,9 +58,9 @@ template <typename RiemannSolver> struct godunov_method {
   template <typename Abi, typename Equation, typename Coordinates, typename L,
             typename M, typename R, typename F>
   std::enable_if_t<is_simd_abi_v<Abi>> compute_numeric_fluxes(
-      const Abi &abi, const F &flux, const L &left, const M &middle,
-      const R &right, std::chrono::duration<double> dt,
-      const Coordinates &coords, const Equation &equation) const {
+      const Abi& abi, const F& flux, const L& left, const M& middle,
+      const R& right, std::chrono::duration<double> dt,
+      const Coordinates& coords, const Equation& equation) const {
     static_assert(
         conjunction<is_view<L>, is_view<M>, is_view<R>, is_view<F>>::value,
         "compute_numeric_fluxes was not invoked with a patch_view type. "
@@ -76,10 +79,10 @@ template <typename RiemannSolver> struct godunov_method {
             typename R, typename F>
   std::enable_if_t<
       conjunction<is_view<F>, is_view<L>, is_view<M>, is_view<R>>::value>
-  compute_numeric_fluxes(const F &flux, const L &left, const M &middle,
-                         const R &right, std::chrono::duration<double> dt,
-                         const Coordinates &coordinates,
-                         const Equation &equation) const {
+  compute_numeric_fluxes(const F& flux, const L& left, const M& middle,
+                         const R& right, std::chrono::duration<double> dt,
+                         const Coordinates& coordinates,
+                         const Equation& equation) const {
     return compute_numeric_fluxes(simd_abi::native<double>(), flux, left,
                                   middle, right, dt, coordinates, equation);
   }
@@ -88,12 +91,12 @@ template <typename RiemannSolver> struct godunov_method {
             typename Coordinates>
   std::enable_if_t<is_view<L>::value && is_view<R>::value && is_view<M>::value,
                    std::chrono::duration<double>>
-  get_stable_time_step(const Equation &equation, const L &left, const M &middle,
-                       const R &right, const Coordinates &coordinates) const {
+  get_stable_time_step(const Equation& equation, const L& left, const M& middle,
+                       const R& right, const Coordinates& coordinates) const {
     double max_S{0};
     for_each_row(
         [&](auto left, auto middle, auto right) {
-          auto max = [](auto current, const auto &tuple) {
+          auto max = [](auto current, const auto& tuple) {
             auto all_signals = std::tuple_cat(std::make_tuple(current), tuple);
             return fub::apply(
                 [](auto... signals) {
@@ -120,9 +123,10 @@ template <typename RiemannSolver> struct godunov_method {
     return std::chrono::duration<double>(0.5 * dx / max_S);
   }
 
-  template <typename Archive>
-  void serialize(Archive& archive, unsigned) {
+  template <typename Archive> void serialize(Archive& archive, unsigned) {
+    // clang-format off
     archive & m_riemann_solver;
+    // clang-format on
   }
 };
 

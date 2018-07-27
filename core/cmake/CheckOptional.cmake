@@ -9,10 +9,10 @@ check_cxx_source_compiles("
 #include <optional>
 int main() { std::optional<int> _; }
 "
-        FUB_CORE_USE_STD_OPTIONAL)
+        FUB_WITH_STD_OPTIONAL)
 
 add_library(ReactiveEulerSolver_core_optional INTERFACE)
-if (FUB_CORE_USE_STD_OPTIONAL)
+if (FUB_WITH_STD_OPTIONAL)
   target_compile_features(ReactiveEulerSolver_core_optional INTERFACE cxx_std_17)
 else()
   if (NOT EXISTS ${CMAKE_SOURCE_DIR}/core/third-party/optional-lite/.git)

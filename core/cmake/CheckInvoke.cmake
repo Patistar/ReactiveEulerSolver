@@ -4,4 +4,4 @@ check_cxx_source_compiles("
 
 int f() { return 0; }
 int main() { return std::invoke(f); }"
-        FUB_CORE_USE_STD_CLAMP)
+        FUB_WITH_STD_CLAMP)

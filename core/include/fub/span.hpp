@@ -123,6 +123,15 @@ template <typename T> static constexpr bool is_span_v = is_span<T>::value;
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                 [span.class]
 
+/// basic_span is a compact view over a contiguous range of data.
+///
+/// This class models something like
+///
+/// \code struct span { pointer ptr; index length; }; \endcode
+///
+/// Where the `length` can be omitted for statically sized views.
+/// The Accessor parameter also dicdates what pointer is (how values are
+/// addressed) and how to access these values through the Accessor.
 template <typename T, index N, typename Accessor> class basic_span {
 public:
   using accessor = Accessor;
@@ -142,16 +151,16 @@ public:
   static constexpr index_type extent = N;
 
   /////////////////////////////////////////////////////////////////////////////
-  // Constructors
+  // \name Constructors
 
   /// Constructs a span from a `pointer` + `size` pair.
   ///
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
   ///
-  /// Throws: Nothing.
+  /// \throws Nothing.
   ///
-  /// Postcondition: get_pointer() == p
+  /// \post get_pointer() == p
 #if __cplusplus >= 201703L
   constexpr basic_span(pointer p, [[maybe_unused]] index_type size,
                        accessor a = accessor()) noexcept
@@ -170,9 +179,9 @@ public:
   /// This performs an assertion check in debug builds which will terminate the
   /// application if the specified size does not match the extent.
   ///
-  /// Throws: Nothing.
+  /// \throws Nothing.
   ///
-  /// Postcondition: get_pointer() == first
+  /// \post get_pointer() == first
 #if __cplusplus >= 201703L
   constexpr basic_span(pointer first, [[maybe_unused]] pointer last,
                        accessor a = accessor()) noexcept
@@ -188,11 +197,11 @@ public:
 
   /// Implicit conversion from a built-in C-style array.
   ///
-  /// Requires: size() <= M
+  /// \requires size() <= M
   ///
-  /// Throws: Nothing.
+  /// \throws Nothing.
   ///
-  /// Postcondition: get_pointer() = pointer(&arr[0])
+  /// \post get_pointer() = pointer(&arr[0])
   template <std::size_t M, typename = std::enable_if_t<N <= M>>
   constexpr basic_span(element_type (&arr)[M],
                        accessor a = accessor()) noexcept // NOLINT
@@ -200,12 +209,12 @@ public:
 
   /// Implicit conversion from const `std::array`s.
   ///
-  /// Requires: size() <= M
-  /// Requires: S(*)[] is convertible to element_type(*)[]
+  /// \requires size() <= M
+  /// \requires S(*)[] is convertible to element_type(*)[]
   ///
-  /// Throws: Nothing.
+  /// \throws Nothing.
   ///
-  /// Postcondition: get_pointer() = pointer(arr.data())
+  /// \post get_pointer() = pointer(arr.data())
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::const_pointer, pointer>::value>,
@@ -216,12 +225,12 @@ public:
 
   /// Implicit conversion from mutable `std::array`s.
   ///
-  /// Requires: size() <= M
-  /// Requires: S(*)[] is convertible to element_type(*)[]
+  /// \requires size() <= M
+  /// \requires S(*)[] is convertible to element_type(*)[]
   ///
-  /// Throws: Nothing.
+  /// \throws Nothing.
   ///
-  /// Postcondition: get_pointer() = pointer(arr.data())
+  /// \post get_pointer() = pointer(arr.data())
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::pointer, pointer>::value>,
@@ -255,15 +264,25 @@ public:
     assert(N <= ranges::size(container));
   }
 
-  /////////////////////////////////////////////////////////////////////////////
-  // Element Access
+  template <index StaticExtent>
+  basic_span(const basic_span<T, StaticExtent, Accessor>& other)
+    : m_storage{other.data()}
+  {
+    assert(N <= other.size());
+  }
 
+
+  /// \name Element Access
+
+  /// Returns a reference to the element indexed by `n `.
+  ///
+  /// \throws The implementation *might* choose to do some range checking and
+  /// throw an excpetion on failure.
   constexpr reference operator[](index_type n) const {
     return m_storage.access(n);
   }
 
-  /////////////////////////////////////////////////////////////////////////////
-  // Member Variable Accessors
+  // \name Observers
 
   constexpr index_type size() const noexcept { return m_storage.size(); }
 
@@ -273,8 +292,7 @@ public:
     return m_storage.get_accessor();
   }
 
-  /////////////////////////////////////////////////////////////////////////////
-  // Iterators
+  // \name Iterators
 
   constexpr iterator begin() const noexcept { return m_storage.get_pointer(); }
   constexpr const_iterator cbegin() const noexcept {
@@ -299,6 +317,8 @@ public:
   constexpr iterator crend() const noexcept {
     return {m_storage.get_pointer() + size()};
   }
+
+  /// \name Conversion Operator
 
   /// Returns always true since this span version can not be emtpy.
   ///
@@ -379,8 +399,7 @@ public:
           detected_t<detail::data_t, Container>, pointer>::value>>
   constexpr basic_span(Container&& container,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{container.data(),
-                  static_cast<std::ptrdiff_t>(container.size()), a} {}
+      : m_storage{container.data(), static_cast<index>(container.size()), a} {}
 
   template <typename S, index_type M, typename A,
             typename = std::enable_if_t<std::is_convertible<
@@ -499,20 +518,34 @@ template <typename T> span<T> drop(span<T> view, index n) noexcept {
                  std::max(index{}, view.size() - n));
 }
 
-template <index N, typename T> span<T, N> take(span<T> view) noexcept {
+template <index N, typename T, index M, typename A>
+basic_span<T, N, A> take(basic_span<T, M, A> view) noexcept {
   assert(view.size() < N);
   return span<T, N>(view.data(), N);
 }
 
-template <typename T> span<T> take(span<T> view, index n) noexcept {
+template <typename T, index N, typename A>
+basic_span<T, dynamic_extent, A> take(basic_span<T, N, A> view,
+                                      index n) noexcept {
   if (view.size() < n) {
     return {};
   }
-  return span<T>(view.data(), n);
+  return basic_span<T, dynamic_extent, A>(view.data(), n);
 }
 
-template <typename T>
-constexpr span<T> subspan(span<T> view, index lower, index length) noexcept {
+template <typename T, index N, typename A>
+constexpr basic_span<T, dynamic_extent, A> drop(basic_span<T, N, A> span,
+                                                index n) {
+  assert(n >= 0);
+  if (span.size() < n) {
+    return {};
+  }
+  return basic_span<T, dynamic_extent, A>{span.data() + n, span.size() - n};
+}
+
+template <typename T, index N, typename A>
+constexpr basic_span<T, dynamic_extent, A>
+subspan(basic_span<T, N, A> view, index lower, index length) noexcept {
   return take(drop(view, lower), length);
 }
 

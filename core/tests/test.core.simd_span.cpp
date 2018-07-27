@@ -26,7 +26,8 @@
 
 TEST_CASE("Create a simd span mutable") {
   using simd_type = fub::simd<double>;
-  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{{1, 2, 3, 4, 5, 6, 7, 8}};
+  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{
+      {1, 2, 3, 4, 5, 6, 7, 8}};
   fub::simd_span<double> span(array.data(), 4);
   REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
   REQUIRE(array[0] == 1);
@@ -39,7 +40,8 @@ TEST_CASE("Create a simd span mutable") {
 
 TEST_CASE("Create a simd span to const") {
   using simd_type = fub::simd<double>;
-  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{{1, 2, 3, 4, 5, 6, 7, 8}};
+  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{
+      {1, 2, 3, 4, 5, 6, 7, 8}};
   fub::simd_span<const double> span(array.data(), 4);
   REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
   REQUIRE(array[0] == 1);

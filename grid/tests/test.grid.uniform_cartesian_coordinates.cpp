@@ -21,7 +21,7 @@
 #include "fub/uniform_cartesian_coordinates.hpp"
 
 #define CATCH_CONFIG_MAIN
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("1D mapping is in range") {
   double lower = 0.2;

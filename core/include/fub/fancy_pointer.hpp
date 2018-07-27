@@ -4,6 +4,8 @@
 #include "fub/type_traits.hpp"
 #include "fub/utility.hpp"
 
+#include <iterator>
+
 namespace fub {
 
 template <typename T, typename AddressModel> class fancy_pointer {

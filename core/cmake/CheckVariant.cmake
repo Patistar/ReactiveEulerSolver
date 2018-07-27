@@ -3,9 +3,9 @@ check_cxx_source_compiles("
 #include <variant>
 int main() { std::variant<int> _; }
 "
-        FUB_CORE_USE_STD_VARIANT)
+        FUB_WITH_STD_VARIANT)
 
-if (NOT FUB_CORE_USE_STD_VARIANT)
+if (NOT FUB_WITH_STD_VARIANT)
   if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third-party/variant/.git)
     execute_process(COMMAND git submodule update --init --remote --depth=1 -- third-party/variant
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

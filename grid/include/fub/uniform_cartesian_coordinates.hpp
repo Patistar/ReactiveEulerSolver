@@ -40,9 +40,10 @@ template <int Rank> class uniform_cartesian_coordinates {
 public:
   uniform_cartesian_coordinates() = default;
 
-  constexpr uniform_cartesian_coordinates(const std::array<double, Rank>& lower,
-                                          const std::array<double, Rank>& upper,
-                                          const std::array<index, Rank>& extents)
+  constexpr uniform_cartesian_coordinates(
+      const std::array<double, Rank>& lower,
+      const std::array<double, Rank>& upper,
+      const std::array<index, Rank>& extents)
       : m_extents{extents}, m_lower{lower}, m_upper{upper},
         m_dx{compute_dx(m_lower, m_upper, m_extents)} {}
 
@@ -84,9 +85,10 @@ private:
     }
   }
 
-  static std::array<double, Rank> compute_dx(const std::array<double, Rank>& lower,
-                                        const std::array<double, Rank>& upper,
-                                        const std::array<index, Rank>& extents) {
+  static std::array<double, Rank>
+  compute_dx(const std::array<double, Rank>& lower,
+             const std::array<double, Rank>& upper,
+             const std::array<index, Rank>& extents) {
     std::array<double, Rank> dx;
     std::transform(lower.begin(), lower.end(), upper.begin(), dx.begin(),
                    [](double lo, double up) { return up - lo; });
@@ -98,10 +100,12 @@ private:
   template <typename Archive>
   friend void serialize(Archive& archive, uniform_cartesian_coordinates& coords,
                         unsigned) {
+    // clang-format off
     archive & coords.m_extents;
     archive & coords.m_lower;
     archive & coords.m_upper;
     archive & coords.m_dx;
+    // clang-format on
   }
 };
 

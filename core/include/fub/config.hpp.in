@@ -22,24 +22,18 @@
 #define FUB_CORE_CONFIG_HPP
 
 // Whether to use <optional>
-#cmakedefine FUB_CORE_USE_STD_OPTIONAL
-
-// Whether to use <experimental/optional>
-#cmakedefine FUB_CORE_USE_STD_EXPERIMENTAL_OPTIONAL
+#cmakedefine FUB_WITH_STD_OPTIONAL
 
 // Whether to use <variant>
-#cmakedefine FUB_CORE_USE_STD_VARIANT
+#cmakedefine FUB_WITH_STD_VARIANT
 
 // Whether to use std::invoke
-#cmakedefine FUB_CORE_USE_STD_INVOKE
+#cmakedefine FUB_WITH_STD_INVOKE
 
 // Whether to use std::apply
-#cmakedefine FUB_CORE_USE_STD_APPLY
+#cmakedefine FUB_WITH_STD_APPLY
 
 // Whether to use std::clamp
-#cmakedefine FUB_CORE_USE_STD_CLAMP
-
-// Whether to use std::array
-#cmakedefine FUB_CORE_USE_STD_ARRAY
+#cmakedefine FUB_WITH_STD_CLAMP
 
 #endif

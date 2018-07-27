@@ -1,20 +1,24 @@
 cmake_minimum_required (VERSION 3.10)
 
 project(ReactiveEulerSolver_grid CXX)
+
+if (NOT TARGET ReactiveEulerSolver_core)
+  message(FATAL_ERROR "You can not use this module without ReactiveEulerSolver_core.")
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(CGNS REQUIRED)
-list(APPEND FUB_GRID_DEPENDENCIES cgns)
+# Check for target "cgns"
 
-if (NOT TARGET Boost::container)
-  find_package(Boost COMPONENTS container)
-  if (TARGET Boost::container)
-    set(FUB_WITH_POLYMORPHIC_ALLOCATOR TRUE)
-    list(APPEND FUB_GRID_DEPENDENCIES Boost::container)
-  else()
-    set(FUB_WITH_POLYMORPHIC_ALLOCATOR FALSE)
-  endif()
-else()
+if (TARGET cgns)
+  list(APPEND FUB_GRID_DEPENDENCIES cgns)
+  set(FUB_WITH_CGNS TRUE)
+endif()
+
+# Check for target "Boost::container"
+
+if (TARGET Boost::container)
+  list(APPEND FUB_GRID_DEPENDENCIES Boost::container)
   set(FUB_WITH_POLYMORPHIC_ALLOCATOR TRUE)
 endif()
 
@@ -31,14 +35,16 @@ if (NOT TARGET eigen)
 endif()
 list(APPEND FUB_GRID_DEPENDENCIES eigen)
 
-add_library(ReactiveEulerSolver.grid_includes INTERFACE)
-target_include_directories(ReactiveEulerSolver.grid_includes INTERFACE include)
-target_link_libraries(ReactiveEulerSolver.grid_includes INTERFACE 
-  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
-
+if (CGNS_FOUND) 
 add_library(ReactiveEulerSolver.grid source/fub/output/cgns.cpp)
 target_include_directories(ReactiveEulerSolver.grid PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.grid PUBLIC 
   ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
+else()
+add_library(ReactiveEulerSolver.grid INTERFACE)
+target_include_directories(ReactiveEulerSolver.grid INTERFACE include)
+target_link_libraries(ReactiveEulerSolver.grid INTERFACE 
+  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
+endif()
 
 add_subdirectory(tests)

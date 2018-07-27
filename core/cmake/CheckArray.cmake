@@ -7,4 +7,4 @@ int main() {
   constexpr int i1 = array[1];
 }
 "
-        FUB_CORE_USE_STD_ARRAY)
+        FUB_WITH_STD_ARRAY)

@@ -100,18 +100,17 @@ struct kinetic_source_term {
       dTdt_and_dcdt[0] = dTdt;
     }
 
-    template <typename Abi, typename = std::enable_if_t<is_simd_abi_v<Abi>>,
-              int Width = simd_width_v<Abi>>
-    void operator()(Abi abi, mdspan<double, Size + 1, Width> dTdt_and_dcdt,
-                    mdspan<const double, Size + 1, Width> T_and_c,
-                    mdspan<const double, 1, Width> /* t */) const noexcept {
+    template <typename Abi, typename std::enable_if_t<is_simd_abi_v<Abi>>* = nullptr>
+    void operator()(Abi abi, nodeduce_t<simd_span<double, Abi>> dTdt_and_dcdt,
+                    nodeduce_t<simd_span<const double, Abi>> T_and_c,
+                    nodeduce_t<simd<double, Abi>> /* t */) const noexcept {
       // Compute production rates by calling the reaction mechanism.
-      mdspan<double, Size, Width> dcdt = drop_row<1>(dTdt_and_dcdt);
-      mdspan<const double, Size, Width> c = drop_row<1>(T_and_c);
-      const simd<double, Abi> c_sum = accumulate(abi, c, simd<double, Abi>{0});
-      mdspan<const double, 1, Width> T = take_row<1>(T_and_c);
+      simd_span<double, Abi, Size> dcdt = drop<1>(dTdt_and_dcdt);
+      simd_span<const double, Abi, Size> c = drop<1>(T_and_c);
+      const simd<double, Abi> c_sum = fub::accumulate(abi, c, 0);
+      const simd<double, Abi> T = T_and_c[0]; // Temperature
       const simd<double, Abi> R = equation.get_universal_gas_constant();
-      const simd<double, Abi> P = c_sum * R * T;
+      const simd<double, Abi> P = c_sum * R * T; // Pressure
       // Fill drhoXdt here by calling the get_production_rates function of the
       // underlying mechanism.
       equation.get_production_rates(abi, dcdt, c, T, P);
@@ -120,30 +119,28 @@ struct kinetic_source_term {
       span<const double, Size> M = equation.get_molar_masses();
       const simd<double, Abi> mean_M =
           fub::transform_reduce(M, c, simd<double, Abi>{0}) / c_sum;
-      std::array<double, Size * Width> rhoX;
-      transform(abi, c, make_mdspan<Size, Width>(rhoX),
+      alignas(Width) std::array<double, Size * Width> rhoX_data;
+      simd_span<double, Abi, Size> rhoX(rhoX_data);
+      fub::transform(abi, c, rhoX,
                 [=](simd<double, Abi> c) { return c * mean_M; });
-      const simd<double, Abi> rho = accumulate(abi, rhoX, 0);
+      const simd<double, Abi> rho = fub::accumulate(abi, rhoX, 0);
 
       // Compute dTdt such that the internal energy stays constant!
-      std::array<double, Width * Size> h;
-      std::array<double, Width * Size> cp;
+      alignas(Width) std::array<double, Width * Size> h_data;
+      alignas(Width) std::array<double, Width * Size> cp_data;
+      simd_span<double, Abi, Size> h{h_data};
+      simd_span<double, Abi, Size> cp{cp_data};
       equation.get_specific_enthalpies_of_formation(abi, h, T);
       equation.get_specific_heat_capacities_at_constant_pressure(abi, cp, T);
       // We set dTdt as shown in Phillips thesis here
       simd<double, Abi> dTdt = 0;
       simd<double, Abi> mean_cp = 0;
-      index i = 0;
-      fub::for_each_simd_row(
-          [&](simd<double, Abi> c, simd<double, Abi> dcdt, simd<double, Abi> h,
-              simd<double, Abi> cp) {
-            dTdt += (h - R / M[i] * T) * (M[i] * dcdt);
-            mean_cp += cp * c * M[i] / rho;
-            ++i;
-          },
-          c, dcdt, make_mdspan<Size, Width>(h), make_mdspan<Size, Width>(cp));
+      for (int i = 0; i < Size - 1; ++i) {
+        dTdt += (h[i] - R / M[i] * T) * (M[i] * dcdt[i]);
+        mean_cp += cp[i] * c[i] * M[i] / rho;
+      }
       dTdt /= (rho * (R / mean_M - mean_cp));
-      dTdt.copy_to(dTdt_and_dcdt.data(), element_alignment);
+      dTdt_and_dcdt[0] = dTdt;
     }
   };
 

@@ -10,5 +10,5 @@ int main() {
       },
       std::make_tuple(0, 0));
 }"
-        FUB_CORE_USE_STD_APPLY)
+        FUB_WITH_STD_APPLY)
 

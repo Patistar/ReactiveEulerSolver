@@ -23,7 +23,7 @@
 
 #include "fub/type_traits.hpp"
 
-#ifdef FUB_CORE_USE_STD_INVOKE
+#ifdef FUB_WITH_STD_INVOKE
 #include <functional>
 namespace fub {
 using std::invoke;

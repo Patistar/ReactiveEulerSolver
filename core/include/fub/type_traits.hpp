@@ -24,9 +24,6 @@
 #ifndef FUB_TYPE_TRAITS_HPP
 #define FUB_TYPE_TRAITS_HPP
 
-#include <meta/meta.hpp>
-#include <range/v3/utility/functional.hpp>
-#include <tuple>
 #include <type_traits>
 
 namespace fub {
@@ -66,8 +63,7 @@ using is_detected =
 /// \ingroup type-traits
 /// Returns the type of `Op<Args...>` or `nonesuch`
 template <template <class...> class Op, class... Args>
-using detected_t =
-    typename detail::detector<nonesuch, void, Op, Args...>::type;
+using detected_t = typename detail::detector<nonesuch, void, Op, Args...>::type;
 
 template <class Default, template <class...> class Op, class... Args>
 using detected_or = detail::detector<Default, void, Op, Args...>;
@@ -98,8 +94,7 @@ struct detected_or : detail::detected_or<Default, Op, Args...> {};
 /// This is `std::true_type` if `Op<Args...>` is a valid SFINAE expression and
 /// the return type is exactly `Expected`.
 template <class Expected, template <typename...> class Op, class... Args>
-struct is_detected_exact
-    : detail::is_detected_exact<Expected, Op, Args...> {};
+struct is_detected_exact : detail::is_detected_exact<Expected, Op, Args...> {};
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                          [traits.conjunction]
@@ -145,11 +140,6 @@ template <bool B> static constexpr bool_constant<B> bool_c{};
 template <index I> static constexpr index_constant<I> index_c{};
 template <std::size_t I> static constexpr size_constant<I> size_c{};
 
-template <index N>
-using make_index_sequence = std::make_integer_sequence<index, N>;
-
-template <int N> using make_int_sequence = std::make_integer_sequence<int, N>;
-
 ////////////////////////////////////////////////////////////////////////////////
 //                                                         [traits.is_invocable]
 //                                                        [traits.invoke_result]
@@ -158,13 +148,17 @@ template <int N> using make_int_sequence = std::make_integer_sequence<int, N>;
 using std::invoke_result;
 using std::invoke_result_t;
 using std::is_invocable;
-using std::is_invocable_v;
-using std::is_nothrow_invocable;
-using std::is_nothrow_invocable_v;
 #else
+/// \ingroup type-traits
+/// This is `std::true_type` if `F` is a function type and can be invoked with
+/// arguments of types `Args...`.
+/// @{
 template <typename F, typename... Args>
-using invoke_result_t =
-    decltype(ranges::invoke(std::declval<F>(), std::declval<Args>()...));
+struct invoke_result : std::result_of<F(Args...)> {};
+
+template <typename F, typename... Args>
+using invoke_result_t = typename invoke_result<F, Args...>::type;
+/// @}
 
 /// \ingroup type-traits
 /// This is `std::true_type` if a given object `f` of type `T` is callable by
@@ -242,14 +236,6 @@ struct list_cast<To, From<Ts...>> {
 };
 template <template <typename...> class To, typename From>
 using list_cast_t = typename list_cast<To, From>::type;
-
-/// @brief Transforms a type list to a std::tuple  L<Ts...> -> std::tuple<Ts...>
-template <typename List> struct as_tuple : list_cast<std::tuple, List> {};
-template <typename T, T... Is>
-struct as_tuple<std::integer_sequence<T, Is...>> {
-  using type = std::tuple<std::integral_constant<T, Is>...>;
-};
-template <typename List> using as_tuple_t = typename as_tuple<List>::type;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                             [meta.value_type]

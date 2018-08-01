@@ -44,7 +44,6 @@
 include(FindPackageHandleStandardArgs)
 
 if (NOT CGNS_FOUND)
-
   set(CGNS_SEARCH_DIR ${CGNS_DIR})
 
   find_path(CGNS_INCLUDE_DIRS cgnslib.h
@@ -68,6 +67,5 @@ if (NOT CGNS_FOUND)
       INTERFACE_INCLUDE_DIRECTORIES  ${CGNS_INCLUDE_DIRS}
       IMPORTED_LOCATION              ${CGNS_LIBRARIES})
   endif()
-
 endif()
 

@@ -30,6 +30,7 @@
 #include <array>
 
 namespace fub {
+inline namespace v1 {
 
 /// This layout creates mappings which do row first indexing (as in Fortran).
 ///
@@ -151,10 +152,11 @@ next(const layout_left::mapping<Extents>& mapping,
   assert(is_in_range(mapping.get_extents(), index));
   std::size_t r = 0;
   index[r] += 1;
-  while (r < Extents::rank() && index[r] >= mapping.get_extents().extent(r)) {
+  while (r + 1 < Extents::rank() &&
+         index[r] >= mapping.get_extents().extent(r)) {
     index[r] = 0;
-    r += 1;
-    index[r] += 1;
+    index[r + 1] += 1;
+    r = r + 1;
   }
   assert(is_in_range(mapping.get_extents(), index));
   return index;
@@ -170,14 +172,17 @@ constexpr Function for_each_index(const layout_left::mapping<Extents>& mapping,
     return fun;
   }
   std::array<index_type, Extents::rank()> index{};
+  fub::apply(fun, index);
+  sz -= 1;
   while (sz > 0) {
-    fub::apply(fun, index);
     index = next(mapping, index);
+    fub::apply(fun, index);
     sz -= 1;
   }
   return fun;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif

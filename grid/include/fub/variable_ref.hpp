@@ -40,8 +40,9 @@ public:
   template <typename Variables>
   variable_ref& operator=(const Variables& variables) {
     for_each(get_variable_list(), [&](auto variable) {
-      fub::apply(m_view[variable]) = variables[variable];
+      fub::apply(m_view[variable], m_indices) = variables[variable];
     });
+    return *this;
   }
 
   template <typename Tag>

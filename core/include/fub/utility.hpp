@@ -24,6 +24,7 @@
 #include <utility>
 
 namespace fub {
+inline namespace v1 {
 #ifdef FUB_WITH_STD_AS_CONST
 using std::as_const;
 #else
@@ -40,6 +41,7 @@ using make_index_sequence = std::make_integer_sequence<std::ptrdiff_t, N>;
 
 template <int N> using make_int_sequence = std::make_integer_sequence<int, N>;
 
+}
 } // namespace fub
 
 #endif // !UTILITY_HPP

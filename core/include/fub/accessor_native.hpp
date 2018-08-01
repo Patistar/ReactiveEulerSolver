@@ -24,6 +24,7 @@
 #include "fub/type_traits.hpp"
 
 namespace fub {
+inline namespace v1 {
 template <typename T = void> struct accessor_native {
   using value_type = remove_cvref_t<T>;
   using element_type = T;
@@ -43,6 +44,7 @@ template <> struct accessor_native<void> {
   using pointer = void*;
   template <typename S> using rebind = accessor_native<S>;
 };
+} // namespace v1
 } // namespace fub
 
 #endif

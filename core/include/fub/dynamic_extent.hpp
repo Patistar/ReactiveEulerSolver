@@ -24,8 +24,10 @@
 #include <cstddef>
 
 namespace fub {
+inline namespace v1 {
 /// This is a magic value to denote runtime-known extents.
 static constexpr std::ptrdiff_t dynamic_extent{-1};
+} // namespace v1
 } // namespace fub
 
 #endif

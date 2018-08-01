@@ -18,41 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_TUPLE_HPP
-#define FUB_CORE_TUPLE_HPP
+#ifndef FUB_GRID_QUANTITIES_HPP
+#define FUB_GRID_QUANTITIES_HPP
 
-#include "fub/algorithm.hpp"
-#include "fub/functional.hpp"
-
-#include <tuple>
+#include "fub/variable_data.hpp"
 
 namespace fub {
 inline namespace v1 {
-#ifdef FUB_WITH_STD_APPLY
-using std::apply;
-#else
-class tuple_apply_fn {
-  template <typename F, typename T, std::size_t... Is>
-  constexpr decltype(auto) impl(F&& fun, T&& tuple,
-                                std::index_sequence<Is...>) {
-    return fub::invoke(std::forward<F>(fun), std::get<Is>(tuple)...);
-  }
+
+template <typename VariableList, typename T>
+class quantities : private basic_variable_data<VariableList, T, mdspan<T, 1>> {
+private:
+  using Base_ = basic_variable_data<VariableList, T, mdspan<T, 1>>;
 
 public:
-  template <typename F, typename T>
-  constexpr decltype(auto) operator()(F&& fun, T&& tuple) {
-    return impl(
-        std::forward<F>(fun), std::forward<T>(tuple),
-        std::make_index_sequence<std::tuple_size<remove_cvref_t<T>>::value>());
+  quantities() = default;
+
+  template <typename... Args,
+            typename = std::enable_if_t<sizeof...(Args) ==
+                                        VariableList::static_size()>,
+            typename = std::enable_if_t<
+                conjunction<std::is_convertible<Args, T>...>::value>>
+  quantities(Args... data) : Base_() {
+    auto datas = hana::make_tuple(data...);
+    hana::for_each(
+        hana::make_range(hana::size_c<0>, hana::size_c<sizeof...(Args)>),
+        [&](auto Is) { span()[Is] = datas[Is]; });
   }
+
+  template <typename Tag> T& operator[](Tag tag) {
+    return Base_::operator[](tag)(0);
+  }
+
+  template <typename Tag> const T& operator[](Tag tag) const {
+    return Base_::operator[](tag)(0);
+  }
+
+  auto span() noexcept { return Base_::span(); }
+  auto span() const noexcept { return Base_::span(); }
 };
 
-template <typename F, typename T>
-constexpr decltype(auto) apply(F&& fun, T&& tuple) {
-  return tuple_apply_fn{}(fun, tuple);
-}
-#endif
 } // namespace v1
 } // namespace fub
 
-#endif // !FUB_CORE_TUPLE_HPP
+#endif

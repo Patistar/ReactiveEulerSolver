@@ -29,6 +29,7 @@
 #include <functional>
 
 namespace fub {
+inline namespace v1 {
 
 struct layout_right {
   template <typename Extents> class mapping : private Extents {
@@ -107,7 +108,6 @@ static_required_span_size(layout_right, const Extents&) noexcept {
   return sz ? sz : dynamic_extent;
 }
 
-
 template <typename Extents>
 constexpr index_array_t<Extents>
 next(const layout_right::mapping<Extents>& mapping,
@@ -115,10 +115,10 @@ next(const layout_right::mapping<Extents>& mapping,
   assert(is_in_range(mapping.get_extents(), index));
   std::size_t r = Extents::rank();
   index[r - 1] += 1;
-  while (0 < r && index[r - 1] >= mapping.get_extents().extent(r - 1)) {
+  while (1 < r && index[r - 1] >= mapping.get_extents().extent(r - 1)) {
     index[r - 1] = 0;
-    r -= 1;
-    index[r] += 1;
+    index[r - 2] += 1;
+    r = r - 1;
   }
   assert(is_in_range(mapping.get_extents(), index));
   return index;
@@ -134,14 +134,17 @@ constexpr Function for_each_index(const layout_right::mapping<Extents>& mapping,
     return fun;
   }
   std::array<index_type, Extents::rank()> index{};
+  fub::apply(fun, index);
+  sz -= 1;
   while (sz > 0) {
-    fub::invoke(fun, index);
     index = next(mapping, index);
+    fub::apply(fun, index);
     sz -= 1;
   }
   return fun;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif

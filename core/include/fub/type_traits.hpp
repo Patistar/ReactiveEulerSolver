@@ -27,6 +27,7 @@
 #include <type_traits>
 
 namespace fub {
+inline namespace v1 {
 ////////////////////////////////////////////////////////////////////////////////
 //                                                          [traits.is_detected]
 
@@ -298,6 +299,7 @@ struct is_regular
     : conjunction<std::is_default_constructible<T>, std::is_copy_assignable<T>,
                   is_equality_comparable<T>> {};
 
+} // namespace v1
 } // namespace fub
 
 #endif // !TYPE_TRAITS_HPP

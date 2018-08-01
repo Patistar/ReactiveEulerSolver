@@ -32,7 +32,7 @@
 #include <ostream>
 
 namespace fub {
-
+inline namespace v1 {
 using namespace Vc;
 
 template <typename T, typename Abi>
@@ -56,6 +56,7 @@ simd_mask<A, Abi> almost_equal(const simd<A, Abi>& x,
   return diff <= (eps * sum * ulp) || diff < min;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif

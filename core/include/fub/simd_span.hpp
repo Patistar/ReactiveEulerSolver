@@ -27,6 +27,7 @@
 #include "fub/simd.hpp"
 
 namespace fub {
+inline namespace v1 {
 namespace simd_span_detail {
 /// Returns by default a simd span with an unaligned accessor.
 template <typename T, typename Abi, std::ptrdiff_t Extent, typename Alignment>
@@ -51,6 +52,7 @@ using simd_span =
     typename simd_span_detail::simd_span_detector<T, Abi, Extent,
                                                   Alignment>::type;
 
+} // namespace v1
 } // namespace fub
 
 #endif

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/output/cgns.hpp"
+#include "fub/output/gnuplot.hpp"
 
 #include "fub/uniform_cartesian_coordinates.hpp"
 #include "fub/variable_data.hpp"
@@ -58,8 +58,8 @@ using Variables = fub::variable_list<Density, Momentum>;
 
 int main() {
   Variables vars{};
-  fub::dynamic_extents_t<2> extents(1024, 1024);
-  fub::variable_data<Variables, double, fub::dynamic_extents_t<2>> patch(
+  fub::dynamic_extents_t<2> extents(10, 10);
+  fub::variable_data<Variables, float, fub::dynamic_extents_t<2>> patch(
       vars, extents);
   fub::uniform_cartesian_coordinates<2> coordinates({0., 0.}, {1., 1.},
                                                     fub::as_array(extents));
@@ -69,7 +69,6 @@ int main() {
       patch[density](i, j) = 1.0;
     }
   });
-  fub::output::cgns output_module;
-  auto file = output_module.open("test.cgns", 2);
-  output_module.write(file, patch, coordinates);
+  fub::output::gnuplot output_module;
+  output_module.write(stdout, patch, coordinates);
 }

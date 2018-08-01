@@ -11,9 +11,9 @@ include
  * `fub::extents<Es...>` - A compact multi-dimensional integral cartesian product.
  * `fub::optional<T>` - Depending on availability it is either `std::optional<T>`, `std::experimental::optional<T>` or `boost::optional<T>`.
  * `fub::variant<T1, ..., Tn>` - Depending on availability it is either `std::variant<T1, ... Tn>` or `mpark::variant<T1, ..., Tn>`.
- * `fub::span<T, N>` - A one-dimensinoal view over a contiguous array of values.  
- * `fub::mdspan<T, extents<Es...>>` - A multi-dimensional view over a contiguous array.
- * `fub::simd<T, Abi>` - A templated type wrapper for intrinsic vector operations. 
+ * `fub::span<T, N>` - A one-dimensinoal view over a contiguous array of values.
+ * `fub::mdspan<T, Es...>` - A multi-dimensional view over a contiguous array.
+ * `fub::simd<T, Abi>` - A templated type wrapper for intrinsic vector operations.
  
 ### Function Templates
  * `fub::apply` - A replacement for `std::apply`.

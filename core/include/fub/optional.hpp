@@ -39,7 +39,7 @@
 #endif
 
 namespace fub {
-
+inline namespace v1 {
 #if defined(FUB_WITH_STD_OPTIONAL)
 using std::nullopt;
 using std::optional;
@@ -48,13 +48,14 @@ using std::experimental::nullopt;
 using std::experimental::optional;
 #elif __has_include("nonstd/optional.hpp")
 // #else
-using nonstd::optional;
 using nonstd::nullopt;
+using nonstd::optional;
 // #elif __has_include(<boost/optional.hpp>)
 // using boost::optional;
 // static const auto nullopt = boost::none;
 #endif
 
+} // namespace v1
 } // namespace fub
 
 #endif

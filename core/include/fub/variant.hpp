@@ -29,20 +29,24 @@
 #if defined(FUB_WITH_STD_VARIANT)
 #include <variant>
 namespace fub {
+inline namespace v1 {
 using std::get;
 using std::get_if;
 using std::in_place_index;
 using std::variant;
 using std::visit;
+} // namespace v1
 } // namespace fub
 #elif __has_include(<mpark/variant.hpp>)
 #include <mpark/variant.hpp>
 namespace fub {
+inline namespace v1 {
 using mpark::get;
 using mpark::get_if;
 using mpark::in_place_index;
 using mpark::variant;
 using mpark::visit;
+} // namespace v1
 } // namespace fub
 #else
 #error("No implementation for std::variant could be found.")

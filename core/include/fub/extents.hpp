@@ -32,6 +32,7 @@
 #include <array>
 
 namespace fub {
+inline namespace v1 {
 namespace detail {
 /// This is the storage type for the extents class and only takes storage for
 /// dynamic extents.
@@ -480,6 +481,19 @@ using replace_extent_t =
     decltype(replace_extent(std::declval<E>(), int_c<Dim>, int_c<V>));
 // }}}
 
+namespace detail {
+template <int Rank> struct dynamic_extents {
+  template <typename> struct impl;
+  template <int... Is> struct impl<std::integer_sequence<int, Is...>> {
+    using type = extents<(Is, dynamic_extent)...>;
+  };
+  using type = typename impl<std::make_integer_sequence<int, Rank>>::type;
+};
+} // namespace detail
+template <int Rank>
+using dynamic_extents_t = typename detail::dynamic_extents<Rank>::type;
+
+} // namespace v1
 } // namespace fub
 
 #endif

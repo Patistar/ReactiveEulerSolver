@@ -34,6 +34,7 @@
 #include <type_traits>
 
 namespace fub {
+inline namespace v1 {
 #ifdef FUB_WITH_STD_CLAMP
 using std::clamp;
 #else
@@ -149,6 +150,7 @@ constexpr bool almost_equal(const A& x, const nodeduce_t<A>& y,
   return diff <= eps * sum * ulp || diff < min;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif // !ALGORITHM_HPP

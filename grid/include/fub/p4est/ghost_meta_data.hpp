@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Maikel Nadolski
+// Copyright (c) 2018 Maikel Nadolski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/interval_map.hpp"
-#include <iostream>
-#include <iomanip>
-#include <string>
+#ifndef FUB_P4EST_GHOST_META_DATA_HPP
+#define FUB_P4EST_GHOST_META_DATA_HPP
 
-template <typename Map>
-void print(std::ostream& out, const Map& map) {
-  for (auto&& pair : map) {
-    auto&& key = pair.first;
-    auto&& mapped = pair.second;
-    out << '{' << key << ", " << mapped << "}\n";
+extern "C" {
+#include <p4est_ghost.h>
+}
+
+#include <memory>
+
+namespace fub {
+inline namespace v1 {
+namespace p4est {
+
+template <int Rank> struct ghost_meta_data;
+
+template <> struct ghost_meta_data<2> {
+public:
+  ghost_meta_data() = default;
+
+  /// Takes the ownership of ghost.
+  explicit ghost_meta_data(p4est_t* forest)
+      : m_handle{p4est_ghost_new(forest, P4EST_CONNECT_FACE)} {}
+
+  p4est_ghost_t* operator->() const noexcept {
+    return m_handle.get();
   }
-  out << '\n';
-}
 
-int main() {
-  fub::interval_map<std::uint64_t, std::uint64_t> map{};
+  operator p4est_ghost_t*() const noexcept {
+    return m_handle.get();
+  }
+  // operator const p4est_ghost_t*() const noexcept;
 
-  print(std::cout, map.get_map());
-  map.insert(1, 3, 1);
-  map.insert(3, 5, 2);
-  map.insert(4, 7, 3);
-  print(std::cout, map.get_map());
+private:
+  struct destroyer {
+    void operator()(p4est_ghost_t* p) const noexcept {
+      if (p) {
+        p4est_ghost_destroy(p);
+      }
+    }
+  };
+  std::unique_ptr<p4est_ghost_t, destroyer> m_handle{nullptr};
+};
 
-  map.insert(0, 7, 1);
-  map.insert(0, 3, 2);
-  print(std::cout, map.get_map());
-}
+} // namespace p4est
+} // namespace v1
+} // namespace fub
+
+#endif

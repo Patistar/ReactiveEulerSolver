@@ -2,6 +2,7 @@
 #define FUB_CORE_NATIVE_ADDRESS_HPP
 
 namespace fub {
+inline namespace v1 {
 
 struct native_address {
   using difference_type = std::ptrdiff_t;
@@ -29,6 +30,7 @@ struct native_address {
   constexpr explicit operator const void*() const noexcept { return address; }
 };
 
+} // namespace v1
 } // namespace fub
 
 #endif

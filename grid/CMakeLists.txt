@@ -8,11 +8,20 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# Check for target "cgns"
-
+# Check for CGNS
+find_package(CGNS REQUIRED)
 if (TARGET cgns)
   list(APPEND FUB_GRID_DEPENDENCIES cgns)
   set(FUB_WITH_CGNS TRUE)
+endif()
+
+# Check for P4EST
+find_package(P4EST REQUIRED)
+if (TARGET p4est AND TARGET sc)
+  list(APPEND FUB_GRID_DEPENDENCIES z)
+  list(APPEND FUB_GRID_DEPENDENCIES sc)
+  list(APPEND FUB_GRID_DEPENDENCIES p4est)
+  set(FUB_WITH_P4EST TRUE)
 endif()
 
 # Check for target "Boost::container"
@@ -35,16 +44,11 @@ if (NOT TARGET eigen)
 endif()
 list(APPEND FUB_GRID_DEPENDENCIES eigen)
 
-if (CGNS_FOUND) 
-add_library(ReactiveEulerSolver.grid source/fub/output/cgns.cpp)
+add_library(ReactiveEulerSolver.grid
+  source/fub/output/cgns.cpp)
 target_include_directories(ReactiveEulerSolver.grid PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.grid PUBLIC 
   ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
-else()
-add_library(ReactiveEulerSolver.grid INTERFACE)
-target_include_directories(ReactiveEulerSolver.grid INTERFACE include)
-target_link_libraries(ReactiveEulerSolver.grid INTERFACE 
-  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
-endif()
 
 add_subdirectory(tests)
+# add_subdirectory(example)

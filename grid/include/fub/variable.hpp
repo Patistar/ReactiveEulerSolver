@@ -147,6 +147,10 @@ public:
   constexpr std::ptrdiff_t index() const noexcept {
     return extents<N>::extent(0);
   }
+
+  constexpr const char* name() const noexcept {
+    return V::name(index());
+  }
 };
 
 /// This is a short-hand automatically create dynamic-sized tags from

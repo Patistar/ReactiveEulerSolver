@@ -7,6 +7,7 @@
 #include <iterator>
 
 namespace fub {
+inline namespace v1 {
 
 template <typename T, typename AddressModel> class fancy_pointer {
 public:
@@ -250,6 +251,7 @@ constexpr fancy_pointer<T, AM> operator--(fancy_pointer<T, AM> p,
   return q -= 1;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif

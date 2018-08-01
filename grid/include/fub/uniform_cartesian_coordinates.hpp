@@ -30,6 +30,7 @@
 #include <fmt/format.h>
 
 namespace fub {
+inline namespace v1 {
 
 template <int Rank> class uniform_cartesian_coordinates {
   std::array<index, Rank> m_extents;
@@ -46,6 +47,8 @@ public:
       const std::array<index, Rank>& extents)
       : m_extents{extents}, m_lower{lower}, m_upper{upper},
         m_dx{compute_dx(m_lower, m_upper, m_extents)} {}
+
+  static constexpr int rank() noexcept { return Rank; }
 
   const std::array<double, Rank>& lower() const noexcept { return m_lower; }
   const std::array<double, Rank>& upper() const noexcept { return m_upper; }
@@ -70,6 +73,20 @@ public:
       coordinates[i] = (1 - lambda[i]) * m_lower[i] + lambda[i] * m_upper[i];
     }
     return coordinates;
+  }
+
+  template <typename... IndexTypes>
+  constexpr std::array<double, Rank> cell(IndexTypes... is) const {
+    std::array<std::ptrdiff_t, Rank> indices{is...};
+    std::array<std::ptrdiff_t, Rank> next;
+    std::transform(indices.begin(), indices.end(), next.begin(),
+                   [](std::ptrdiff_t i) { return i + 1; });
+    auto x0 = fub::apply(*this, indices);
+    auto x1 = fub::apply(*this, next);
+    std::array<double, Rank> x;
+    std::transform(x0.begin(), x0.end(), x1.begin(), x.begin(),
+                   [](double lhs, double rhs) { return 0.5 * (lhs + rhs); });
+    return x;
   }
 
 private:
@@ -129,6 +146,7 @@ adapt(const uniform_cartesian_coordinates<Rank>& coords,
   return {lower, upper, coords.extents()};
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif // !UNIFORMCARTESIANMAPPING_HPP

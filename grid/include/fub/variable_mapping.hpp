@@ -31,7 +31,8 @@ template <typename M> struct mdspan_add_const;
 
 template <typename T, typename E, typename L, typename A>
 struct mdspan_add_const<basic_mdspan<T, E, L, A>> {
-  using type = basic_mdspan<std::add_const_t<T>, E, L, A>;
+  using type = basic_mdspan < std::add_const_t<T>, E, L,
+        typename A::template rebind<std::add_const_t<T>>>;
 };
 
 template <typename M>
@@ -40,8 +41,7 @@ using mdspan_add_const_t = typename mdspan_add_const<M>::type;
 
 /// This is a utility class which helps to map multidimensional variable data
 /// in some congtiguous range of memory.
-template <typename VariableList, typename MdSpan>
-struct variable_mapping {
+template <typename VariableList, typename MdSpan> struct variable_mapping {
   using mdspan_type = MdSpan;
   using const_mdspan_type = detail::mdspan_add_const_t<MdSpan>;
   using value_type = typename mdspan_type::value_type;

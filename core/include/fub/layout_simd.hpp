@@ -30,6 +30,7 @@
 #include <array>
 
 namespace fub {
+inline namespace v1 {
 
 template <typename T, typename Abi> struct layout_simd_padded {
   template <typename Extents> class mapping : private Extents {
@@ -149,6 +150,7 @@ static_required_span_size(layout_simd_padded<T, Abi>,
   return dynamic_extent;
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif

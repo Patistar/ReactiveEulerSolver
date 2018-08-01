@@ -31,6 +31,7 @@
 #include <array>
 
 namespace fub {
+inline namespace v1 {
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                               [span.storage]
@@ -266,11 +267,9 @@ public:
 
   template <index StaticExtent>
   basic_span(const basic_span<T, StaticExtent, Accessor>& other)
-    : m_storage{other.data()}
-  {
+      : m_storage{other.data()} {
     assert(N <= other.size());
   }
-
 
   /// \name Element Access
 
@@ -427,6 +426,10 @@ public:
 
   constexpr pointer data() const noexcept { return m_storage.get_pointer(); }
 
+  constexpr const accessor& get_accessor() const noexcept {
+    return m_storage.get_accessor();
+  }
+
   /////////////////////////////////////////////////////////////////////////////
   // Iterators
 
@@ -549,6 +552,7 @@ subspan(basic_span<T, N, A> view, index lower, index length) noexcept {
   return take(drop(view, lower), length);
 }
 
+} // namespace v1
 } // namespace fub
 
 #endif // !SPAN_HPP

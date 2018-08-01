@@ -26,16 +26,17 @@
 #ifdef FUB_WITH_STD_INVOKE
 #include <functional>
 namespace fub {
-using std::invoke;
-}
+inline namespace v1 { using std::invoke; }
+} // namespace fub
 #else
 #include <range/v3/utility/invoke.hpp>
 namespace fub {
-using ranges::invoke;
-}
+inline namespace v1 { using ranges::invoke; }
+} // namespace fub
 #endif
 
 namespace fub {
+inline namespace v1 {
 
 template <typename> class function_ref;
 
@@ -54,7 +55,8 @@ public:
   function_ref(F& function_object)
       : m_data{std::addressof(function_object)},
         m_erased_function_pointer{[](void* function, Args... args) -> R {
-          return invoke(*static_cast<F*>(function), std::forward<Args>(args)...);
+          return invoke(*static_cast<F*>(function),
+                        std::forward<Args>(args)...);
         }} {}
 
   R operator()(Args... args) const {
@@ -70,6 +72,7 @@ private:
   erased_pointer m_erased_function_pointer;
 };
 
+} // namespace v1
 } // namespace fub
 
 #endif

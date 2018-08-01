@@ -28,6 +28,7 @@
 #include <cassert>
 
 namespace fub {
+inline namespace v1 {
 template <typename T, typename Abi, typename Alignment> class simd_proxy {
 public:
   using element_type = T;
@@ -124,6 +125,7 @@ struct accessor_simd_element_type<const T, Abi> {
 };
 } // namespace detail
 
+} // namespace v1
 } // namespace fub
 
 #endif

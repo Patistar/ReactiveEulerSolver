@@ -20,11 +20,14 @@
 
 #include "fub/output/cgns.hpp"
 #include "fub/layout_right.hpp"
+#include "fub/tuple.hpp"
 
 #include <array>
+#include <numeric>
 #include <vector>
 
 namespace fub {
+inline namespace v1 {
 namespace output {
 cgns_context::cgns_context(int file, int base) noexcept
     : m_file{file}, m_base{base} {}
@@ -95,37 +98,6 @@ void cgns::iteration_data_write(const cgns_context& ctx,
 
 namespace cgns_details {
 namespace {
-template <int Rank>
-std::array<char, 33> make_zone_name_(const octant<Rank>& o) noexcept {
-  std::array<char, 33> name{};
-  auto index = o.morton_index();
-  std::string index_str = std::to_string(index);
-  std::copy_n(index_str.begin(), std::min<std::size_t>(32, index_str.size()),
-              name.begin());
-  return name;
-}
-} // namespace
-
-std::array<char, 33> make_zone_name(const octant<1>& o) noexcept {
-  return make_zone_name_(o);
-}
-std::array<char, 33> make_zone_name(const octant<2>& o) noexcept {
-  return make_zone_name_(o);
-}
-std::array<char, 33> make_zone_name(const octant<3>& o) noexcept {
-  return make_zone_name_(o);
-}
-
-namespace {
-template <int Rank> struct dynamic_extents {
-  template <typename> struct impl;
-  template <int... Is> struct impl<std::integer_sequence<int, Is...>> {
-    using type = extents<(Is, dynamic_extent)...>;
-  };
-  using type = typename impl<std::make_integer_sequence<int, Rank>>::type;
-};
-template <int Rank>
-using dynamic_extents_t = typename dynamic_extents<Rank>::type;
 
 template <int Rank>
 std::vector<double>
@@ -137,13 +109,13 @@ make_coordinates(const uniform_cartesian_coordinates<Rank>& coordinates,
                  [](index e) { return e + 1; });
   const index size = std::accumulate(extents.begin(), extents.end(), index(1),
                                      std::multiplies<>());
-  auto e = fub::make_from_tuple<dynamic_extents_t<Rank>>(extents);
+  auto e = std::make_from_tuple<dynamic_extents_t<Rank>>(extents);
   layout_right::mapping<dynamic_extents_t<Rank>> mapping{e};
   std::vector<double> x(size);
-  for_each_index(mapping, [&](const std::array<index, Rank>& index) {
-    auto reversed{index};
+  for_each_index(mapping, [&](auto... indices) {
+    std::array<std::ptrdiff_t, Rank> reversed{indices...};
     std::reverse(reversed.begin(), reversed.end());
-    std::array<double, Rank> xs = fub::apply(coordinates, index);
+    std::array<double, Rank> xs = coordinates(indices...);
     x[fub::apply(mapping, reversed)] = xs[dim];
   });
   return x;
@@ -255,23 +227,6 @@ zone_context zone_write(const cgns_context& ctx, const char* name,
   return zone_write_(ctx, name, extents);
 }
 
-void physical_dimension_write_impl(const zone_context& zone, int /* solution */,
-                                   const char* variable,
-                                   const std::array<double, 5>& dimensions) {
-  throw_if_cg_error(cg_goto(zone.file, zone.base, "Zone_t", zone.id,
-                            "FlowSolution", 0, variable, 0, "end"));
-  throw_if_cg_error(cg_dataclass_write(Dimensional));
-  throw_if_cg_error(cg_units_write(Kilogram, Meter, Second, Kelvin, Radian));
-  throw_if_cg_error(cg_exponents_write(RealDouble, dimensions.data()));
-}
-
-void physical_dimension_write_impl(const zone_context& zone, int /* solution */,
-                                   const char* variable) {
-  throw_if_cg_error(cg_goto(zone.file, zone.base, "Zone_t", zone.id,
-                            "FlowSolution", 0, variable, 0, "end"));
-  throw_if_cg_error(cg_dataclass_write(NondimensionalParameter));
-}
-
 int cell_centered_field_write(const zone_context& zone, int solution,
                               const char* name, span<const double> view) {
   int field_number;
@@ -283,4 +238,5 @@ int cell_centered_field_write(const zone_context& zone, int solution,
 
 } // namespace cgns_details
 } // namespace output
+} // namespace v1
 } // namespace fub

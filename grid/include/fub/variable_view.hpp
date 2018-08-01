@@ -27,6 +27,7 @@ namespace fub {
 inline namespace v1 {
 /// This is view on contiguous data but indexed by a variable list and a uniform
 /// multi-dimensional mapping.
+/// \nosubgrouping
 template <typename VariableList, typename MdSpan>
 class basic_variable_view : VariableList, MdSpan::mapping {
 public:
@@ -39,6 +40,7 @@ public:
   using extents_type = typename mdspan_type::extents_type;
   using mapping_type = typename mdspan_type::mapping;
 
+  /// @{
   /// \name Constructors
 
   basic_variable_view() = default;
@@ -50,13 +52,20 @@ public:
   basic_variable_view(VariableList list, span_type span,
                       extents_type extents = extents_type())
       : VariableList(list), mapping_type(extents), m_span{span} {}
+  /// @}
 
+  /// @{
   /// \name Static Observers
 
-  /// Returns either a positive integral or `dynamic_extent` which is
-  /// the compile-time known number of elements of this class.
+  /// Returns an integer size summing up the total spanned number of
+  /// elements of T.
   ///
   /// This function is equivalent to `get_span().static_size()`.
+  ///
+  /// \return Returns either a positive integral or `dynamic_extent` which is
+  /// the compile-time known number of elements of this class.
+  ///
+  /// \post `static_size() > 0 || static_size() == dynamic_extent`
   ///
   /// \throws Nothing.
   static constexpr std::ptrdiff_t static_size() noexcept {
@@ -68,6 +77,7 @@ public:
               extents_type extents = extents_type()) noexcept {
     return vars.size() * mapping_type(extents).required_span_size();
   }
+  /// @}
 
   /// \name Observers
 
@@ -110,18 +120,18 @@ public:
   /// \throws The implementation may throw `std::out_of_range` if the given
   /// indices are not covered by `extents()`.
   ///
-  /// \note In release mode this function might not check given index range and
-  /// NOT throw on invalid indices.
+  /// \note In release mode this function might not bound-check the given index
+  /// and NOT throw for invalid indices.
   template <typename... IndexTypes>
-  constexpr variable_ref<basic_variable_view>
+  constexpr variable_ref<const basic_variable_view>
   operator()(IndexTypes... is) const {
-    return variable_ref<basic_variable_view>(*this, {is...});
+    return variable_ref<const basic_variable_view>(*this, {is...});
   }
 
   /// Returns a mdspan which covers data which is associated with the
   /// given variable tag.
   ///
-  /// \requires VariableList::is_valid_tag<Tag>
+  /// \tparam Tag VariableList::is_valid_tag<Tag>
   ///
   /// \throws The implementation may throw `std::out_of_range` if the given
   /// tag contains an invalid index.

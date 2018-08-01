@@ -33,7 +33,11 @@ struct basic_variable_data_storage : VariableList, MdSpan::mapping {
   using value_type = typename Allocator::value_type;
   using mapping_type = typename MdSpan::mapping;
 
-  using mapping_type::mapping_type;
+  basic_variable_data_storage() = default;
+
+  basic_variable_data_storage(VariableList list, mapping_type mapping,
+                              Allocator alloc = Allocator())
+      : VariableList(list), mapping_type(mapping) {}
 
   constexpr fub::span<value_type, N> span() noexcept {
     return make_span(m_data);
@@ -54,7 +58,35 @@ struct basic_variable_data_storage : VariableList, MdSpan::mapping {
 
 template <typename VariableList, typename MdSpan, typename Allocator>
 struct basic_variable_data_storage<dynamic_extent, VariableList, MdSpan,
-                                   Allocator> {};
+                                   Allocator> : VariableList,
+                                                MdSpan::mapping {
+  using value_type = typename Allocator::value_type;
+  using mapping_type = typename MdSpan::mapping;
+
+  basic_variable_data_storage() = default;
+
+  basic_variable_data_storage(VariableList list, mapping_type mapping,
+                              Allocator alloc = Allocator())
+      : VariableList(list), mapping_type(mapping),
+        m_data(list.size() * mapping.required_span_size(), alloc) {
+    assert(list.size() > 0);
+    assert(mapping.required_span_size() > 0);
+  }
+
+  fub::span<value_type> span() noexcept {
+    return {m_data.data(), static_cast<std::ptrdiff_t>(m_data.size())};
+  }
+
+  fub::span<const value_type> span() const noexcept {
+    return {m_data.data(), static_cast<std::ptrdiff_t>(m_data.size())};
+  }
+
+  const mapping_type& get_mapping() const noexcept { return *this; }
+
+  const VariableList& get_variable_list() const noexcept { return *this; }
+
+  std::vector<value_type, Allocator> m_data;
+};
 } // namespace detail
 
 /// This class provides data storage for a given variable list and uniform
@@ -105,6 +137,10 @@ public:
   basic_variable_data& operator=(const basic_variable_data&) = default;
   basic_variable_data(basic_variable_data&&) = default;
   basic_variable_data& operator=(basic_variable_data&&) = default;
+
+  basic_variable_data(VariableList list, extents_type extents,
+                      allocator_type alloc = allocator_type())
+      : m_storage(list, extents, alloc) {}
 
   /// \name Observers
 

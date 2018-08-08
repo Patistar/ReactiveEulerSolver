@@ -30,6 +30,11 @@ template <typename T = void> struct accessor_native {
   using element_type = T;
   using pointer = T*;
   using reference = T&;
+  accessor_native() = default;
+  accessor_native(const accessor_native&) = default;
+  template <typename U>
+  accessor_native(const accessor_native<U>& other) {}
+
   static constexpr pointer to_pointer(element_type& element) {
     return reinterpret_cast<pointer>(&element);
   }

@@ -52,7 +52,7 @@ public:
   template <typename F,
             typename = std::enable_if_t<!std::is_same<F, function_ref>::value>,
             typename = std::enable_if_t<is_invocable<F, Args...>::value>>
-  function_ref(F& function_object)
+  function_ref(F&& function_object)
       : m_data{std::addressof(function_object)},
         m_erased_function_pointer{[](void* function, Args... args) -> R {
           return invoke(*static_cast<F*>(function),

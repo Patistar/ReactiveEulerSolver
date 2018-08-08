@@ -28,6 +28,12 @@
 
 namespace fub {
 inline namespace v1 {
+#if defined(__cpp_lib_byte) && __cpp_lib_byte >= 201603
+using std::byte;
+#else
+using byte = unsigned char;
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                                          [traits.is_detected]
 

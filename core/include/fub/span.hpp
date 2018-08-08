@@ -470,7 +470,7 @@ public:
   ///         // s is empty
   ///     }
   constexpr explicit operator bool() const noexcept {
-    return data() != nullptr;
+    return size() > 0;
   }
 
 private:
@@ -550,6 +550,14 @@ template <typename T, index N, typename A>
 constexpr basic_span<T, dynamic_extent, A>
 subspan(basic_span<T, N, A> view, index lower, index length) noexcept {
   return take(drop(view, lower), length);
+}
+
+template <typename T, typename U, index N, typename A>
+constexpr basic_span<T, N, typename A::template rebind<T>>
+span_cast(basic_span<U, N, A> span) noexcept {
+  T* pointer = reinterpret_cast<T*>(span.data());
+  typename A::template rebind<T> accessor(span.get_accessor());
+  return {pointer, span.size(), accessor};
 }
 
 } // namespace v1

@@ -118,6 +118,7 @@ public:
   // CONSTRUCTORS
 
   constexpr basic_mdspan() = default;
+  basic_mdspan(const basic_mdspan&) = default;
 
   template <
       typename... Args,
@@ -132,6 +133,17 @@ public:
 
   constexpr basic_mdspan(span_type span, const mapping& m)
       : m_storage(span.data(), m, span.get_accessor()) {}
+
+  template <
+      typename S, typename OtherExtents, typename OtherLayout,
+      typename OtherAccess,
+      typename = std::enable_if_t<std::is_constructible<
+          span_type, typename basic_mdspan<S, OtherExtents, OtherLayout,
+                                           OtherAccess>::span_type>::value>>
+  constexpr basic_mdspan(
+      const basic_mdspan<S, OtherExtents, OtherLayout, OtherAccess>& other)
+      : basic_mdspan(other.span(), mapping(other.get_extents())) {}
+
 
   // [mdspan.basic.domobs], basic_mdspan observers of the domain multi-index
   // space

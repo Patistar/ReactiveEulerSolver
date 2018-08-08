@@ -21,330 +21,74 @@
 #ifndef FUB_HYPERBOLIC_SYSTEM_SOLVER_HPP
 #define FUB_HYPERBOLIC_SYSTEM_SOLVER_HPP
 
-#include "fub/face.hpp"
-#include "fub/optional.hpp"
-#include "fub/patch.hpp"
-#include "fub/patch_view.hpp"
-#include "fub/serial/grid.hpp"
-#include "fub/variables.hpp"
-#include "fub/variant.hpp"
-
 #include <chrono>
 
 namespace fub {
-namespace detail {
-/// We use this class to declare an action which integrates a patch in time.
-///
-/// @see Actions
-/// @{
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right, axis Axis>
-struct integrate_patch;
 
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right, axis Axis>
-struct integrate_patch_action;
-/// @}
-
-/// We use this class to declare an action which gets a stable time step size
-/// for patch.
-///
-/// @see Actions
-/// @{
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right>
-struct get_dt;
-
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right>
-struct get_dt_action;
-/// @}
-} // namespace detail
-
-template <typename Grid, typename BoundaryCondition, typename Coordinates,
-          typename FluxMethod, typename TimeIntegrator>
+template <typename FluxMethod, typename TimeIntegrator, typename Equation>
 struct hyperbolic_system_solver {
-  // Data related types
-  using traits = grid_traits<Grid>;
-  static constexpr int rank = traits::rank;
-  using equation_type = typename traits::equation_type;
-  using partition_type = typename traits::partition_type;
-  using node_type = typename traits::node_type;
-
-  // Execution related types
-  using location_type = typename traits::location_type;
-  template <typename T> using future = typename traits::template future<T>;
-
-  template <typename Left, typename Right, axis Axis>
-  using integrate_patch_action =
-      detail::integrate_patch_action<Grid, hyperbolic_system_solver,
-                                     Coordinates, Left, Right, Axis>;
-
-  template <typename Left, typename Right>
-  using get_dt_action = detail::get_dt_action<Grid, hyperbolic_system_solver,
-                                              Coordinates, Left, Right>;
-
-  // Utility typedef
-  using duration = std::chrono::duration<double>;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Helper Type Functions
-
-  template <axis Dim, direction Dir>
-  using get_face_neighbor_t = decltype(
-      std::declval<const BoundaryCondition&>()
-          .template get_face_neighbor<2, Dim, Dir>(
-              std::declval<partition_type&>(), std::declval<const Grid&>(),
-              std::declval<const Coordinates&>()));
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Get Neighbor Parittion
-
-  template <axis Axis, direction Dir>
-  variant<node_type, get_face_neighbor_t<Axis, Dir>>
-  get_face_neighbor(const partition_type& partition, const Grid& grid,
-                    const BoundaryCondition& boundary_condition,
-                    const Coordinates& coordinates) const {
-    using variant_t = variant<node_type, get_face_neighbor_t<Axis, Dir>>;
-    auto&& octant = traits::octant(partition);
-    auto existing_part = grid.template find_face_neighbor<Axis, Dir>(octant);
-    if (existing_part != grid.end()) {
-      return variant_t{in_place_index<0>, traits::node(*existing_part)};
-    }
-    return variant_t{
-        in_place_index<1>,
-        boundary_condition.template get_face_neighbor<2, Axis, Dir>(
-            partition, grid, coordinates)};
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Integrate in Time
-
-  template <axis Axis>
-  Grid step_split(const Grid& current, duration dt,
-                  const Coordinates& coordinates,
-                  const BoundaryCondition& boundary_condition) const {
-    equation_type equation = current.equation();
-    Grid next{equation, current.patch_extents()};
-    for (const partition_type& partition : current) {
-      // Find neighbor partitions for ghost cells.
-      variant<node_type, get_face_neighbor_t<Axis, direction::left>> left_ =
-          get_face_neighbor<Axis, direction::left>(
-              partition, current, boundary_condition, coordinates);
-      variant<node_type, get_face_neighbor_t<Axis, direction::right>> right_ =
-          get_face_neighbor<Axis, direction::right>(
-              partition, current, boundary_condition, coordinates);
-      // Fetch some Meta Data about what and where to integrate.
-      const octant<rank> octant = traits::octant(partition);
-      const Coordinates adapted = adapt(coordinates, octant);
-      node_type node = traits::node(partition);
-      location_type where = traits::get_location(partition);
-      // Whatever type left and right have, we do the same thing.
-      // visit dispatches `{variant<T, S>, variant<T, S>}` into for cases
-      // ({T, T}, {T, S}, {S, T}, {S, S}).
-      fub::visit(
-          [&](auto left, auto right) mutable {
-            // Create a function which will be possibly invoked delayed.
-            using L = std::decay_t<decltype(left)>;
-            using R = std::decay_t<decltype(right)>;
-            // Whenever `left`, `partition` and `right` are ready, invoke
-            // integrate_partition and put the result into `next`.
-            next.insert(next.end(), octant,
-                        traits::dataflow_action(
-                            integrate_patch_action<L, R, Axis>(), where,
-                            std::move(left), node, std::move(right), *this,
-                            equation, adapted, dt));
-          },
-          std::move(left_), std::move(right_));
-    }
-    return next;
-  }
-
-  template <int X, int... Dims>
-  Grid step(const Grid& grid, duration dt, const Coordinates& coordinates,
-            const BoundaryCondition& boundary_condition,
-            std::integer_sequence<int, X, Dims...>) const {
-    Grid next = step_split<axis(X)>(grid, dt, coordinates, boundary_condition);
-    (void)std::initializer_list<int>{
-        ((void)(next = step_split<axis(Dims)>(next, dt, coordinates,
-                                              boundary_condition)),
-         42)...};
-    return next;
-  }
-
-  Grid step(const Grid& grid, duration dt, const Coordinates& coordinates,
-            const BoundaryCondition& boundary_condition) const {
-    static constexpr int Rank = traits::rank;
-    return step(grid, dt, coordinates, boundary_condition,
-                make_int_sequence<Rank>());
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Get Time Step Size
-
-  future<duration>
-  get_time_step_size(const Grid& current, const Coordinates& coordinates,
-                     const BoundaryCondition& boundary_condition) const {
-    duration initial{std::numeric_limits<double>::infinity()};
-    return traits::reduce(
-        current, initial,
-        [](duration x, future<duration> y) { return std::min(x, y.get()); },
-        [&](const partition_type& partition) {
-          variant<node_type, get_face_neighbor_t<axis::x, direction::left>>
-              left_nb = get_face_neighbor<axis::x, direction::left>(
-                  partition, current, boundary_condition, coordinates);
-          variant<node_type, get_face_neighbor_t<axis::x, direction::left>>
-              right_nb = get_face_neighbor<axis::x, direction::right>(
-                  partition, current, boundary_condition, coordinates);
-          octant<rank> octant = traits::octant(partition);
-          Coordinates adapted = adapt(coordinates, octant);
-          node_type node = traits::node(partition);
-          location_type where = traits::get_location(partition);
-          return fub::visit(
-              [&](auto left, auto right) {
-                using L = std::decay_t<decltype(left)>;
-                using R = std::decay_t<decltype(right)>;
-                return traits::dataflow_action(
-                    get_dt_action<L, R>(), where, std::move(left), node,
-                    std::move(right), *this, current.equation(), adapted);
-              },
-              std::move(left_nb), std::move(right_nb));
-        });
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Get Next Time Step
-
-  future<std::pair<Grid, duration>>
-  get_next_time_step(const Grid& current, double cfl,
-                     const Coordinates& coordinates,
-                     const BoundaryCondition& boundary_condition) const {
-    auto stable_dt =
-        get_time_step_size(current, coordinates, boundary_condition);
-    auto do_step = [=](future<duration> stable_dt) {
-      duration actual_dt = cfl * stable_dt.get();
-      return std::make_pair(
-          step(current, actual_dt, coordinates, boundary_condition), actual_dt);
-    };
-    return traits::dataflow(do_step, std::move(stable_dt));
-  }
-
-  // Limited Version
-
-  future<std::pair<Grid, duration>>
-  get_next_time_step(const Grid& current, double cfl, duration limited_dt,
-                     const Coordinates& coordinates,
-                     const BoundaryCondition& boundary_condition) const {
-    future<duration> stable_dt =
-        get_time_step_size(current, coordinates, boundary_condition);
-    return traits::dataflow(
-        [=](future<duration> stable_dt) {
-          duration actual_dt = std::min(limited_dt, cfl * stable_dt.get());
-          return std::make_pair(
-              step(current, actual_dt, coordinates, boundary_condition),
-              actual_dt);
-        },
-        std::move(stable_dt));
-  }
-
-  template <typename Archive> void serialize(Archive& archive, unsigned) {
-    archive& flux_method;
-    archive& integrator;
-  }
-
   FluxMethod flux_method;
-  TimeIntegrator integrator;
+  TimeIntegrator time_integrator;
+  Equation equation;
+
+  using fub::p4est::basic_grid;
+
+  template <typename T> using seconds = std::chrono::duration<T>;
+
+  /// Estimates a time step size which does not violate the CFL condition.
+  template <typename Vs, int Rank, typename T>
+  seconds<T>
+  estimate_stable_time_step_size(const basic_grid<Vs, Rank, T>& grid) const;
+
+  /// Perfoms a conservative time step with specified time step size in a
+  /// specific split direction `dim`.
+  template <typename Vs, int Rank, typename T>
+  void time_step_split(const basic_grid<Vs, Rank, T>& grid, duration<T> size,
+                       axis dim) const;
+
+  /// Perfoms a conservative time step with specified time step size.
+  template <typename Vs, int Rank, typename T>
+  void time_step(const basic_grid<Vs, Rank, T>& grid, duration<T> size) const;
 };
 
-namespace detail {
-//////////////////////////////////////////////////////////////////////////////
-// Integrate Patch Action
+////////////////////////////////////////////////////////////////////////////////
+//                                                              Implementation
 
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right, axis Axis>
-struct integrate_patch {
-  using traits = grid_traits<Grid>;
-  static constexpr int rank = traits::rank;
-  using equation_type = typename traits::equation_type;
-  using node_type = typename traits::node_type;
-  using duration = std::chrono::duration<double>;
+template <typename FluxMethod, typename TimeIntegrator, typename Equation>
+template <typename Vs, int Rank, typename T>
+seconds<T> hyperbolic_system_solver<FluxMethod, TimeIntegrator, Equation>::
+    estimate_stable_time_step_size(
+        const fub::p4est::basic_grid<Vs, Rank, T>& grid) const {
+  using namespace fub::p4est;
+  span<const tree<Rank>> trees = grid.forest().trees();
+  constexpr T inf = std::numeric_limits<T>::infinity();
+  return std::accumulate(
+      trees.begin(), trees.end(), seconds(inf),
+      [&](seconds<T> dt, const tree<Rank>& tree) {
+        span<const quadrant<Rank>> quadrants = tree.quadrants();
+        return std::accumulate(quadrants.begin(), quadrants.end(), dt,
+                               [&](seconds<T> dt, quadrant<Rank> quad) {
+                                 return std::min(
+                                     dt, detail::estimate_stable_time_step_size(
+                                             *this, grid, quadrant));
+                               });
+      });
+}
 
-  static node_type invoke(Left left, node_type middle, Right right,
-                          Solver solver, equation_type equation,
-                          Coordinates coords, duration dt) {
-    auto lv = left.get_patch_view();
-    auto mv = middle.get_patch_view();
-    auto rv = right.get_patch_view();
-    node_type result = traits::dataflow(
-        [left, middle, right, solver, equation, coords, dt](auto lv, auto mv,
-                                                            auto rv) {
-          auto left_view = lv.get();
-          auto middle_view = mv.get();
-          auto right_view = rv.get();
-          typename traits::patch_type dest(middle_view.extents());
-          solver.integrator.template integrate<Axis>(
-              make_view(dest), left_view, middle_view, right_view, dt, coords,
-              solver.flux_method, equation);
-          node_type result(middle.get_location(), std::move(dest));
-          return result;
-        },
-        std::move(lv), std::move(mv), std::move(rv));
-    return result;
-  };
-};
-
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right, axis Axis>
-struct integrate_patch_action
-    : grid_traits<Grid>::template make_action<
-          decltype(&integrate_patch<Grid, Solver, Coordinates, Left, Right,
-                                    Axis>::invoke),
-          &integrate_patch<Grid, Solver, Coordinates, Left, Right,
-                           Axis>::invoke,
-          integrate_patch_action<Grid, Solver, Coordinates, Left, Right,
-                                 Axis>> {};
-
-//////////////////////////////////////////////////////////////////////////////
-// Get Time Step Size Action
-
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right>
-struct get_dt {
-  using traits = grid_traits<Grid>;
-
-  static constexpr int rank = traits::rank;
-  using equation_type = typename traits::equation_type;
-  using node_type = typename traits::node_type;
-  using duration = std::chrono::duration<double>;
-  template <typename T> using future = typename traits::template future<T>;
-
-  static future<duration> invoke(Left left, node_type middle, Right right,
-                                 Solver solver, equation_type equation,
-                                 Coordinates coords) {
-    auto lview = left.get_patch_view();
-    auto mview = middle.get_patch_view();
-    auto rview = right.get_patch_view();
-    return traits::dataflow(
-        [left, middle, right, solver, equation, coords](auto l, auto m,
-                                                        auto r) {
-          duration dt = solver.flux_method.get_stable_time_step(
-              equation, l.get(), m.get(), r.get(), coords);
-          assert(dt.count() > 0);
-          return dt;
-        },
-        std::move(lview), std::move(mview), std::move(rview));
+template <typename Vs, int Rank, typename T>
+basic_grid<Vs, Rank, T> time_step(const basic_grid<Vs, Rank, T>& grid,
+                                  duration<T> size) const {
+  basic_grid<Vs, Rank, T> next(grid);
+  for (int dim = 0; dim < Rank - 1; ++dim) {
+    next = time_step_split(next, size / 2, axis(dim));
   }
-};
-
-template <typename Grid, typename Solver, typename Coordinates, typename Left,
-          typename Right>
-struct get_dt_action
-    : grid_traits<Grid>::template make_action<
-          decltype(&get_dt<Grid, Solver, Coordinates, Left, Right>::invoke),
-          &get_dt<Grid, Solver, Coordinates, Left, Right>::invoke,
-          get_dt_action<Grid, Solver, Coordinates, Left, Right>> {};
-} // namespace detail
+  time_step_split(next, size, axis(Rank - 1));
+  for (int dim = Rank - 2; dim >= 0; --dim) {
+    next = time_step_split(next, size / 2, axis(dim));
+  }
+  return next;
+}
 
 } // namespace fub
 
-#endif // !SYSTEMSOLVER_HP
+#endif // !FUB_HYPERBOLIC_SYSTEM_SOLVER_HPP

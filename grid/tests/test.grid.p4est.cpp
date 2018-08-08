@@ -1,3 +1,4 @@
+#include "fub/output/cgns.hpp"
 #include "fub/output/gnuplot.hpp"
 #include "fub/p4est/grid.hpp"
 #include <chrono>
@@ -38,46 +39,154 @@ struct Momentum : vector_variable<2> {
   }
 };
 
-using Variables = variable_list<Density, Momentum>;
+using Variables = variable_list<Density, Momentum, Pressure>;
 
-struct State {
-  v1::p4est::grid<Variables, 2> grid;
-  std::chrono::duration<double> time;
-  std::ptrdiff_t cycle;
-};
+using Grid = fub::p4est::basic_grid<Variables, 2, double>;
 
-void my_main(MPI_Comm communicator, int rank) {
+void print_face_neighbors(const Grid& grid, fub::p4est::quadrant<2> quad,
+                          fub::face f) {
+  fub::span<const fub::p4est::quadrant<2>> nbs = grid.face_neighbors(quad, f);
+  for (fub::p4est::quadrant<2> neighbor : nbs) {
+    std::array<int, 2> x = neighbor.coordinates();
+    optional<int> rank = grid.find_owner_mpi_rank(neighbor);
+    int owner = rank ? *rank : grid.forest().mpi_rank();
+    fmt::print("{:>12}: ({}, {}) <-> face {} (owner: {})\n", "neighbor", x[0],
+               x[1], as_int(f), owner);
+  }
+}
+
+void my_initialize(Grid::patch_view data, Grid::coordinates_type coords) {
+  for_each_index(data.get_mapping(), [=](std::ptrdiff_t i, std::ptrdiff_t j) {
+    std::array<double, 2> x = coords(i, j);
+    if (x[0] + x[1] < 1.0) {
+      data[density](i, j) = 1.;
+      data[momentum<0>](i, j) = 0.;
+      data[momentum<1>](i, j) = 0.;
+      data[pressure](i, j) = 1.;
+    } else {
+      data[density](i, j) = 0.125;
+      data[momentum<0>](i, j) = 0.;
+      data[momentum<1>](i, j) = 0.;
+      data[pressure](i, j) = 1.;
+    }
+  });
+}
+
+double L2_derivatives(int axis, Grid::const_patch_view left,
+                      Grid::const_patch_view middle,
+                      Grid::const_patch_view right) {
+  double sum = 0;
+  for_each_index(middle.get_mapping(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+    const std::array<std::ptrdiff_t, 2> n{i, j};
+    if (n[axis] == 0) {
+      if (left.span()) {
+        std::ptrdiff_t last_i = left.get_extents().extent(axis) - 1;
+        std::array<std::ptrdiff_t, 2> last{n};
+        last[axis] = last_i;
+        sum += std::abs(fub::apply(middle[density], n) -
+                        fub::apply(left[density], last));
+        std::array<std::ptrdiff_t, 2> plast{last};
+        plast[axis] -= 1;
+        sum += std::abs(fub::apply(left[density], last) -
+                        fub::apply(left[density], plast));
+      }
+      if (right.span()) {
+        std::ptrdiff_t last_i = middle.get_extents().extent(axis) - 1;
+        std::array<std::ptrdiff_t, 2> last{n};
+        last[axis] = last_i;
+        std::array<std::ptrdiff_t, 2> snd{n};
+        snd[axis] = 1;
+        sum += std::abs(fub::apply(middle[density], last) -
+                        fub::apply(right[density], n));
+        sum += std::abs(fub::apply(right[density], snd) -
+                        fub::apply(right[density], n));
+      }
+    } else {
+      sum += std::abs(middle[density](i, j) - middle[density](i - 1, j));
+    }
+  });
+  std::ptrdiff_t volume = size(middle.get_extents());
+  return sum / volume;
+}
+
+void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   using namespace fub::v1::p4est;
 
-  dynamic_extents_t<2> extents(4, 4);
+  dynamic_extents_t<2> patch_extents(2, 2);
   uniform_cartesian_coordinates<2> coordinates({0.0, 0.0}, {1.0, 1.0},
-                                               as_array(extents));
-  grid<Variables, 2> grid(communicator, unit_square, min_level(3), fill_uniform,
-                          Variables(), extents, coordinates);
+                                               as_array(patch_extents));
+  Grid::patch_data_info meta_data{Variables(), patch_extents, patch_extents,
+                                  coordinates};
+  fub::p4est::connectivity<2> conn = unit_square;
+  fub::p4est::forest<2> forest(communicator, conn, 0, init_depth, 1);
+  fub::p4est::ghost_layer<2> ghost_layer(forest);
+  Grid grid(std::move(forest), std::move(ghost_layer), meta_data);
 
-  auto trees = grid.get_local_trees();
-  int counter = 0;
-  for (auto& tree : trees) {
-    for (auto& quad : tree.get_quadrants()) {
-      auto coords = quad.get_coordinates();
-      fmt::print("#{:<4}x: {}, y: {}, level: {}\n", rank, counter, coords[0],
-                 coords[1], quad.get_level());
-    }
-    counter += 1;
+  span<const quadrant<2>> quadrants = grid.forest().trees()[0].quadrants();
+  for (quadrant<2> quad : quadrants) {
+    auto data = grid.patch_data(quad);
+    auto coords = grid.coordinates(quad);
+    my_initialize(data, coords);
   }
-  fmt::print("#{:<4}Ghosts:\n", rank);
-  for (auto& ghost : grid.get_ghost_quadrants()) {
-    auto coords = ghost.get_coordinates();
-    fmt::print("#{:<4}x: {}, y: {}, level: {}\n", rank, ghost.local_num(),
-               ghost.which_tree(), coords[0], coords[1], ghost.get_level(),
-               grid.get_owner(ghost));
+
+  for (int i = 0; i < final_depth - init_depth; ++i) {
+    grid.synchronize_ghost_data();
+
+    fub::p4est::forest<2> forest = grid.forest();
+    refine_if(forest, [&](int which_tree, quadrant<2> quad) {
+      auto L2_derivatives_ = [&](fub::axis axis) {
+        const face fl{axis, direction::left};
+        const face fr{axis, direction::right};
+        const auto dx = grid.coordinates(quad).dx();
+        auto middle = grid.patch_data(quad);
+        auto left_quads = grid.face_neighbors(quad, fl);
+        auto right_quads = grid.face_neighbors(quad, fr);
+        Grid::const_patch_view left{}, right{};
+        if (left_quads) {
+          left = grid.patch_data(left_quads[0]);
+        }
+        if (right_quads) {
+          right = grid.patch_data(right_quads[0]);
+        }
+        const double volume = fub::accumulate(dx, 1.0, std::multiplies<>{});
+        return L2_derivatives(as_int(axis), left, middle, right) > volume / 64;
+      };
+      return L2_derivatives_(axis::x) || L2_derivatives_(axis::y);
+    });
+
+    grid.transfer_data_to(forest, [&](auto out, auto in) {
+      int size = in.quadrants.size();
+      for (int i = 0; i < size; ++i) {
+        my_initialize(in.datas[i], grid.coordinates(in.quadrants[i]));
+      }
+    });
   }
+
+  struct State {
+    Grid grid;
+    std::chrono::duration<double> time;
+    std::ptrdiff_t cycle;
+  };
+  using namespace std::literals;
+  State state{std::move(grid), 1s, 1};
+  output::cgns writer{};
+  std::string filename = fmt::format("test.grid.p4est.{}.cgns", rank);
+  auto file = writer.open(filename.c_str(), 2);
+  writer.write(file, state);
 }
 
 int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  my_main(MPI_COMM_WORLD, rank);
+  int init_depth = 0;
+  if (argc > 1) {
+    init_depth = std::atoi(argv[1]);
+  }
+  int final_depth = init_depth + 1;
+  if (argc > 2) {
+    final_depth = std::atoi(argv[2]);
+  }
+  my_main(MPI_COMM_WORLD, rank, init_depth, final_depth);
   MPI_Finalize();
 }

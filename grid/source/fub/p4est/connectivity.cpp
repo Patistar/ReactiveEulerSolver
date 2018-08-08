@@ -18,51 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_P4EST_GHOST_META_DATA_HPP
-#define FUB_P4EST_GHOST_META_DATA_HPP
-
-extern "C" {
-#include <p4est_ghost.h>
-}
-
-#include <memory>
+#include "fub/p4est/connectivity.hpp"
 
 namespace fub {
 inline namespace v1 {
 namespace p4est {
+const p4est_connectivity_t* connectivity<2>::native() const noexcept {
+  return m_handle.get();
+}
 
-template <int Rank> struct ghost_meta_data;
+p4est_connectivity_t* connectivity<2>::native() noexcept {
+  return m_handle.get();
+}
 
-template <> struct ghost_meta_data<2> {
-public:
-  ghost_meta_data() = default;
-
-  /// Takes the ownership of ghost.
-  explicit ghost_meta_data(p4est_t* forest)
-      : m_handle{p4est_ghost_new(forest, P4EST_CONNECT_FACE)} {}
-
-  p4est_ghost_t* operator->() const noexcept {
-    return m_handle.get();
-  }
-
-  operator p4est_ghost_t*() const noexcept {
-    return m_handle.get();
-  }
-  // operator const p4est_ghost_t*() const noexcept;
-
-private:
-  struct destroyer {
-    void operator()(p4est_ghost_t* p) const noexcept {
-      if (p) {
-        p4est_ghost_destroy(p);
-      }
-    }
-  };
-  std::unique_ptr<p4est_ghost_t, destroyer> m_handle{nullptr};
-};
+int connectivity<2>::num_trees() const noexcept { return m_handle->num_trees; }
 
 } // namespace p4est
 } // namespace v1
 } // namespace fub
-
-#endif

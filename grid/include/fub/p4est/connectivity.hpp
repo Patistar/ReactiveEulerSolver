@@ -37,9 +37,6 @@ static constexpr unit_square_t unit_square{};
 struct periodic_t {};
 static constexpr periodic_t periodic{};
 
-/// \ingroup p4est
-/// This is a wrapper for `p*est_connectivity_t` which describes how multiple
-/// "blocks" are connected to.
 template <int Rank> class connectivity;
 
 /// \ingroup p4est
@@ -47,19 +44,21 @@ template <int Rank> class connectivity;
 /// "blocks" are connected to in 2D.
 template <> class connectivity<2> {
 public:
+  /// \name Constructors & Assignment
+
   /// Constructs an invalid connectivity.
   connectivity() = default;
 
-  connectivity(const connectivity& other) = delete;
-  connectivity& operator=(const connectivity&) = delete;
-
+  /// The move constructor releases the ownership of the internal pointer.
   connectivity(connectivity&& other) = default;
+
+  /// The move assignment releases the ownership of the internal pointer.
   connectivity& operator=(connectivity&&) = default;
 
   /// Constructs a single block with boundaries.
   ///
-  /// Example:
-  /// \code 
+  /// \b Example:
+  /// \code
   /// // This line constructs a connectivity structure by calling
   /// // p4est_connectivity_new_unitsquare()
   /// connectivity<2> conn(unit_square);
@@ -74,8 +73,8 @@ public:
 
   /// Constructs a single block with periodic boundaries.
   ///
-  /// Example:
-  /// \code 
+  /// \b Example:
+  /// \code
   /// // This line constructs a connectivity structure by calling
   /// // p4est_connectivity_new_periodic()
   /// connectivity<2> conn(periodic);
@@ -88,21 +87,14 @@ public:
   connectivity(periodic_t) noexcept // NOLINT
       : m_handle{p4est_connectivity_new_periodic()} {}
 
-  /// Conversion operator to its native pointer type.
-  ///
-  /// \return Returns a non-owning pointer to p4est_connectivity_t.
-  ///
-  /// \throws Nothing.
-  operator p4est_connectivity_t*() { return m_handle.get(); }
+  /// Returns a pointer to `const p4est_connectivity_t`.
+  const p4est_connectivity_t* native() const noexcept;
 
-  /// Conversion operator to its native pointer type.
-  ///
-  /// \return Returns a non-owning pointer to const p4est_connectivity_t.
-  ///
-  /// \throws Nothing.
-  operator const p4est_connectivity_t*() const noexcept {
-    return m_handle.get();
-  }
+  /// Returns a pointer to `p4est_connectivity_t`.
+  p4est_connectivity_t* native() noexcept;
+
+  /// Returns the number of trees.
+  int num_trees() const noexcept;
 
 private:
   struct destroyer {

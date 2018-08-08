@@ -49,9 +49,20 @@ public:
   basic_variable_view(basic_variable_view&&) = default;
   basic_variable_view& operator=(basic_variable_view&&) = default;
 
+  template <typename OtherMdSpan,
+            typename = std::enable_if_t<
+                std::is_constructible<MdSpan, OtherMdSpan>::value>>
+  basic_variable_view(basic_variable_view<VariableList, OtherMdSpan> other)
+      : VariableList(other.get_variable_list()),
+        mapping_type(other.get_extents()), m_span{other.span()} {
+    assert(static_size(get_variable_list(), get_extents()) <= m_span.size());
+  }
+
   basic_variable_view(VariableList list, span_type span,
                       extents_type extents = extents_type())
-      : VariableList(list), mapping_type(extents), m_span{span} {}
+      : VariableList(list), mapping_type(extents), m_span{span} {
+    assert(static_size(get_variable_list(), get_extents()) <= m_span.size());
+  }
   /// @}
 
   /// @{

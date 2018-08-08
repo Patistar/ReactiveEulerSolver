@@ -21,10 +21,17 @@
 #ifndef FUB_P4EST_FOREST_HPP
 #define FUB_P4EST_FOREST_HPP
 
+#include "fub/functional.hpp"
+#include "fub/optional.hpp"
+#include "fub/span.hpp"
+
+#include "fub/p4est/connectivity.hpp"
+#include "fub/p4est/quadrant.hpp"
+#include "fub/p4est/tree.hpp"
+
 extern "C" {
 #include <p4est.h>
 #include <p4est_extended.h>
-#include <p4est_ghost.h>
 #include <p8est.h>
 }
 
@@ -36,39 +43,110 @@ namespace p4est {
 
 template <int Rank> class forest;
 
+/// \ingroup p4est
+/// This is a wrapper for the 2-dimensional forest type `p4est_t`.
 template <> class forest<2> {
 public:
+  /// \name Constructors & Assignment
+
+  /// Constructs an invalid forest.
   forest() = default;
-  explicit forest(p4est_t*);
 
-  forest(MPI_Comm communicator, p4est_connectivity_t* conn) noexcept
-      : m_handle{p4est_new(communicator, conn, 0, nullptr, nullptr)} {}
+  /// Copy constructor makes a deep copy of the forest but does not copy
+  /// user-data in the quadrants.
+  ///
+  /// \param[in] other  The forest which will be copied.
+  ///
+  /// \throws std::bad_alloc on allocation error.
+  forest(const forest& other);
 
-  template <typename Init>
-  forest(MPI_Comm communicator, p4est_connectivity_t* conn, Init init) noexcept
-      : m_handle{p4est_new(
-            communicator, conn, 0,
-            [](p4est_t* g, p4est_topidx_t which_tree, p4est_quadrant_t* quad) {
-              return fub::invoke(*static_cast<Init*>(g->user_pointer), g,
-                                 which_tree, quad);
-            },
-            &init)} {}
+  /// Copy Assignment makes a deep copy of the forest but does not copy
+  /// user-data in the quadrants.
+  ///
+  /// \param[in] other  The forest which will be copied.
+  ///
+  /// \throws std::bad_alloc on allocation error.
+  forest& operator=(const forest& other);
 
-  template <typename Init>
-  forest(MPI_Comm communicator, p4est_connectivity_t* conn,
-         p4est_locidx_t min_quads, int min_level, int fill_uniform,
-         Init init) noexcept
-      : m_handle{p4est_new_ext(
-            communicator, conn, min_quads, min_level, fill_uniform, 0,
-            [](p4est_t* g, p4est_topidx_t which_tree, p4est_quadrant_t* quad) {
-              return fub::invoke(*static_cast<Init*>(g->user_pointer), g,
-                                 which_tree, quad);
-            },
-            &init)} {}
+  /// Move constructor leaves an invalid forest.
+  ///
+  /// \throws Nothing.
+  forest(forest&&) noexcept = default;
 
-  p4est_t* operator->() const noexcept { return m_handle.get(); }
+  /// Move Assignment leaves an invalid forest.
+  ///
+  /// \throws Nothing.
+  forest& operator=(forest&&) noexcept = default;
 
-  operator p4est_t*() const noexcept { return m_handle.get(); }
+  /// Take ownership of the specified p4est pointer.
+  ///
+  /// \throws Nothing.
+  explicit forest(p4est_t* pointer) noexcept;
+
+  /// Constructs a new forest.
+  ///
+  /// The new forest consists of equi-partitioned root quadrants. When there are
+  /// more processors than trees, some processors are empty.
+  ///
+  /// \param[in] communicator  A MPI communicator which refers to the group of
+  /// procecsses to share trees in the forest with.
+  ///
+  /// \param[in] conn  A connectivity object which describes tree connections in
+  /// the forest.
+  ///
+  /// \throws Nothing.
+  ///
+  /// \note The connectivity structure must not be destroyed during the lifetime
+  /// of this forest.
+  forest(MPI_Comm communicator, const connectivity<2>& conn) noexcept;
+
+  /// Constructs a new forest.
+  ///
+  /// \param[in] communicator  A MPI communicator which refers to the group of
+  /// procecsses to share trees in the forest with.
+  ///
+  /// \param[in] conn  A connectivity object which describes tree connections in
+  /// the forest.
+  ///
+  /// \param[in] min_quads  Minimum initial quadrants per processor. Makes the
+  /// refinement pattern mpisize-specific.
+  ///
+  /// \param[in] min_level  The forest is refined at least to this level. May be
+  /// negative or 0, then it has no effect.
+  ///
+  /// \param[in] fill_uniform  If true, fill the forest with a uniform mesh
+  /// instead of the coarsest possible one. The latter is partition-specific so
+  /// that is usually not a good idea.
+  ///
+  /// \throws Nothing.
+  ///
+  /// \note The connectivity structure must not be destroyed during the lifetime
+  /// of this forest.
+  forest(MPI_Comm communicator, ::fub::p4est::connectivity<2>& conn,
+         int min_quads, int min_level, int fill_uniform) noexcept;
+
+  /// \name Member Accessors
+
+  /// Returns the MPI communicator.
+  MPI_Comm mpi_communicator() const noexcept;
+
+  /// Returns this process's MPI rank.
+  int mpi_rank() const noexcept;
+
+  /// Returns the number of MPI processes.
+  int mpi_size() const noexcept;
+
+  /// Returns the number of quadrants on all trees on this processor.
+  int local_num_quadrants() const noexcept;
+
+  /// Returns the number of quadrants on all trees on all processors
+  std::ptrdiff_t global_num_quadrants() const noexcept;
+
+  /// Returns a view of all trees.
+  span<const tree<2>> trees() const noexcept;
+
+  p4est_t* native() noexcept;
+  const p4est_t* native() const noexcept;
 
 private:
   struct destroyer {
@@ -81,28 +159,23 @@ private:
   std::unique_ptr<p4est_t, destroyer> m_handle{nullptr};
 };
 
-inline p4est_locidx_t face_quadrant_exists(p4est_t* p4est, p4est_ghost_t* ghost,
-                                           p4est_topidx_t treeid,
-                                           const p4est_quadrant_t* q, int* face,
-                                           int* hang, int* owner_rank) {
-  return p4est_face_quadrant_exists(p4est, ghost, treeid, q, face, hang,
-                                    owner_rank);
+template <typename Predicate>
+void refine_if(forest<2>& forest, Predicate predicate) {
+  forest.native()->user_pointer = &predicate;
+  p4est_refine(
+      forest.native(), 0,
+      [](p4est_t* forest, int which_tree, p4est_quadrant_t* quad) -> int {
+        Predicate* pred = reinterpret_cast<Predicate*>(forest->user_pointer);
+        quadrant<2> q(*quad);
+        return fub::invoke(*pred, which_tree, q);
+      },
+      nullptr);
 }
 
-template <> class forest<3> {
-public:
-  forest() = default;
-  explicit forest(p8est_t*);
+void balance(forest<2>& forest) noexcept;
 
-  operator p8est_t*() noexcept;
-  operator const p8est_t*() const noexcept;
-
-private:
-  struct destroyer {
-    void operator()(p8est_t*) const noexcept;
-  };
-  std::unique_ptr<p8est_t, destroyer> m_handle{nullptr};
-};
+optional<std::ptrdiff_t> find(const forest<2>& forest,
+                              const quadrant<2>& quad) noexcept;
 
 } // namespace p4est
 } // namespace v1

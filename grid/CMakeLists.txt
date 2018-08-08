@@ -29,6 +29,10 @@ endif()
 if (TARGET Boost::container)
   list(APPEND FUB_GRID_DEPENDENCIES Boost::container)
   set(FUB_WITH_POLYMORPHIC_ALLOCATOR TRUE)
+else()
+  find_package(Boost REQUIRED container)
+  list(APPEND FUB_GRID_DEPENDENCIES Boost::container)
+  set(FUB_WITH_POLYMORPHIC_ALLOCATOR TRUE)
 endif()
 
 configure_file(include/fub/config.hpp.in ${CMAKE_BINARY_DIR}/fub/grid/config.hpp)
@@ -45,7 +49,13 @@ endif()
 list(APPEND FUB_GRID_DEPENDENCIES eigen)
 
 add_library(ReactiveEulerSolver.grid
-  source/fub/output/cgns.cpp)
+  source/fub/output/cgns.cpp
+  source/fub/p4est/quadrant.cpp
+  source/fub/p4est/connectivity.cpp
+  source/fub/p4est/ghost_layer.cpp
+  source/fub/p4est/tree.cpp
+  source/fub/p4est/mesh.cpp
+  source/fub/p4est/forest.cpp)
 target_include_directories(ReactiveEulerSolver.grid PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.grid PUBLIC 
   ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})

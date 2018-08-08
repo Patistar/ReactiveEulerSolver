@@ -18,49 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_P4EST_TREE_HPP
-#define FUB_P4EST_TREE_HPP
-
-#include "fub/p4est/quadrant.hpp"
-#include "fub/span.hpp"
+#include "fub/p4est/tree.hpp"
 
 namespace fub {
 inline namespace v1 {
 namespace p4est {
+namespace {
+span<const quadrant<2>> as_quadrant2_span(sc_array* array) noexcept {
+  std::ptrdiff_t size = array->elem_count;
+  if (size) {
+    const quadrant<2>* pointer = reinterpret_cast<const quadrant<2>*>(
+        p4est_quadrant_array_index(array, 0));
+    return {pointer, size};
+  }
+  return {};
+}
+} // namespace
 
-template <int Rank> class tree;
+/// Returns a view of all locally stored quadrants.
+span<const quadrant<2>> tree<2>::quadrants() const noexcept {
+  return as_quadrant2_span(const_cast<sc_array*>(&m_native.quadrants));
+}
 
-/// \ingroup p4est
-/// This is a wrapper for the 2-dimensional tree type `p4est_tree_t`.
-template <> class tree<2> {
-public:
-  /// \name Observers
+/// Returns the highest local quadrant refinement level.
+int tree<2>::max_level() const noexcept { return m_native.maxlevel; }
 
-  tree() = default;
-  tree(const tree&) = default;
-
-  /// The explicit conversion operator from the native type.
-  explicit tree(const p4est_tree_t& q) : m_native{q} {}
-
-  /// Returns 2.
-  static constexpr int rank() noexcept { return 2; }
-
-  /// Returns a view of all locally stored quadrants.
-  span<const quadrant<2>> quadrants() const noexcept;
-
-  /// Returns the highest local quadrant refinement level.
-  int max_level() const noexcept;
-
-  /// Returns the cumulative sum over earlier trees on this processor (locals only).
-  std::ptrdiff_t offset() const noexcept;
-
-
-private:
-  p4est_tree_t m_native;
-};
+/// Returns the cumulative sum over earlier trees on this processor (locals
+/// only).
+std::ptrdiff_t tree<2>::offset() const noexcept {
+  return m_native.quadrants_offset;
+}
 
 } // namespace p4est
 } // namespace v1
 } // namespace fub
-
-#endif

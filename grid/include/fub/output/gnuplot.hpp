@@ -22,8 +22,8 @@
 #define FUB_OUTPUT_GNUPLOT_HPP
 
 #include "fub/tuple.hpp"
-#include <fmt/format.h>
 #include <array>
+#include <fmt/format.h>
 
 namespace fub {
 inline namespace v1 {
@@ -61,10 +61,12 @@ struct gnuplot {
   static void write(std::FILE* file, const State& state) {
     fmt::print(file, "# time = {:<.6e}, cycle = {}\n", state.time.count(),
                state.cycle);
-    auto local_nodes = state.grid.get_local_nodes();
-    for (auto&& node : local_nodes) {
-      gnuplot::write(file, state.grid.get_patch_data(node),
-                     state.grid.get_coordinates(node));
+    auto&& forest = state.grid.forest();
+    for (auto&& tree : forest.trees()) {
+      for (auto&& quad : tree.quadrants()) {
+        gnuplot::write(file, state.grid.patch_data(quad),
+                       state.grid.coordinates(quad));
+      }
     }
   }
 };

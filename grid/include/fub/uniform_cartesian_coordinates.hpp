@@ -21,7 +21,6 @@
 #ifndef FUB_UNIFORM_CARTESIAN_COORDINATES_HPP
 #define FUB_UNIFORM_CARTESIAN_COORDINATES_HPP
 
-#include "fub/octree.hpp"
 #include "fub/tuple.hpp"
 #include "fub/type_traits.hpp"
 #include "fub/utility.hpp"
@@ -126,17 +125,17 @@ private:
   }
 };
 
-template <int Rank>
+template <int Rank, typename Oct>
 uniform_cartesian_coordinates<Rank>
 adapt(const uniform_cartesian_coordinates<Rank>& coords,
-      const octant<Rank>& octant) {
+      const Oct& octant) {
   std::array<index, Rank> extents = coords.extents();
-  index refinement_ratio = (1 << octant.depth());
+  index refinement_ratio = (1 << octant.level());
   std::transform(extents.begin(), extents.end(), extents.begin(),
                  [=](index e) { return e * refinement_ratio; });
   uniform_cartesian_coordinates<Rank> intermediate(coords.lower(),
                                                    coords.upper(), extents);
-  std::array<std::uint64_t, Rank> idx = coordinates(octant);
+  std::array<int, Rank> idx = octant.coordinates();
   std::transform(idx.begin(), idx.end(), coords.extents().begin(), idx.begin(),
                  [](index lo, index e) { return lo * e; });
   std::array<double, Rank> lower = fub::apply(intermediate, idx);

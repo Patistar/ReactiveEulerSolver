@@ -34,14 +34,25 @@ template <axis A> using axis_constant = std::integral_constant<axis, A>;
 template <axis A> static constexpr axis_constant<A> axis_c{};
 
 struct face {
+  face() = default;
+  constexpr face(axis dim, direction dir) : dimension{dim}, side{dir} {}
+  explicit face(int i) : dimension(axis(i / 2)), side(direction(i % 2)) {}
+
   axis dimension;
   direction side;
+
+  operator int() const noexcept {
+    const int dir = (this->side == direction::left) ? 0 : 1;
+    const int dim = 2 * static_cast<int>(dimension);
+    const int result = dim + dir;
+    return result;
+  }
 };
 
 constexpr int as_int(axis dim) noexcept { return static_cast<int>(dim); }
 constexpr int as_int(face f) noexcept {
   const int side = (f.side == direction::left) ? 0 : 1;
-  const int dim =  2 * as_int(f.dimension);
+  const int dim = 2 * as_int(f.dimension);
   return dim + side;
 }
 constexpr int sign(direction side) noexcept { return static_cast<int>(side); }

@@ -21,6 +21,10 @@
 #ifndef FUB_P4EST_QUADRANT_HPP
 #define FUB_P4EST_QUADRANT_HPP
 
+#include "fub/face.hpp"
+#include "fub/optional.hpp"
+#include "fub/span.hpp"
+
 extern "C" {
 #include <p4est.h>
 #include <p4est_bits.h>
@@ -33,135 +37,69 @@ namespace fub {
 inline namespace v1 {
 namespace p4est {
 
-/// \ingroup p4est
-/// This is a wrapper for the quadrant types of p4est.
 template <int Rank> class quadrant;
 
 /// \ingroup p4est
 /// This is a wrapper for the 2-dimensional quadrant type `p4est_quadrant_t`.
-///
-/// We use this type conveniently to index into out local patch data vector
-/// of \a grid. This makes a quadrant being a handle type.
 template <> class quadrant<2> {
 public:
-  /// \name Constructor
+  /// \name Constructors
 
   quadrant() = default;
+  quadrant(const quadrant&) = default;
 
-  /// Implicit conversion from its native type.
-  constexpr quadrant(const p4est_quadrant_t& q) noexcept : m_handle{q} {}
+  quadrant(const p4est_quadrant_t& q) : m_native{q} {}
 
   /// \name Observers
 
   /// Returns 2.
   static constexpr int rank() noexcept { return 2; }
 
-  /// @{
-  /// Returns the native type.
-  ///
-  /// \throws Nothing.
-  constexpr const p4est_quadrant_t& get_native() const noexcept {
-    return m_handle;
-  }
-  constexpr p4est_quadrant_t& get_native() noexcept { return m_handle; }
-  /// @}
+  /// Returns the tree index of this quadrant (only valid for ghost and mirror
+  /// quadrants).
+  int which_tree() const noexcept;
 
-  /// Returns the index of the local patch data in the grid where this quadrant
-  /// belongs to.
-  constexpr long index() const noexcept { return m_handle.p.user_long; }
-
-  /// Returns the tree index of this quadrant (only valid for ghost quadrants).
-  constexpr int which_tree() const noexcept { return m_handle.p.which_tree; }
-
-  /// Returns the owner rank of this quadrant (only valid for ghost quadrants).
-  constexpr int local_num() const noexcept {
-    return m_handle.p.piggy3.local_num;
-  }
+  /// Returns the local index with respect to some p4est tree of this quadrant.
+  int local_num() const noexcept;
 
   /// Returns the refinement level of this quadrant.
-  constexpr int get_level() const noexcept { return m_handle.level; }
+  int level() const noexcept;
 
-  /// Returns a array of {x, y} coordinates which can be used to adapt
-  /// coordinates.
-  std::array<std::uint64_t, 2> get_coordinates() const noexcept {
-    assert(m_handle.x >= 0 && m_handle.y >= 0);
-    std::uint64_t x = reverse(reverse(m_handle.x, 30), get_level());
-    std::uint64_t y = reverse(reverse(m_handle.y, 30), get_level());
-    return {x, y};
-  }
+  /// Returns an `std::array<int, 2>` of x and y coordinates which can be used
+  /// to adapt coordinates.
+  std::array<int, 2> coordinates() const noexcept;
+
+  /// \name Base Access
+
+  /// Returns a reference to the internal const p4est_quadrant_t object.
+  const p4est_quadrant_t& native() const noexcept { return m_native; }
 
 private:
-  static uint32_t reverse(uint32_t x, int bits) noexcept {
-    x = ((x & 0x55555555) << 1) | ((x & 0xAAAAAAAA) >> 1);
-    x = ((x & 0x33333333) << 2) | ((x & 0xCCCCCCCC) >> 2);
-    x = ((x & 0x0F0F0F0F) << 4) | ((x & 0xF0F0F0F0) >> 4);
-    x = ((x & 0x00FF00FF) << 8) | ((x & 0xFF00FF00) >> 8);
-    x = ((x & 0x0000FFFF) << 16) | ((x & 0xFFFF0000) >> 16);
-    return x >> (32 - bits);
-  }
-
-  p4est_quadrant_t m_handle;
+  p4est_quadrant_t m_native;
 };
 
-inline quadrant<2> face_neighbor(quadrant<2> quad, int face) noexcept {
-  quadrant<2> nb;
-  p4est_quadrant_face_neighbor(&quad.get_native(), face, &nb.get_native());
-  return nb;
+bool operator==(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
+bool operator!=(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
+bool operator<(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
+
+quadrant<2> face_neighbor(const quadrant<2>& quad, int face) noexcept;
+
+optional<face> find_adjacent_face(const quadrant<2>& left,
+                                  const quadrant<2>& right) noexcept;
+
+std::array<quadrant<2>, 4> children(const quadrant<2>& quad) noexcept;
+
+template <int Rank>
+span<const quadrant<Rank>> as_quadrant_span(sc_array_t& array) {
+  static_assert(std::is_standard_layout<quadrant<Rank>>::value,
+                "Can not cast p4est_quadrant_t* to quadrant<2>*");
+  std::ptrdiff_t size = array.elem_count;
+  const quadrant<Rank>* pointer =
+      size == 0 ? nullptr
+                : reinterpret_cast<const quadrant<Rank>*>(
+                      p4est_quadrant_array_index(&array, 0));
+  return {pointer, size};
 }
-
-/// \ingroup p4est
-/// This is a wrapper for the 3-dimensional quadrant type `p8est_quadrant_t`.
-///
-/// We use this type conveniently to index into out local patch data vector
-/// of \a grid. This makes a quadrant being a handle type.
-template <> class quadrant<3> {
-public:
-public:
-  /// \name Constructor
-
-  quadrant() = default;
-
-  /// Implicit conversion from its native type.
-  constexpr quadrant(const p8est_quadrant_t& q) noexcept : m_handle{q} {}
-
-  /// \name Observers
-
-  /// Returns 3.
-  static constexpr int rank() noexcept { return 3; }
-
-  /// Returns the native type.
-  constexpr const p8est_quadrant_t& get_native() const noexcept {
-    return m_handle;
-  }
-
-  /// Returns the index of the local patch data in the grid where this quadrant
-  /// belongs to.
-  constexpr long index() const noexcept { return m_handle.p.user_long; }
-
-  /// Returns the refinement level of this quadrant.
-  constexpr int get_level() const noexcept { return m_handle.level; }
-
-  /// Returns a array of {x, y} coordinates which can be used to adapt
-  /// coordinates.
-  std::array<std::uint64_t, 2> get_coordinates() const noexcept {
-    assert(m_handle.x >= 0 && m_handle.y >= 0);
-    std::uint64_t x = reverse(reverse(m_handle.x, 30), get_level());
-    std::uint64_t y = reverse(reverse(m_handle.y, 30), get_level());
-    return {x, y};
-  }
-
-private:
-  static uint32_t reverse(uint32_t x, int bits) noexcept {
-    x = ((x & 0x55555555) << 1) | ((x & 0xAAAAAAAA) >> 1);
-    x = ((x & 0x33333333) << 2) | ((x & 0xCCCCCCCC) >> 2);
-    x = ((x & 0x0F0F0F0F) << 4) | ((x & 0xF0F0F0F0) >> 4);
-    x = ((x & 0x00FF00FF) << 8) | ((x & 0xFF00FF00) >> 8);
-    x = ((x & 0x0000FFFF) << 16) | ((x & 0xFFFF0000) >> 16);
-    return x >> (32 - bits);
-  }
-
-  p8est_quadrant_t m_handle;
-};
 
 } // namespace p4est
 } // namespace v1

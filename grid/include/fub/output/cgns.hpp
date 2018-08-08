@@ -31,6 +31,8 @@ extern "C" {
 #include <chrono>
 #include <string>
 
+#include <fmt/format.h>
+
 namespace fub {
 inline namespace v1 {
 namespace output {
@@ -57,11 +59,10 @@ struct cgns {
   ///
   /// \return Returns a cgns_context object which refers to an open file and
   /// cgns base.
-  static cgns_context open(const char* file_name, int dimension);
+  static cgns_context open(const char* file_name, int dimension, int mode = CG_MODE_WRITE);
 
-  template <typename Patch, typename Coordinates>
-  static void write(const cgns_context& ctx, const Patch& patch,
-                    const Coordinates& coordinates);
+  template <typename Grid, typename Box>
+  static void write(const cgns_context& ctx, const Grid& grid, const Box& box);
 
   template <typename State>
   static void write(const cgns_context& ctx, const State& state);
@@ -94,7 +95,7 @@ public:
   int base() const noexcept;
 
 private:
-  friend class cgns;
+  friend struct cgns;
 
   cgns_context(int file, int base) noexcept;
 
@@ -148,16 +149,37 @@ void flow_solution_write(const zone_context& zone, const Patch& patch) {
     cell_centered_field_write(zone, solution, var.name(), patch[var].span());
   });
 }
+
+template <typename Quad> std::array<char, 33> make_zone_name(Quad quad) {
+  std::array<char, 33> array{};
+  fmt::basic_memory_buffer<char, 33> buffer;
+  auto x = quad.coordinates();
+  fmt::format_to(buffer, "Zone-{}_{}_{}", quad.level(), x[0], x[1]);
+  std::copy_n(buffer.data(), buffer.size(), array.data());
+  return array;
+}
 }; // namespace cgns_details
 
-template <typename Patch, typename Coordinates>
-void cgns::write(const cgns_context& ctx, const Patch& patch,
-                 const Coordinates& coordinates) {
+template <typename Grid, typename Box>
+void cgns::write(const cgns_context& ctx, const Grid& grid, const Box& box) {
   using namespace cgns_details;
-  // array<char, 33> zone_name = make_zone_name(octant);
-  zone_context zone = zone_write(ctx, "Zone_0", coordinates.extents());
+  std::array<char, 33> zone_name = cgns_details::make_zone_name(box);
+  auto coordinates = grid.coordinates(box);
+  auto patch = grid.patch_data(box);
+  zone_context zone = zone_write(ctx, zone_name.data(), coordinates.extents());
   coordinates_write(zone, coordinates);
   flow_solution_write(zone, patch);
+}
+
+template <typename State>
+void cgns::write(const cgns_context& ctx, const State& state) {
+  auto trees = state.grid.forest().trees();
+  for (auto&& tree : trees) {
+    auto quads = tree.quadrants();
+    for (auto quad : quads) {
+      write(ctx, state.grid, quad);
+    }
+  }
 }
 
 } // namespace output

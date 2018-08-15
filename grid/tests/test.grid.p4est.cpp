@@ -52,7 +52,7 @@ void print_face_neighbors(const Grid& grid, fub::p4est::quadrant<2> quad,
   for (fub::p4est::mesh_quadrant<2> neighbor : nbs) {
     std::array<int, 2> x = neighbor.quad.coordinates();
     optional<int> rank = grid.find_owner_mpi_rank(neighbor.quad);
-    int owner = rank ? *rank : grid.forest().mpi_rank();
+    int owner = rank ? *rank : grid.get_forest().mpi_rank();
     fmt::print("{:>12}: ({}, {}) <-> face {} (owner: {})\n", "neighbor", x[0],
                x[1], as_int(f), owner);
   }
@@ -120,18 +120,17 @@ Grid::const_patch_view interpolate_neighbor_data(
   if (neighbors.size() == 0) {
     return {};
   }
-  Grid::const_patch_view interpolated(Variables(), buffer,
-                                      grid.patch_extents());
   int offset = static_cast<int>(face.side == direction::left);
+  Grid::patch_view interpolated(Variables(), buffer, grid.patch_extents());
   // neighbors have a finer level than quad.
   if (neighbors.size() > 1) {
     assert(neighbors.size() == 2);
     assert(neighbors[0].quad.level() == quad.level() + 1);
     assert(neighbors[1].quad.level() == quad.level() + 1);
     linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated,
-                      find_neighbor_child_id(quad, neighbors[0].quad));
+                      *find_neighbor_child_id(quad, neighbors[0].quad));
     linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated,
-                      find_neighbor_child_id(quad, neighbors[1].quad));
+                      *find_neighbor_child_id(quad, neighbors[1].quad));
     return interpolated;
   }
 
@@ -139,7 +138,7 @@ Grid::const_patch_view interpolate_neighbor_data(
   assert(neighbors.size() == 1);
   assert(neighbors[0].quad.level() + 1 == quad.level());
   linearily_refine(grid.patch_data(neighbors[0].quad), interpolated,
-                   find_neighbor_child_id(neighbors[0].quad, quad));
+                   *find_neighbor_child_id(neighbors[0].quad, quad));
   return interpolated;
 }
 
@@ -155,7 +154,7 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   fub::p4est::ghost_layer<2> ghost_layer(forest);
   Grid grid(std::move(forest), std::move(ghost_layer), meta_data);
 
-  span<const quadrant<2>> quadrants = grid.forest().trees()[0].quadrants();
+  span<const quadrant<2>> quadrants = grid.get_forest().trees()[0].quadrants();
   for (quadrant<2> quad : quadrants) {
     auto data = grid.patch_data(quad);
     auto coords = grid.coordinates(quad);
@@ -169,7 +168,7 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   for (int i = 0; i < final_depth - init_depth; ++i) {
     grid.exchange_quadrant_data();
 
-    fub::p4est::forest<2> forest = grid.forest();
+    fub::p4est::forest<2> forest = grid.get_forest();
     refine_if(forest, [&](int which_tree, quadrant<2> quad) {
       auto L2_derivatives_ = [&](fub::axis axis) {
         const face fl{axis, direction::left};

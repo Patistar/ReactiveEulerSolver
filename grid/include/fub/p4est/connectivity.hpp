@@ -21,9 +21,7 @@
 #ifndef FUB_P4EST_CONNECTIVITY_HPP
 #define FUB_P4EST_CONNECTIVITY_HPP
 
-extern "C" {
 #include <p4est.h>
-}
 
 #include <memory>
 

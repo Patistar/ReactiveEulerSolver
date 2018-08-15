@@ -47,10 +47,11 @@ void for_each_index(index_range<Rank> range, F feedback) {
   dynamic_extents_t<Rank> extents(range.extents);
   using mapping_t =
       typename layout_left::template mapping<dynamic_extents_t<Rank>>;
-  for_each_index(mapping_t(extents), [=](std::array<index, Rank> indices) {
-    std::transform(indices.begin(), indices.end(), range.origin.begin(),
-                   indices.begin(), [=](index i, index o) { return i - o; });
-    fub::invoke(feedback, indices);
+  for_each_index(mapping_t(extents), [=](auto... indices) {
+    std::array<std::ptrdiff_t, Rank> is{{indices...}};
+    std::transform(is.begin(), is.end(), range.origin.begin(), is.begin(),
+                   [=](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
+    feedback(is);
   });
 }
 

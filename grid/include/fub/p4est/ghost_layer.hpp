@@ -26,10 +26,8 @@
 #include "fub/p4est/quadrant.hpp"
 #include "fub/p4est/forest.hpp"
 
-extern "C" {
 #include <p4est.h>
 #include <p4est_ghost.h>
-}
 
 #include <memory>
 

@@ -36,10 +36,8 @@
 #include "fub/variable_data.hpp"
 #include "fub/variable_view.hpp"
 
-extern "C" {
 #include <mpi.h>
 #include <p4est_bits.h>
-}
 
 #include <array>
 #include <cstring>
@@ -207,10 +205,10 @@ public:
   /// \name p4est related Member Access
 
   /// Returns the underlying forest object.
-  const forest_type& forest() const noexcept;
+  const forest_type& get_forest() const noexcept;
 
   /// Returns the ghost layer object.
-  const ghost_layer_type& ghost_layer() const noexcept;
+  const ghost_layer_type& get_ghost_layer() const noexcept;
 
   /// \name Quadrant Observers
 
@@ -376,7 +374,7 @@ basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
 /// Returns the underlying forest object.
 template <typename VariableList, int Rank, typename FloatingPointType>
 const typename basic_grid<VariableList, Rank, FloatingPointType>::forest_type&
-basic_grid<VariableList, Rank, FloatingPointType>::forest() const noexcept {
+basic_grid<VariableList, Rank, FloatingPointType>::get_forest() const noexcept {
   return m_forest;
 }
 
@@ -384,7 +382,7 @@ basic_grid<VariableList, Rank, FloatingPointType>::forest() const noexcept {
 template <typename VariableList, int Rank, typename FloatingPointType>
 const typename basic_grid<VariableList, Rank,
                           FloatingPointType>::ghost_layer_type&
-basic_grid<VariableList, Rank, FloatingPointType>::ghost_layer() const
+basic_grid<VariableList, Rank, FloatingPointType>::get_ghost_layer() const
     noexcept {
   return m_ghost_layer;
 }
@@ -399,7 +397,7 @@ span<const mesh_quadrant<Rank>>
 basic_grid<VariableList, Rank, FloatingPointType>::face_neighbors(
     quadrant<Rank> quad, face f) const noexcept {
   std::ptrdiff_t locidx =
-      forest().trees()[quad.which_tree()].offset() + quad.local_num();
+      get_forest().trees()[quad.which_tree()].offset() + quad.local_num();
   return m_mesh.face_neighbors(locidx, f);
 }
 
@@ -409,10 +407,10 @@ optional<int>
 basic_grid<VariableList, Rank, FloatingPointType>::find_owner_mpi_rank(
     quadrant<Rank> quad) const noexcept {
   if (is_local(quad)) {
-    return forest().mpi_rank();
+    return get_forest().mpi_rank();
   }
   if (is_ghost(quad)) {
-    const auto offsets = ghost_layer().quadrants_process_offsets();
+    const auto offsets = get_ghost_layer().quadrants_process_offsets();
     const auto proc =
         std::lower_bound(offsets.begin(), offsets.end(), quad.local_num());
     return std::distance(offsets.begin(), proc);
@@ -425,8 +423,8 @@ template <typename VariableList, int Rank, typename FloatingPointType>
 bool basic_grid<VariableList, Rank, FloatingPointType>::is_local(
     quadrant<Rank> quad) const noexcept {
   const int treeidx = quad.which_tree();
-  if (0 <= treeidx && treeidx < forest().trees().size()) {
-    const tree<Rank>& tree = forest().trees()[treeidx];
+  if (0 <= treeidx && treeidx < get_forest().trees().size()) {
+    const tree<Rank>& tree = get_forest().trees()[treeidx];
     const int local_num = quad.local_num();
     if (0 <= local_num && local_num < tree.quadrants().size()) {
       return quad == tree.quadrants()[local_num];
@@ -440,8 +438,8 @@ template <typename VariableList, int Rank, typename FloatingPointType>
 bool basic_grid<VariableList, Rank, FloatingPointType>::is_ghost(
     quadrant<Rank> quad) const noexcept {
   const int ghostidx = quad.local_num();
-  if (0 <= ghostidx && ghostidx < ghost_layer().quadrants().size()) {
-    return ghost_layer().quadrants()[ghostidx] == quad;
+  if (0 <= ghostidx && ghostidx < get_ghost_layer().quadrants().size()) {
+    return get_ghost_layer().quadrants()[ghostidx] == quad;
   }
   return false;
 }
@@ -459,8 +457,8 @@ template <typename VariableList, int Rank, typename FloatingPointType>
 bool basic_grid<VariableList, Rank, FloatingPointType>::is_mirror(
     quadrant<Rank> quad) const noexcept {
   const int mirroridx = quad.local_num();
-  if (0 <= mirroridx && mirroridx < ghost_layer().mirrors().size()) {
-    return ghost_layer().mirrors()[mirroridx] == quad;
+  if (0 <= mirroridx && mirroridx < get_ghost_layer().mirrors().size()) {
+    return get_ghost_layer().mirrors()[mirroridx] == quad;
   }
   return false;
 }
@@ -592,7 +590,7 @@ void basic_grid<VariableList, Rank, FloatingPointType>::transfer_data_to(
                               m_patch_data_info.patch_extents),
       m_data.get_allocator());
 
-  span<const tree<Rank>> trees = forest().trees();
+  span<const tree<Rank>> trees = get_forest().trees();
   for (const tree<Rank>& tree : trees) {
     span<const quadrant<Rank>> old_quadrants = tree.quadrants();
     for (quadrant<Rank> quad : old_quadrants) {

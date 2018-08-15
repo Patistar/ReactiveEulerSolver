@@ -48,7 +48,7 @@ template <typename VariableList, typename MdSpan> struct variable_mapping {
   using const_value_type = std::add_const_t<value_type>;
   using mapping_type = typename mdspan_type::mapping;
   using extents_type = typename mdspan_type::extents_type;
-  using accessor_type = typename mdspan_type::accessor;
+  using accessor_type = rebind_t<typename mdspan_type::accessor, value_type>;
   using const_accessor_type =
       typename accessor_type::template rebind<const_value_type>;
   using layout = typename mdspan_type::layout;

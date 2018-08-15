@@ -29,6 +29,7 @@ namespace fub {
 inline namespace v1 {
 #ifdef FUB_WITH_STD_APPLY
 using std::apply;
+using std::make_from_tuple;
 #else
 class tuple_apply_fn {
   template <typename F, typename T, std::size_t... Is>
@@ -49,6 +50,13 @@ public:
 template <typename F, typename T>
 constexpr decltype(auto) apply(F&& fun, T&& tuple) {
   return tuple_apply_fn{}(fun, tuple);
+}
+
+template <typename T, typename Tuple>
+constexpr T make_from_tuple(Tuple&& t) {
+  return fub::apply([](auto&&... args) {
+    return T(std::forward<decltype(args)>(args)...);
+  }, t);
 }
 #endif
 } // namespace v1

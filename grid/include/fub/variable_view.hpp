@@ -41,7 +41,7 @@ public:
   using value_type = typename mdspan_type::value_type;
   using element_type = typename mdspan_type::element_type;
   using accessor_type = typename mdspan_type::accessor;
-  using span_type = typename variable_mapping<VariableList, MdSpan>::span_type;
+  using span_type = typename MdSpan::span_type;
   using extents_type = typename mdspan_type::extents_type;
   using mapping_type = typename mdspan_type::mapping;
 

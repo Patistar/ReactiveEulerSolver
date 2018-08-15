@@ -25,11 +25,9 @@
 #include "fub/optional.hpp"
 #include "fub/span.hpp"
 
-extern "C" {
 #include <p4est.h>
 #include <p4est_bits.h>
 #include <p8est.h>
-}
 
 #include <array>
 

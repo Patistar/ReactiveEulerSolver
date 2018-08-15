@@ -109,7 +109,7 @@ make_coordinates(const uniform_cartesian_coordinates<Rank>& coordinates,
                  [](index e) { return e + 1; });
   const index size = std::accumulate(extents.begin(), extents.end(), index(1),
                                      std::multiplies<>());
-  auto e = std::make_from_tuple<dynamic_extents_t<Rank>>(extents);
+  auto e = fub::make_from_tuple<dynamic_extents_t<Rank>>(extents);
   layout_right::mapping<dynamic_extents_t<Rank>> mapping{e};
   std::vector<double> x(size);
   for_each_index(mapping, [&](auto... indices) {

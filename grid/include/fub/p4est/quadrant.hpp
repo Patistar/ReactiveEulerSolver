@@ -80,6 +80,8 @@ bool operator==(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
 bool operator!=(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
 bool operator<(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept;
 
+quadrant<2> parent(const quadrant<2>& quad) noexcept; 
+
 quadrant<2> face_neighbor(const quadrant<2>& quad, int face) noexcept;
 
 optional<face> find_adjacent_face(const quadrant<2>& left,
@@ -87,8 +89,7 @@ optional<face> find_adjacent_face(const quadrant<2>& left,
 
 std::array<quadrant<2>, 4> children(const quadrant<2>& quad) noexcept;
 
-optional<int> find_neighbor_child_id(const quadrant<2>& coarse,
-                                     const quadrant<2>& fine) noexcept;
+int child_id(const quadrant<2>& quad) noexcept;
 
 template <int Rank>
 span<const quadrant<Rank>> as_quadrant_span(sc_array_t& array) {

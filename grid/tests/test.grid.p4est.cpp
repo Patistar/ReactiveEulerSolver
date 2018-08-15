@@ -45,19 +45,6 @@ using Variables = variable_list<Density, Momentum, Pressure>;
 
 using Grid = fub::p4est::basic_grid<Variables, 2, double>;
 
-void print_face_neighbors(const Grid& grid, fub::p4est::quadrant<2> quad,
-                          fub::face f) {
-  fub::span<const fub::p4est::mesh_quadrant<2>> nbs =
-      grid.face_neighbors(quad, f);
-  for (fub::p4est::mesh_quadrant<2> neighbor : nbs) {
-    std::array<int, 2> x = neighbor.quad.coordinates();
-    optional<int> rank = grid.find_owner_mpi_rank(neighbor.quad);
-    int owner = rank ? *rank : grid.get_forest().mpi_rank();
-    fmt::print("{:>12}: ({}, {}) <-> face {} (owner: {})\n", "neighbor", x[0],
-               x[1], as_int(f), owner);
-  }
-}
-
 void my_initialize(Grid::patch_view data, Grid::coordinates_type coords) {
   for_each_index(data.get_mapping(), [=](std::ptrdiff_t i, std::ptrdiff_t j) {
     std::array<double, 2> x = coords(i, j);
@@ -112,26 +99,39 @@ double L2_derivatives(int axis, Grid::const_patch_view left,
   return sum / volume;
 }
 
-Grid::const_patch_view interpolate_neighbor_data(
-    const Grid& grid, fub::p4est::quadrant<2> quad,
-    fub::span<const fub::p4est::mesh_quadrant<2>> neighbors, fub::face face,
-    fub::span<double> buffer) noexcept {
+Grid::const_patch_view
+interpolate_neighbor_data(const Grid& grid, fub::p4est::quadrant<2> quad,
+                          fub::face face, fub::span<double> buffer) noexcept {
+
+  span<const fub::p4est::mesh_quadrant<2>> neighbors =
+      grid.face_neighbors(quad, face);
+
   // We hit a domain boundary
   if (neighbors.size() == 0) {
     return {};
   }
   int offset = static_cast<int>(face.side == direction::left);
   Grid::patch_view interpolated(Variables(), buffer, grid.patch_extents());
+
+  if (neighbors[0].is_ghost) {
+    return {};
+  }
+
   // neighbors have a finer level than quad.
   if (neighbors.size() > 1) {
     assert(neighbors.size() == 2);
     assert(neighbors[0].quad.level() == quad.level() + 1);
     assert(neighbors[1].quad.level() == quad.level() + 1);
-    optional<int> nb0 = find_neighbor_child_id(quad, neighbors[0].quad);
-    optional<int> nb1 = find_neighbor_child_id(quad, neighbors[1].quad);
-    assert(nb0 && nb1);
-    linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated, *nb0);
-    linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated, *nb1);
+    assert(parent(neighbors[0].quad) == parent(neighbors[1].quad));
+    const fub::p4est::quadrant<2> parent =
+        fub::p4est::parent(neighbors[0].quad);
+    assert(face_neighbor(quad, face) == parent);
+    const int child_id_0 = child_id(neighbors[0].quad);
+    const int child_id_1 = child_id(neighbors[1].quad);
+    linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated,
+                      child_id_0);
+    linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated,
+                      child_id_1);
     return interpolated;
   }
 
@@ -142,35 +142,13 @@ Grid::const_patch_view interpolate_neighbor_data(
   }
 
   assert(neighbors[0].quad.level() + 1 == quad.level());
-  optional<int> nb = find_neighbor_child_id(neighbors[0].quad, quad);
-  if (!nb) {
-    return {};
-  }
-  linearily_refine(grid.patch_data(neighbors[0].quad), interpolated, *nb);
+  fub::p4est::quadrant<2> neighbor = face_neighbor(quad, face);
+  assert(parent(neighbor) == neighbors[0].quad);
+  const int child_id_0 = child_id(neighbor);
+  linearily_refine(grid.patch_data(neighbors[0].quad), interpolated,
+                   child_id_0);
   return interpolated;
 }
-
-struct log_malloc : boost::container::pmr::memory_resource {
-  log_malloc(boost::container::pmr::memory_resource* up) : upstream(up) {}
-
-  void* do_allocate(std::size_t size, std::size_t alignment) override {
-    fmt::print("Allocate {} bytes with alignment {}\n", size, alignment);
-    return upstream->allocate(size, alignment);
-  }
-
-  void do_deallocate(void* p, std::size_t bytes,
-                     std::size_t alignment) override {
-    fmt::print("Deallocate {} bytes\n", bytes);
-    upstream->deallocate(p, bytes, alignment);
-  }
-
-  bool do_is_equal(const boost::container::pmr::memory_resource& other) const
-      noexcept override {
-    return upstream->is_equal(other);
-  }
-
-  boost::container::pmr::memory_resource* upstream;
-};
 
 void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   using namespace fub::v1::p4est;
@@ -205,13 +183,10 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
         const face fr{axis, direction::right};
         const std::array<double, 2> dx = grid.coordinates(quad).dx();
         Grid::const_patch_view middle = grid.patch_data(quad);
-        span<const mesh_quadrant<2>> left_quads = grid.face_neighbors(quad, fl);
-        span<const mesh_quadrant<2>> right_quads =
-            grid.face_neighbors(quad, fr);
-        Grid::const_patch_view left = interpolate_neighbor_data(
-            grid, quad, left_quads, fl, left_buffer.span());
-        Grid::const_patch_view right = interpolate_neighbor_data(
-            grid, quad, right_quads, fr, right_buffer.span());
+        Grid::const_patch_view left =
+            interpolate_neighbor_data(grid, quad, fl, left_buffer.span());
+        Grid::const_patch_view right =
+            interpolate_neighbor_data(grid, quad, fr, right_buffer.span());
         const double volume = fub::accumulate(dx, 1.0, std::multiplies<>{});
         return L2_derivatives(as_int(axis), left, middle, right) > volume / 64;
       };
@@ -240,8 +215,6 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
 }
 
 int main(int argc, char** argv) {
-  log_malloc resource{boost::container::pmr::get_default_resource()};
-  boost::container::pmr::set_default_resource(&resource);
   MPI_Init(&argc, &argv);
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

@@ -32,6 +32,7 @@
 
 #include <array>
 #include <cassert>
+#include <utility>
 
 namespace fub {
 inline namespace v1 {

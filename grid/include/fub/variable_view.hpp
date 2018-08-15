@@ -27,7 +27,7 @@
 namespace fub {
 inline namespace v1 {
 template <typename T>
-using get_extents_t = decltype(std::declval<T>.get_extents());
+using get_extents_t = decltype(std::declval<T>().get_extents());
 
 /// This is view on contiguous data but indexed by a variable list and a uniform
 /// multi-dimensional mapping.

@@ -24,6 +24,7 @@
 #include "fub/index_range.hpp"
 #include "fub/p4est/quadrant.hpp"
 #include "fub/variable_view.hpp"
+#include "fub/variable_list.hpp"
 
 namespace fub {
 inline namespace v1 {
@@ -38,8 +39,8 @@ constexpr std::array<int, 3> relative_coordinates(int child, int_constant<3>) {
 inline std::array<std::array<std::ptrdiff_t, 2>, 4> refine(std::array<std::ptrdiff_t, 2> index) noexcept {
   std::array<std::array<std::ptrdiff_t, 2>, 4> refined{{{}, {1, 0}, {0, 1}, {1, 1}}};
   for (int i = 0; i < 4; ++i) {
-    refined[i][0] += index[0];
-    refined[i][1] += index[1];
+    refined[i][0] += 2*index[0];
+    refined[i][1] += 2*index[1];
   }
   return refined; 
 }
@@ -80,7 +81,7 @@ void linearily_coarsen(
   constexpr int Rank = E::rank();
   const index_range<Rank> box =
       sub_index_range(as_array(coarse.get_extents()), child);
-  for_each_index(box, [=](std::array<std::ptrdiff_t, Rank> index) {
+  for_each_index(box, [&](std::array<std::ptrdiff_t, Rank> index) {
     std::transform(index.begin(), index.end(), box.origin.begin(), index.begin(),
                    [](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
     const auto refined = refine(index);
@@ -92,7 +93,7 @@ void linearily_coarsen(
                     });
                   });
     fub::for_each(coarse.get_variable_list(),
-                  [=](auto var) { coarse[var](index) /= 4; });
+                  [&](auto var) { coarse[var](index) /= 4; });
   });
 }
 

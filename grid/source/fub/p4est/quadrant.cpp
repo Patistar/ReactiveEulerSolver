@@ -40,14 +40,20 @@ bool operator<(const quadrant<2>& lhs, const quadrant<2>& rhs) noexcept {
   return p4est_quadrant_compare(&lhs.native(), &rhs.native()) < 0;
 }
 
+quadrant<2> parent(const quadrant<2>& quad) noexcept {
+  p4est_quadrant_t p;
+  p4est_quadrant_parent(&quad.native(), &p);
+  return p;
+}
+
 quadrant<2> face_neighbor(const quadrant<2>& quad, int face) noexcept {
   p4est_quadrant_t nb;
   p4est_quadrant_face_neighbor(&quad.native(), face, &nb);
   return quadrant<2>(nb);
 }
 
-optional<face> find_face(const quadrant<2> left,
-                         const quadrant<2>& right) noexcept {
+optional<face> find_adjacent_face(const quadrant<2>& left,
+                                  const quadrant<2>& right) noexcept {
   p4est_quadrant_t l = left.native();
   p4est_quadrant_t r = right.native();
   if (right.level() < left.level()) {
@@ -68,15 +74,8 @@ optional<face> find_face(const quadrant<2> left,
   return nullopt;
 }
 
-optional<int> find_neighbor_child_id(const quadrant<2>& coarse,
-                                     const quadrant<2>& fine) noexcept {
-  std::array<quadrant<2>, 4> children = fub::p4est::children(coarse);
-  for (int i = 0; i < 4; ++i) {
-    if (find_face(children[i], fine)) {
-      return i;
-    }
-  }
-  return nullopt;
+int child_id(const quadrant<2>& quad) noexcept {
+  return p4est_quadrant_child_id(&quad.native());
 }
 
 std::array<quadrant<2>, 4> children(const quadrant<2>& quad) noexcept {

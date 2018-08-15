@@ -24,6 +24,8 @@
 #include "fub/p4est/quadrant.hpp"
 #include "fub/span.hpp"
 
+#include <Vc/vector.h>
+
 namespace fub {
 inline namespace v1 {
 namespace p4est {
@@ -51,10 +53,12 @@ public:
   /// Constructs data arrays of size `size` for each quadrant in `quadrants`.
   unique_quadrant_data(std::ptrdiff_t num_quadrants, std::ptrdiff_t size,
                        allocator alloc = allocator())
-      : m_allocator(alloc),
-        m_quadrant_to_data(
-            rebind_alloc<span<T>>(m_allocator).allocate(num_quadrants),
-            num_quadrants) {
+      : m_allocator(alloc), m_quadrant_to_data{} {
+    if (num_quadrants > 0) {
+      m_quadrant_to_data = span<span<T>>(
+          rebind_alloc<span<T>>(m_allocator).allocate(num_quadrants),
+          num_quadrants);
+    }
     for (fub::span<T>& span : m_quadrant_to_data) {
       new (&span) fub::span<T>{m_allocator.allocate(size), size};
     }
@@ -69,7 +73,7 @@ public:
                                                 other.release()} {}
 
   /// Move ownership of the data from other to this.
-  unique_quadrant_data& operator=(unique_quadrant_data&& other) {
+  unique_quadrant_data& operator=(unique_quadrant_data&& other) noexcept {
     reset(other.release(), other.get_allocator());
     return *this;
   }
@@ -102,19 +106,17 @@ public:
     return std::exchange(m_quadrant_to_data, span<span<T>>());
   }
 
-  void reset(span<span<T>> quad_to_data, allocator alloc) {
+  void reset(span<span<T>> quad_to_data, allocator alloc) noexcept {
     this->~unique_quadrant_data();
     m_allocator = alloc;
     m_quadrant_to_data = quad_to_data;
   }
 
-  span<const span<T>> data() noexcept {
-    return m_quadrant_to_data;
-  } 
+  span<const span<T>> data() noexcept { return m_quadrant_to_data; }
 
   span<const span<const T>> data() const noexcept {
     return span_cast<const span<const T>>(m_quadrant_to_data);
-  } 
+  }
 
 private:
   allocator m_allocator{};

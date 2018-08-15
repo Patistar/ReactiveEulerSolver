@@ -1,7 +1,7 @@
+#include "fub/linearily_interpolate.hpp"
 #include "fub/output/cgns.hpp"
 #include "fub/output/gnuplot.hpp"
 #include "fub/p4est/grid.hpp"
-#include "fub/linearily_interpolate.hpp"
 #include <chrono>
 
 using namespace fub;
@@ -127,20 +127,50 @@ Grid::const_patch_view interpolate_neighbor_data(
     assert(neighbors.size() == 2);
     assert(neighbors[0].quad.level() == quad.level() + 1);
     assert(neighbors[1].quad.level() == quad.level() + 1);
-    linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated,
-                      *find_neighbor_child_id(quad, neighbors[0].quad));
-    linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated,
-                      *find_neighbor_child_id(quad, neighbors[1].quad));
+    optional<int> nb0 = find_neighbor_child_id(quad, neighbors[0].quad);
+    optional<int> nb1 = find_neighbor_child_id(quad, neighbors[1].quad);
+    assert(nb0 && nb1);
+    linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated, *nb0);
+    linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated, *nb1);
     return interpolated;
   }
 
   // neighbor has a coarser level than quad
   assert(neighbors.size() == 1);
+  if (neighbors[0].quad.level() == quad.level()) {
+    return grid.patch_data(neighbors[0].quad);
+  }
+
   assert(neighbors[0].quad.level() + 1 == quad.level());
-  linearily_refine(grid.patch_data(neighbors[0].quad), interpolated,
-                   *find_neighbor_child_id(neighbors[0].quad, quad));
+  optional<int> nb = find_neighbor_child_id(neighbors[0].quad, quad);
+  if (!nb) {
+    return {};
+  }
+  linearily_refine(grid.patch_data(neighbors[0].quad), interpolated, *nb);
   return interpolated;
 }
+
+struct log_malloc : boost::container::pmr::memory_resource {
+  log_malloc(boost::container::pmr::memory_resource* up) : upstream(up) {}
+
+  void* do_allocate(std::size_t size, std::size_t alignment) override {
+    fmt::print("Allocate {} bytes with alignment {}\n", size, alignment);
+    return upstream->allocate(size, alignment);
+  }
+
+  void do_deallocate(void* p, std::size_t bytes,
+                     std::size_t alignment) override {
+    fmt::print("Deallocate {} bytes\n", bytes);
+    upstream->deallocate(p, bytes, alignment);
+  }
+
+  bool do_is_equal(const boost::container::pmr::memory_resource& other) const
+      noexcept override {
+    return upstream->is_equal(other);
+  }
+
+  boost::container::pmr::memory_resource* upstream;
+};
 
 void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   using namespace fub::v1::p4est;
@@ -210,6 +240,8 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
 }
 
 int main(int argc, char** argv) {
+  log_malloc resource{boost::container::pmr::get_default_resource()};
+  boost::container::pmr::set_default_resource(&resource);
   MPI_Init(&argc, &argv);
   int rank = -1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);

@@ -50,7 +50,7 @@ void for_each_index(index_range<Rank> range, F feedback) {
   for_each_index(mapping_t(extents), [=](auto... indices) {
     std::array<std::ptrdiff_t, Rank> is{{indices...}};
     std::transform(is.begin(), is.end(), range.origin.begin(), is.begin(),
-                   [=](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
+                   [=](std::ptrdiff_t i, std::ptrdiff_t o) { return i + o; });
     feedback(is);
   });
 }

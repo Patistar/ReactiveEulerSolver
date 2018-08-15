@@ -18,40 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_TUPLE_HPP
-#define FUB_CORE_TUPLE_HPP
+#include "fub/euler/hlle_riemann_solver.hpp"
+#include "fub/euler/perfect_gas.hpp"
+#include "fub/godunov_method.hpp"
+#include "fub/time_integrator/forward_euler.hpp"
 
-#include "fub/functional.hpp"
+constexpr int Rank = 3;
 
-#include <tuple>
+using Equation = fub::euler::perfect_gas<Rank>;
+using FluxMethod = fub::godunov_method<fub::euler::hlle_riemann_solver>;
 
-namespace fub {
-inline namespace v1 {
-#ifdef FUB_WITH_STD_APPLY
-using std::apply;
-#else
-class tuple_apply_fn {
-  template <typename F, typename T, std::size_t... Is>
-  constexpr decltype(auto) impl(F&& fun, T&& tuple,
-                                std::index_sequence<Is...>) {
-    return fub::invoke(std::forward<F>(fun), std::get<Is>(tuple)...);
-  }
-
-public:
-  template <typename F, typename T>
-  constexpr decltype(auto) operator()(F&& fun, T&& tuple) {
-    return impl(
-        std::forward<F>(fun), std::forward<T>(tuple),
-        std::make_index_sequence<std::tuple_size<remove_cvref_t<T>>::value>());
-  }
-};
-
-template <typename F, typename T>
-constexpr decltype(auto) apply(F&& fun, T&& tuple) {
-  return tuple_apply_fn{}(fun, tuple);
+void integrate_double(const Equation& equation, const FluxMethod& method,
+                      std::chrono::duration<double> dt, double dx,
+                      fub::const_patch_t<Equation> left,
+                      fub::const_patch_t<Equation> mid,
+                      fub::const_patch_t<Equation> right,
+                      fub::patch_t<Equation> next,
+                      fub::fluxes_t<Equation> fluxes) {
+  fub::time_integrator::forward_euler integrator{};
+  integrator.integrate(equation, method, dt, dx, left, mid, right, next,
+                       fluxes);
 }
-#endif
-} // namespace v1
-} // namespace fub
-
-#endif // !FUB_CORE_TUPLE_HPP

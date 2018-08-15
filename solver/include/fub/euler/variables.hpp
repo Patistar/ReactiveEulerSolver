@@ -21,116 +21,75 @@
 #ifndef FUB_EULER_VARIABLES_HPP
 #define FUB_EULER_VARIABLES_HPP
 
-#include "fub/variables.hpp"
+#include "fub/variable.hpp"
 
 namespace fub {
+inline namespace v1 {
 namespace euler {
-struct Density {
-  static constexpr const char* name() noexcept { return "Density"; }
-  static const std::array<double, 5> physical_dimensions() noexcept {
-    // [kg / m^3]
-    return {{1, -3}};
+struct Density : scalar_variable {
+  static const char* name(int) noexcept { return "Density"; }
+};
+
+template <int Rank> struct Velocity : vector_variable<Rank> {
+  static const char* name(int dim) noexcept {
+    static const char* names[3]{"VelocityX", "VelocityY", "VelocityZ"};
+    assert(0 <= dim && dim < Rank);
+    return names[dim];
   }
 };
 
-template <int Dim = 0> struct Velocity;
-
-template <> struct Velocity<0> {
-  static constexpr const char* name() noexcept { return "VelocityX"; }
-  static const std::array<double, 5> physical_dimensions() {
-    // [m / s]
-    return {{0, +1, -1}};
+template <int Rank> struct Momentum : vector_variable<Rank> {
+  static const char* name(int dim) noexcept {
+    static const char* names[3]{"MomentumX", "MomentumY", "MomentumZ"};
+    assert(0 <= dim && dim < Rank);
+    return names[dim];
   }
 };
 
-template <> struct Velocity<1> {
-  static constexpr const char* name() noexcept { return "VelocityY"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [m / s]
-    return {{0, +1, -1}};
-  }
+struct Pressure : scalar_variable {
+  static const char* name() noexcept { return "Pressure"; }
 };
 
-template <> struct Velocity<2> {
-  static constexpr const char* name() noexcept { return "VelocityZ"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [m / s]
-    return {{0, +1, -1}};
-  }
+struct Energy : scalar_variable {
+  static const char* name() noexcept { return "EnergyStagnationDensity"; }
 };
 
-template <int Dim> struct Momentum;
-
-template <> struct Momentum<0> {
-  static constexpr const char* name() noexcept { return "MomentumX"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [kg / m^2 s]
-    return {{1, -2, -1}};
-  }
+struct Temperature : scalar_variable {
+  static const char* name() noexcept { return "Temperature"; }
 };
 
-template <> struct Momentum<1> {
-  static constexpr const char* name() noexcept { return "MomentumY"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [kg / m^2 s]
-    return {{1, -2, -1}};
-  }
+struct SpeedOfSound : scalar_variable {
+  static const char* name() noexcept { return "VelocitySound"; }
 };
 
-template <> struct Momentum<2> {
-  static constexpr const char* name() noexcept { return "MomentumZ"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [kg / m^2 s]
-    return {{1, -2, -1}};
-  }
+struct HeatCapacityAtConstantP : scalar_variable {
+  static const char* name() noexcept { return "SpecificHeatPressure"; }
 };
 
-struct Pressure {
-  static constexpr const char* name() noexcept { return "Pressure"; }
-  static constexpr std::array<double, 5> physical_dimensions() {
-    // [kg / m s^2]
-    return {{1, -1, -2}};
-  }
+struct Enthalpy : scalar_variable {
+  static const char* name() noexcept { return "Enthalpy"; }
 };
 
-struct Energy {
-  static constexpr const char* name() noexcept {
-    return "EnergyStagnationDensity";
-  }
+struct Species : vector_variable<dynamic_extent> {
+  using vector_variable<dynamic_extent>::vector_variable;
 };
 
-struct Temperature {
-  static constexpr const char* name() noexcept { return "Temperature"; }
-};
+template <int Rank, int Dim = 0>
+static constexpr const tag_t<Momentum<Rank>, Dim> momentum{};
 
-struct SpeedOfSound {
-  static constexpr const char* name() noexcept { return "VelocitySound"; }
-};
+template <int Rank, int Dim = 0>
+static constexpr const tag_t<Velocity<Rank>, Dim> velocity{};
 
-struct HeatCapacityAtConstantP {
-  static constexpr const char* name() noexcept {
-    return "SpecificHeatPressure";
-  }
-};
+static constexpr const tag_t<Density> density{};
+static constexpr const tag_t<Pressure> pressure{};
+static constexpr const tag_t<Energy> energy{};
+static constexpr const tag_t<Temperature> temperature{};
+static constexpr const tag_t<SpeedOfSound> speed_of_sound{};
+static constexpr const tag_t<HeatCapacityAtConstantP> cp{};
+static constexpr const tag_t<Enthalpy> enthalpy{};
 
-struct Enthalpy {
-  static constexpr const char* name() noexcept { return "Enthalpy"; }
-};
-
-namespace variables {
-static constexpr const Density density{};
-static constexpr const Pressure pressure{};
-static constexpr const Energy energy{};
-static constexpr const Temperature temperature{};
-static constexpr const SpeedOfSound speed_of_sound{};
-static constexpr const HeatCapacityAtConstantP cp{};
-static constexpr const Enthalpy enthalpy{};
-
-template <int Dim> static constexpr const Velocity<Dim> velocity{};
-template <int Dim> static constexpr const Momentum<Dim> momentum{};
-
-} // namespace variables
 } // namespace euler
+} // namespace v1
 } // namespace fub
 
 #endif

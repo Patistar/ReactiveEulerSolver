@@ -21,7 +21,12 @@
 #ifndef FUB_GRID_VARIABLE_DATA_HPP
 #define FUB_GRID_VARIABLE_DATA_HPP
 
+#include "fub/simd.hpp"
 #include "fub/variable_mapping.hpp"
+#include "fub/variable_row.hpp"
+
+#include <boost/align/aligned_allocator.hpp>
+
 #include <array>
 
 namespace fub {
@@ -53,7 +58,9 @@ struct basic_variable_data_storage : VariableList, MdSpan::mapping {
     return *this;
   }
 
-  std::array<value_type, N> m_data;
+  static constexpr int alignment = Vc::Vector<value_type>::MemoryAlignment;
+
+  alignas(alignment) std::array<value_type, N> m_data;
 };
 
 template <typename VariableList, typename MdSpan, typename Allocator>
@@ -97,8 +104,10 @@ struct basic_variable_data_storage<dynamic_extent, VariableList, MdSpan,
 ///
 /// \note Note that the MdSpan contains information about the extents, layout
 /// mapping and accessor policy for each variable.
-template <typename VariableList, typename ValueType, typename MdSpan,
-          typename Allocator = std::allocator<ValueType>>
+template <typename VariableList, typename MdSpan,
+          typename Allocator = boost::alignment::aligned_allocator<
+              typename MdSpan::value_type,
+              Vc::Vector<typename MdSpan::value_type>::MemoryAlignment>>
 class basic_variable_data {
   using variable_map = variable_mapping<VariableList, MdSpan>;
 
@@ -117,7 +126,7 @@ public:
 
   /// \name Types
 
-  using value_type = ValueType;
+  using value_type = typename Allocator::value_type;
   using allocator_type = Allocator;
   using accessor_type = typename variable_map::accessor_type;
   using span_type = typename variable_map::span_type;
@@ -138,7 +147,7 @@ public:
   basic_variable_data(basic_variable_data&&) = default;
   basic_variable_data& operator=(basic_variable_data&&) = default;
 
-  basic_variable_data(VariableList list, extents_type extents,
+  explicit basic_variable_data(VariableList list, extents_type extents = extents_type(),
                       allocator_type alloc = allocator_type())
       : m_storage(list, extents, alloc) {}
 
@@ -194,13 +203,19 @@ public:
   /// NOT throw on invalid indices.
   /// @{
   template <typename... IndexTypes>
-  constexpr variable_ref<basic_variable_data> operator()(IndexTypes... is) {
-    return variable_ref<basic_variable_data>(*this, {is...});
+  constexpr variable_ref<VariableList, value_type>
+  operator()(IndexTypes... is) {
+    std::ptrdiff_t index = get_mapping()(is...);
+    return {get_variable_list(), m_storage.span().data() + index,
+            get_mapping().required_span_size()};
   }
+
   template <typename... IndexTypes>
-  constexpr variable_ref<const basic_variable_data>
+  constexpr variable_ref<VariableList, const value_type>
   operator()(IndexTypes... is) const {
-    return variable_ref<const basic_variable_data>(*this, {is...});
+    std::ptrdiff_t index = get_mapping()(is...);
+    return {get_variable_list(), m_storage.data() + index,
+            get_mapping().required_span_size()};
   }
   /// @}
 
@@ -222,14 +237,63 @@ public:
   }
   /// @}
 
+  variable_iterator<VariableList, value_type, accessor_type> begin() noexcept {
+    return {get_variable_list(), span().data(),
+            get_mapping().required_span_size(), span().get_accessor()};
+  }
+
+  variable_iterator<VariableList, value_type, accessor_type> end() noexcept {
+    std::ptrdiff_t size = get_mapping().required_span_size();
+    return {get_variable_list(), span().data() + size, size,
+            span().get_accessor()};
+  }
+
+  variable_iterator<VariableList, const value_type, accessor_type> begin() const
+      noexcept {
+    return {get_variable_list(), span().data(),
+            get_mapping().required_span_size(), span().get_accessor()};
+  }
+
+  variable_iterator<VariableList, const value_type, accessor_type> end() const
+      noexcept {
+    std::ptrdiff_t size = get_mapping().required_span_size();
+    return {get_variable_list(), span().data() + size, size,
+            span().get_accessor()};
+  }
+
 private:
   storage_type m_storage;
 };
 
-template <typename VariableList, typename T, typename Extents>
+template <typename VariableList, typename T, int Rank>
 using variable_data =
-    basic_variable_data<VariableList, T, basic_mdspan<T, Extents>,
+    basic_variable_data<VariableList, basic_mdspan<T, dynamic_extents_t<Rank>>,
                         std::allocator<T>>;
+
+template <typename VariableList, typename MdSpan, typename Allocator>
+constexpr auto
+rows(basic_variable_data<VariableList, MdSpan, Allocator>& view) noexcept {
+  using Span = typename MdSpan::span_type;
+  return basic_variable_row_range<VariableList, Span>{
+      basic_variable_row_iterator<VariableList, Span>{
+          view.get_variable_list(), view.span(),
+          view.get_mapping().required_span_size(),
+          row(view.get_extents()).extent(0)},
+      rows(view.get_extents())};
+}
+
+template <typename VariableList, typename MdSpan, typename Allocator>
+constexpr auto rows(
+    const basic_variable_data<VariableList, MdSpan, Allocator>& view) noexcept {
+  using Span = typename basic_variable_data<VariableList, MdSpan,
+                                            Allocator>::const_span_type;
+  return basic_variable_row_range<VariableList, Span>{
+      basic_variable_row_iterator<VariableList, Span>{
+          view.get_variable_list(), view.span(),
+          view.get_mapping().required_span_size(),
+          row(view.get_extents()).extent(0)},
+      rows(view.get_extents())};
+}
 
 } // namespace v1
 } // namespace fub

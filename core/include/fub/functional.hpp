@@ -55,7 +55,7 @@ public:
   function_ref(F&& function_object)
       : m_data{std::addressof(function_object)},
         m_erased_function_pointer{[](void* function, Args... args) -> R {
-          return invoke(*static_cast<F*>(function),
+          return invoke(*static_cast<std::remove_reference_t<F>*>(function),
                         std::forward<Args>(args)...);
         }} {}
 

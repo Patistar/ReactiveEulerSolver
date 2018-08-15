@@ -31,6 +31,7 @@
 #include "fub/p4est/mesh.hpp"
 #include "fub/p4est/quadrant.hpp"
 #include "fub/p4est/tree.hpp"
+#include "fub/p4est/unique_quadrant_data.hpp"
 #include "fub/uniform_cartesian_coordinates.hpp"
 #include "fub/variable_data.hpp"
 #include "fub/variable_view.hpp"
@@ -57,6 +58,16 @@ template <typename Grid> struct replace_data {
 template <typename Grid> struct const_replace_data {
   span<const typename Grid::quadrant_type> quadrants;
   span<typename Grid::const_patch_view> datas;
+};
+
+template <typename T> struct MPI_datatype;
+
+template <> struct MPI_datatype<float> {
+  operator MPI_Datatype() { return MPI_FLOAT; }
+};
+
+template <> struct MPI_datatype<double> {
+  operator MPI_Datatype() { return MPI_DOUBLE; }
 };
 
 /// \ingroup p4est
@@ -95,6 +106,7 @@ public:
   /// The p4est ghost layer type.
   using ghost_layer_type = ghost_layer<Rank>;
 
+  /// The mesh type
   using mesh_type = mesh<Rank>;
 
   /// A view to mutable patch data.
@@ -108,12 +120,8 @@ public:
   struct patch_data_info {
     variable_list_type variable_list;
     extents_type patch_extents;
-    extents_type ghost_extents;
     coordinates_type coordinates;
   };
-
-  static std::ptrdiff_t local_data_byte_size(patch_data_info info) noexcept;
-  static std::ptrdiff_t ghost_data_byte_size(patch_data_info info) noexcept;
 
   /// \name Constructors, Assignment & Destructors
 
@@ -157,11 +165,6 @@ public:
   ///
   /// \throws Nothing.
   extents_type patch_extents() const noexcept;
-
-  /// Returns the extents object which every ghost is going to have.
-  ///
-  /// \throws Nothing.
-  extents_type ghost_extents() const noexcept;
 
   /// \name Patch Data Access
 
@@ -214,8 +217,8 @@ public:
   /// Returns all quadrants which share a face with the specified quadrant quad.
   ///
   /// \throws Nothing.
-  span<const quadrant<Rank>> face_neighbors(quadrant<Rank> quad, face f) const
-      noexcept;
+  span<const mesh_quadrant<Rank>> face_neighbors(quadrant<Rank> quad,
+                                                 face f) const noexcept;
 
   /// Returns the owner rank of the specfied ghost quadrant
   optional<int> find_owner_mpi_rank(quadrant<Rank> quad) const noexcept;
@@ -250,8 +253,13 @@ public:
   /// \return Returns MPI_SUCCESS on success otherwise an MPI error code.
   ///
   /// \throws std::bad_alloc on allocation failure.
-  template <typename... Variables>
-  int synchronize_ghost_data(Variables... variables);
+  template <typename Projection, typename Projected>
+  int async_exchange_ghost_data(Projection projection,
+                                span<Projected> ghost_data,
+                                span<Projected> mirror_data,
+                                span<MPI_Request> requests) const;
+
+  int exchange_quadrant_data();
 
   /// Changes the quadrant distribution according to `new_forest`.
   ///
@@ -272,42 +280,29 @@ public:
   void transfer_data_to(forest_type new_forest, Replace replace);
 
 private:
-  mesh_type m_mesh;
+  forest_type m_forest;
+  ghost_layer_type m_ghost_layer;
   patch_data_info m_patch_data_info;
+  mesh_type m_mesh;
+  unique_quadrant_data<floating_point[]> m_data;
+  unique_quadrant_data<floating_point[]> m_ghost_data;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                               Implementation
-
-template <typename VariableList, int Rank, typename FloatingPointType>
-std::ptrdiff_t
-basic_grid<VariableList, Rank, FloatingPointType>::local_data_byte_size(
-    patch_data_info info) noexcept {
-  return std::ptrdiff_t(sizeof(floating_point)) *
-         patch_view::static_size(info.variable_list, info.patch_extents);
-}
-
-template <typename VariableList, int Rank, typename FloatingPointType>
-std::ptrdiff_t
-basic_grid<VariableList, Rank, FloatingPointType>::ghost_data_byte_size(
-    patch_data_info info) noexcept {
-  return std::ptrdiff_t(sizeof(floating_point)) *
-         patch_view::static_size(info.variable_list, info.ghost_extents);
-}
-
 // CONSTRUCTOR
 
 template <typename VariableList, int Rank, typename FloatingPointType>
 basic_grid<VariableList, Rank, FloatingPointType>::basic_grid(
-    forest_type forest, ghost_layer_type ghost, patch_data_info info)
-    : m_mesh{std::move(forest), std::move(ghost),
-             mesh_data_size{local_data_byte_size(info),
-                            ghost_data_byte_size(info)}},
-      m_patch_data_info{info} {}
+    forest_type forest, ghost_layer_type ghost_layer, patch_data_info info)
+    : m_forest{std::move(forest)}, m_ghost_layer{std::move(ghost_layer)},
+      m_patch_data_info{info}, m_mesh{m_forest, m_ghost_layer},
+      m_data{m_forest.local_num_quadrants(),
+             patch_view::static_size(m_patch_data_info.variable_list,
+                                     m_patch_data_info.patch_extents)} {}
 
 ////////////////////////////////////////////////////////////////////////////////
-//                                                Access Patch Data
-//                                                Descriptors
+//                                                Access Patch Data Descriptors
 
 template <typename VariableList, int Rank, typename FloatingPointType>
 typename basic_grid<VariableList, Rank, FloatingPointType>::variable_list_type
@@ -337,53 +332,43 @@ basic_grid<VariableList, Rank, FloatingPointType>::patch_extents() const
   return m_patch_data_info.patch_extents;
 }
 
-template <typename VariableList, int Rank, typename FloatingPointType>
-typename basic_grid<VariableList, Rank, FloatingPointType>::extents_type
-basic_grid<VariableList, Rank, FloatingPointType>::ghost_extents() const
-    noexcept {
-  return m_patch_data_info.ghost_extents;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-//                                                            Access Patch
-//                                                            Data
+//                                                            Access Patch Data
 
 template <typename VariableList, int Rank, typename FloatingPointType>
 typename basic_grid<VariableList, Rank, FloatingPointType>::const_patch_view
 basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
-    quadrant<Rank> quad) const noexcept {
-  span<const byte> raw_data{};
-  if (is_local(quad)) {
-    raw_data = m_mesh.local_data(quad);
-  } else if (is_ghost(quad)) {
-    raw_data = m_mesh.ghost_data(quad);
-  }
-  const floating_point* pointer =
-      reinterpret_cast<const floating_point*>(raw_data.data());
-  std::ptrdiff_t size = raw_data.size() / sizeof(floating_point);
-  span<const floating_point> data{pointer, size};
+    int treeidx, int localnum) const noexcept {
+  const std::ptrdiff_t index = m_forest.trees()[treeidx].offset() + localnum;
+  const span<const floating_point> data = m_data[index];
   return const_patch_view(variable_list(), data, patch_extents());
 }
 
 template <typename VariableList, int Rank, typename FloatingPointType>
 typename basic_grid<VariableList, Rank, FloatingPointType>::patch_view
 basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
-    quadrant<Rank> quad) noexcept {
-  span<byte> raw_data{};
+    int treeidx, int localnum) noexcept {
+  const std::ptrdiff_t index = m_forest.trees()[treeidx].offset() + localnum;
+  const span<floating_point> data = m_data[index];
+  return patch_view(variable_list(), data, patch_extents());
+}
+
+template <typename VariableList, int Rank, typename FloatingPointType>
+typename basic_grid<VariableList, Rank, FloatingPointType>::const_patch_view
+basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
+    quadrant<Rank> quad) const noexcept {
   if (is_local(quad)) {
-    raw_data = m_mesh.local_data(quad);
-    floating_point* pointer =
-        reinterpret_cast<floating_point*>(raw_data.data());
-    std::ptrdiff_t size = raw_data.size() / sizeof(floating_point);
-    span<floating_point> data{pointer, size};
-    return patch_view(variable_list(), data, patch_extents());
-  } else if (is_ghost(quad)) {
-    raw_data = m_mesh.ghost_data(quad);
-    floating_point* pointer =
-        reinterpret_cast<floating_point*>(raw_data.data());
-    std::ptrdiff_t size = raw_data.size() / sizeof(floating_point);
-    span<floating_point> data{pointer, size};
-    return patch_view(variable_list(), data, patch_extents());
+    return patch_data(quad.which_tree(), quad.local_num());
+  }
+  return {};
+}
+
+template <typename VariableList, int Rank, typename FloatingPointType>
+typename basic_grid<VariableList, Rank, FloatingPointType>::patch_view
+basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
+    quadrant<Rank> quad) noexcept {
+  if (is_local(quad)) {
+    return patch_data(quad.which_tree(), quad.local_num());
   }
   return {};
 }
@@ -392,7 +377,7 @@ basic_grid<VariableList, Rank, FloatingPointType>::patch_data(
 template <typename VariableList, int Rank, typename FloatingPointType>
 const typename basic_grid<VariableList, Rank, FloatingPointType>::forest_type&
 basic_grid<VariableList, Rank, FloatingPointType>::forest() const noexcept {
-  return m_mesh.forest();
+  return m_forest;
 }
 
 /// Returns the ghost layer object.
@@ -401,7 +386,7 @@ const typename basic_grid<VariableList, Rank,
                           FloatingPointType>::ghost_layer_type&
 basic_grid<VariableList, Rank, FloatingPointType>::ghost_layer() const
     noexcept {
-  return m_mesh.ghost_layer();
+  return m_ghost_layer;
 }
 
 /// \name Quadrant Observers
@@ -410,10 +395,12 @@ basic_grid<VariableList, Rank, FloatingPointType>::ghost_layer() const
 ///
 /// \throws Nothing.
 template <typename VariableList, int Rank, typename FloatingPointType>
-span<const quadrant<Rank>>
+span<const mesh_quadrant<Rank>>
 basic_grid<VariableList, Rank, FloatingPointType>::face_neighbors(
     quadrant<Rank> quad, face f) const noexcept {
-  return m_mesh.face_neighbors(quad, f);
+  std::ptrdiff_t locidx =
+      forest().trees()[quad.which_tree()].offset() + quad.local_num();
+  return m_mesh.face_neighbors(locidx, f);
 }
 
 /// Returns the owner rank of the specfied ghost quadrant
@@ -496,15 +483,85 @@ bool basic_grid<VariableList, Rank, FloatingPointType>::is_mirror(
 ///
 /// \throws std::bad_alloc on allocation failure.
 template <typename VariableList, int Rank, typename FloatingPointType>
-template <typename... Variables>
-int basic_grid<VariableList, Rank, FloatingPointType>::synchronize_ghost_data(
-    Variables... variables) {
-  return m_mesh.synchronize_ghost_layer([&](const quadrant<2>& mirror,
-                                            span<const byte> local,
-                                            span<byte> remote) {
-    assert(local.size() == remote.size());
-    std::memcpy(remote.data(), local.data(), remote.size());
-  });
+template <typename Projection, typename Projected>
+int basic_grid<VariableList, Rank, FloatingPointType>::
+    async_exchange_ghost_data(Projection projection, span<Projected> ghost_data,
+                              span<Projected> mirror_data,
+                              span<MPI_Request> requests) const {
+  assert(mirror_data.size() >= m_ghost_layer.mirrors().size());
+  assert(ghost_data.size() >= m_ghost_layer.quadrants().size());
+  assert(requests.size() >= mirror_data.size() + ghost_data.size());
+  const std::ptrdiff_t mirror_size = m_ghost_layer.mirrors_by_process().size();
+  std::ptrdiff_t req_counter = 0;
+  std::ptrdiff_t rank = 0;
+  const MPI_Comm comm = m_forest.mpi_communicator();
+  const span<const quadrant<Rank>> mirrors = m_ghost_layer.mirrors();
+  const span<const int> mirrors_by_proc = m_ghost_layer.mirrors_by_process();
+  const span<const int> mirrors_by_proc_offsets = m_ghost_layer.mirrors_by_process_offsets();
+  for (std::ptrdiff_t i = 0; i < mirror_size; ++i) {
+    while (i >= mirrors_by_proc_offsets[rank + 1]) {
+      rank += 1;
+    }
+    assert(rank < m_forest.mpi_size());
+    const std::ptrdiff_t mirror_idx = mirrors_by_proc[i];
+    const quadrant<Rank> mirror_quad = mirrors[mirror_idx];
+    const const_patch_view data = patch_data(mirror_quad);
+    fub::invoke(projection, data, mirror_data[mirror_idx]);
+    using T = remove_cvref_t<
+        std::remove_pointer_t<decltype(mirror_data[mirror_idx].data())>>;
+    const int ec =
+        MPI_Isend(mirror_data[mirror_idx].data(),
+                  mirror_data[mirror_idx].size(), MPI_datatype<T>{}, rank,
+                  mirror_quad.local_num(), comm, &requests[req_counter++]);
+    if (ec != MPI_SUCCESS) {
+      return ec;
+    }
+  }
+  span<const quadrant<Rank>> ghosts = m_ghost_layer.quadrants();
+  span<const int> ghosts_offsets = m_ghost_layer.quadrants_process_offsets();
+  std::ptrdiff_t ghost_size = ghosts.size();
+  rank = 0;
+  for (std::ptrdiff_t ghost_idx = 0; ghost_idx < ghost_size; ++ghost_idx) {
+    while (ghost_idx >= ghosts_offsets[rank + 1]) {
+      rank += 1;
+    }
+    assert(rank < m_forest.mpi_size());
+    using T = remove_cvref_t<
+        std::remove_pointer_t<decltype(ghost_data[ghost_idx].data())>>;
+    const quadrant<Rank> ghost_quad = ghosts[ghost_idx];
+    const int tag = ghost_quad.local_num();
+    const int ec =
+        MPI_Irecv(ghost_data[ghost_idx].data(), ghost_data[ghost_idx].size(),
+                  MPI_datatype<T>{}, rank, tag, comm, &requests[req_counter++]);
+    if (ec != MPI_SUCCESS) {
+      return ec;
+    }
+  }
+  return MPI_SUCCESS;
+}
+
+template <typename VariableList, int Rank, typename FloatingPointType>
+int basic_grid<VariableList, Rank,
+               FloatingPointType>::exchange_quadrant_data() {
+  m_ghost_data = unique_quadrant_data<FloatingPointType[]>(
+      m_ghost_layer.quadrants().size(),
+      patch_view::static_size(m_patch_data_info.variable_list,
+                              m_patch_data_info.patch_extents),
+      m_data.get_allocator());
+  unique_quadrant_data<FloatingPointType[]> mirror_data(
+      m_ghost_layer.mirrors().size(),
+      patch_view::static_size(m_patch_data_info.variable_list,
+                              m_patch_data_info.patch_extents),
+      m_data.get_allocator());
+  std::vector<MPI_Request> requests(m_ghost_layer.quadrants().size() +
+                                    m_ghost_layer.mirrors_by_process().size());
+  async_exchange_ghost_data(
+      [](const_patch_view origin, span<FloatingPointType> mirror) {
+        std::memcpy(mirror.data(), origin.span().data(),
+                    origin.span().byte_size());
+      },
+      m_ghost_data.data(), mirror_data.data(), requests);
+  return MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
 }
 
 /// Changes the quadrant distribution according to `new_forest`.
@@ -527,23 +584,25 @@ template <typename Replace>
 void basic_grid<VariableList, Rank, FloatingPointType>::transfer_data_to(
     forest_type new_forest, Replace replace) {
   balance(new_forest);
-  fub::p4est::ghost_layer<Rank> ghost_layer(new_forest);
-  mesh_data_size size{local_data_byte_size(m_patch_data_info),
-                      ghost_data_byte_size(m_patch_data_info)};
-  fub::p4est::mesh<Rank> new_mesh(std::move(new_forest), std::move(ghost_layer),
-                                  size);
+  fub::p4est::ghost_layer<Rank> new_ghost_layer(new_forest);
+  fub::p4est::mesh<Rank> new_mesh(new_forest, new_ghost_layer);
+  unique_quadrant_data<floating_point[]> new_data(
+      new_forest.local_num_quadrants(),
+      patch_view::static_size(m_patch_data_info.variable_list,
+                              m_patch_data_info.patch_extents),
+      m_data.get_allocator());
+
   span<const tree<Rank>> trees = forest().trees();
   for (const tree<Rank>& tree : trees) {
     span<const quadrant<Rank>> old_quadrants = tree.quadrants();
     for (quadrant<Rank> quad : old_quadrants) {
       /// Check if quad is not refined.
-      optional<std::ptrdiff_t> idx = find(new_mesh.forest(), quad);
+      optional<std::ptrdiff_t> idx = find(new_forest, quad.which_tree(), quad);
       if (idx) {
         const_patch_view out_view = patch_data(quad);
         span<const quadrant<Rank>> out_quad{&quad, 1};
         span<const_patch_view> out_data{&out_view, 1};
-        span<floating_point> data =
-            span_cast<floating_point>(new_mesh.local_data(*idx));
+        span<floating_point> data = new_data[*idx];
         patch_view in_view(variable_list(), data, patch_extents());
         span<patch_view> in_data{&in_view, 1};
         const_replace_data<basic_grid> out{out_quad, out_data};
@@ -553,31 +612,32 @@ void basic_grid<VariableList, Rank, FloatingPointType>::transfer_data_to(
 
       /// Check if quad was refined.
       auto children = fub::p4est::children(quad);
-      idx = find(new_mesh.forest(), children[0]);
+      idx = find(new_forest, quad.which_tree(), children[0]);
       if (idx) {
         const_patch_view out_view = patch_data(quad);
         span<const quadrant<Rank>> out_quad{&quad, 1};
         span<const_patch_view> out_data{&out_view, 1};
-        boost::container::static_vector<patch_view, 8> new_data{};
-        span<floating_point> data =
-            span_cast<floating_point>(new_mesh.local_data(*idx));
+        boost::container::static_vector<patch_view, 8> new_quad_data{};
+        span<floating_point> data = new_data[*idx];
         patch_view view(variable_list(), data, patch_extents());
-        new_data.push_back(view);
+        new_quad_data.push_back(view);
         for (int i = 1; i < children.size(); ++i) {
-          idx = find(new_mesh.forest(), children[i]);
+          idx = find(new_forest, quad.which_tree(), children[i]);
           assert(idx);
-          span<floating_point> data =
-              span_cast<floating_point>(new_mesh.local_data(*idx));
+          data = new_data[*idx];
           patch_view view(variable_list(), data, patch_extents());
-          new_data.push_back(view);
+          new_quad_data.push_back(view);
         }
         const_replace_data<basic_grid> out{out_quad, out_data};
-        replace_data<basic_grid> in{children, new_data};
+        replace_data<basic_grid> in{children, new_quad_data};
         fub::invoke(replace, out, in);
       }
     }
   }
+  m_forest = std::move(new_forest);
+  m_ghost_layer = std::move(new_ghost_layer);
   m_mesh = std::move(new_mesh);
+  m_data = std::move(new_data);
 }
 
 } // namespace p4est

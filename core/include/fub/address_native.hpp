@@ -18,55 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_SIMD_HPP
-#define FUB_CORE_SIMD_HPP
+#ifndef FUB_CORE_ADDRESS_NATIVE_HPP
+#define FUB_CORE_ADDRESS_NATIVE_HPP
 
-#include <Vc/vector.h>
-
-#include "fub/tuple.hpp"
-#include "fub/utility.hpp"
-
-#include <array>
-#include <cassert>
-#include <limits>
-#include <ostream>
+#include <cstddef>
 
 namespace fub {
 inline namespace v1 {
 
-template <typename T>
-Vc::Vector<T> clamp(const Vc::Vector<T>& v, const nodeduce_t<Vc::Vector<T>>& lo,
-                   const nodeduce_t<Vc::Vector<T>>& hi) {
-  assert(all_of(lo < hi));
-  Vc::Vector<T> x{v};
-  where(x < lo, x) = lo;
-  where(hi < x, x) = hi;
-  return x;
-}
+struct address_native {
+  using difference_type = std::ptrdiff_t;
 
-inline bool all_of(bool mask) noexcept { return mask; }
-inline bool any_of(bool mask) noexcept { return mask; }
+  void* address{nullptr};
 
-template <typename T>
-struct where_expression {
-  where_expression() = delete;
-  where_expression(const where_expression&) = delete;
-  where_expression(where_expression&&) = default;
+  constexpr address_native() = default;
 
-  void operator=(const T& other) const {
-    if (m_mask) {
-      *m_data = other;
-    }
+  template <typename T>
+  constexpr explicit address_native(T* ptr)
+      : address{static_cast<void*>(ptr)} {}
+
+  template <typename T>
+  constexpr std::ptrdiff_t distance_as(address_native a) const noexcept {
+    return static_cast<T*>(a.address) - static_cast<T*>(address);
   }
 
-  bool m_mask;
-  T* m_data;
-};
+  template <typename T>
+  constexpr address_native& advance_as(std::ptrdiff_t n) noexcept {
+    address = static_cast<void*>(static_cast<T*>(address) + n);
+    return *this;
+  }
 
-template <typename T, typename = std::enable_if_t<std::is_arithmetic<T>{}>>
-where_expression<T> where(bool mask, T& data) {
-  return where_expression<T>{mask, &data};
-}
+  constexpr explicit operator void*() const noexcept { return address; }
+  constexpr explicit operator const void*() const noexcept { return address; }
+};
 
 } // namespace v1
 } // namespace fub

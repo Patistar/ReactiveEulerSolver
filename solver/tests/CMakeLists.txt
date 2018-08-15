@@ -2,8 +2,26 @@ cmake_minimum_required (VERSION 3.10)
 
 project(ReactiveEulerSolver_solver_tests CXX)
 
-add_executable(test.solver.burke_2012 test.solver.burke_2012.cpp)
-target_link_libraries(test.solver.burke_2012 ReactiveEulerSolver.solver FortranRadauSolver)
+# add_library(assembly.euler.perfect_gas assembly.euler.perfect_gas.cpp)
+# target_link_libraries(assembly.euler.perfect_gas ReactiveEulerSolver.solver)
 
-add_executable(test.solver.ode_solver test.solver.ode_solver.cpp)
-target_link_libraries(test.solver.ode_solver ReactiveEulerSolver.solver FortranRadauSolver blaze)
+add_library(assembly.euler.hlle_signal_velocity assembly.euler.hlle_signal_velocity.cpp)
+target_link_libraries(assembly.euler.hlle_signal_velocity ReactiveEulerSolver.solver)
+
+add_library(assembly.euler.hlle_riemann_solver assembly.euler.hlle_riemann_solver.cpp)
+target_link_libraries(assembly.euler.hlle_riemann_solver ReactiveEulerSolver.solver)
+
+add_library(assembly.time_integrator.forward_euler assembly.time_integrator.forward_euler.cpp)
+target_link_libraries(assembly.time_integrator.forward_euler ReactiveEulerSolver.solver)
+
+add_executable(benchmark.euler.hlle_riemann_solver benchmark.euler.hlle_riemann_solver.cpp)
+target_link_libraries(benchmark.euler.hlle_riemann_solver ReactiveEulerSolver.solver assembly.euler.hlle_riemann_solver benchmark)
+
+add_executable(benchmark.time_integrator.forward_euler benchmark.time_integrator.forward_euler.cpp)
+target_link_libraries(benchmark.time_integrator.forward_euler ReactiveEulerSolver.solver assembly.time_integrator.forward_euler benchmark)
+
+# add_executable(benchmark.euler.perfect_gas benchmark.euler.perfect_gas.cpp)
+# target_link_libraries(benchmark.euler.perfect_gas ReactiveEulerSolver.solver assembly.euler.perfect_gas benchmark)
+
+add_executable(benchmark.euler.hlle_signal_velocity benchmark.euler.hlle_signal_velocity.cpp)
+target_link_libraries(benchmark.euler.hlle_signal_velocity ReactiveEulerSolver.solver assembly.euler.hlle_signal_velocity benchmark)

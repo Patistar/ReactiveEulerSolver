@@ -144,7 +144,6 @@ public:
       const basic_mdspan<S, OtherExtents, OtherLayout, OtherAccess>& other)
       : basic_mdspan(other.span(), mapping(other.get_extents())) {}
 
-
   // [mdspan.basic.domobs], basic_mdspan observers of the domain multi-index
   // space
 
@@ -242,6 +241,18 @@ private:
 template <typename T, std::ptrdiff_t... Extents>
 using mdspan =
     basic_mdspan<T, extents<Extents...>, layout_left, accessor_native<T>>;
+
+template <typename T, typename E, typename L, typename A>
+constexpr std::ptrdiff_t rows(basic_mdspan<T, E, L, A> mdspan) noexcept {
+  return rows(mdspan.get_extents());
+}
+
+template <typename T, typename E, typename L, typename A>
+constexpr auto row(basic_mdspan<T, E, L, A> mdspan,
+                   std::ptrdiff_t i = 0) noexcept {
+  const std::ptrdiff_t length = mdspan.get_extents().extent(0);
+  return subspan(mdspan.span(), i * length, length);
+}
 
 } // namespace v1
 } // namespace fub

@@ -4,6 +4,6 @@ project(ReactiveEulerSolver CXX)
 
 add_subdirectory(core)
 add_subdirectory(grid)
-# add_subdirectory(solver)
+add_subdirectory(solver)
 # add_subdirectory(driver)
 # add_subdirectory(apps)

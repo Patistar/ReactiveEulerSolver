@@ -25,13 +25,19 @@
 #include "fub/dynamic_extent.hpp"
 #include "fub/type_traits.hpp"
 
-#include <range/v3/data.hpp>
-#include <range/v3/size.hpp>
-
 #include <array>
+#include <cassert>
 
 namespace fub {
 inline namespace v1 {
+
+template <typename Accessor, typename T>
+constexpr std::ptrdiff_t accessible_size(Accessor, T* native,
+                                         std::ptrdiff_t n) {
+  typename Accessor::pointer first(native);
+  typename Accessor::pointer last(native + n);
+  return last - first;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                               [span.storage]
@@ -100,7 +106,7 @@ private:
   index m_size{0};
 };
 
-template <typename R> using data_t = decltype(ranges::data(std::declval<R>()));
+template <typename R> using data_t = decltype(std::declval<R>().data());
 
 template <typename A> struct is_std_array : bool_constant<false> {};
 
@@ -111,6 +117,8 @@ struct is_std_array<std::array<T, N>> : bool_constant<true> {};
 // Forward Decleration
 
 template <typename T, index N, typename Accessor> class basic_span;
+
+template <typename Accessor> class basic_span_iterator;
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                        [span.traits.is_span]
@@ -143,8 +151,9 @@ public:
   using const_pointer =
       typename accessor::template rebind<const value_type>::pointer;
   using reference = typename storage_type::reference;
-  using iterator = pointer;
-  using const_iterator = const_pointer;
+  using iterator = basic_span_iterator<Accessor>;
+  using const_iterator =
+      basic_span_iterator<typename accessor::template rebind<const value_type>>;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using index_type = index;
@@ -261,8 +270,8 @@ public:
           detected_t<detail::data_t, Container>, pointer>::value>>
   constexpr basic_span(Container&& container,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{ranges::data(container), a} {
-    assert(N <= ranges::size(container));
+      : m_storage{container.data(), a} {
+    assert(N <= container.size());
   }
 
   template <index StaticExtent>
@@ -284,6 +293,8 @@ public:
   // \name Observers
 
   constexpr index_type size() const noexcept { return m_storage.size(); }
+
+  constexpr index_type byte_size() const noexcept { return sizeof(T) * size(); }
 
   constexpr pointer data() const noexcept { return m_storage.get_pointer(); }
 
@@ -348,8 +359,9 @@ public:
   using const_pointer =
       typename accessor::template rebind<const value_type>::pointer;
   using reference = typename storage_type::reference;
-  using iterator = pointer;
-  using const_iterator = const_pointer;
+  using iterator = basic_span_iterator<accessor>;
+  using const_iterator =
+      basic_span_iterator<typename accessor::template rebind<const value_type>>;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using index_type = index;
@@ -371,21 +383,21 @@ public:
   template <std::size_t M>
   constexpr basic_span(element_type (&arr)[M],
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{&arr[0], static_cast<index_type>(M), a} {}
+      : m_storage{&arr[0], accessible_size(a, &arr[0], M), a} {}
 
   template <typename S, std::size_t M,
             typename =
                 std::enable_if_t<std::is_convertible<const S*, pointer>::value>>
   constexpr basic_span(const std::array<S, M>& arr,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{arr.data(), static_cast<index_type>(arr.size()), a} {}
+      : m_storage{arr.data(), accessible_size(a, arr.data(), arr.size()), a} {}
 
   template <typename S, std::size_t M,
             typename = std::enable_if_t<std::is_convertible<
                 typename std::array<S, M>::pointer, pointer>::value>>
   constexpr basic_span(std::array<S, M>& arr,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{arr.data(), static_cast<index_type>(arr.size()), a} {}
+      : m_storage{arr.data(), accessible_size(a, arr.data(), arr.size()), a} {}
 
   template <
       typename Container,
@@ -398,13 +410,16 @@ public:
           detected_t<detail::data_t, Container>, pointer>::value>>
   constexpr basic_span(Container&& container,
                        accessor a = accessor()) noexcept // NOLINT
-      : m_storage{container.data(), static_cast<index>(container.size()), a} {}
+      : m_storage{container.data(),
+                  accessible_size(a, container.data(), container.size()), a} {}
 
   template <typename S, index_type M, typename A,
             typename = std::enable_if_t<std::is_convertible<
                 typename basic_span<S, M, A>::pointer, pointer>::value>>
-  constexpr basic_span(const basic_span<S, M, A>& s) noexcept // NOLINT
-      : m_storage{s.data(), s.size()} {}
+  constexpr basic_span(const basic_span<S, M, A>& s,
+                       accessor a = accessor()) noexcept // NOLINT
+      : m_storage{s.data(),
+                  accessible_size(get_accessor(), s.data(), s.size())} {}
 
   constexpr basic_span(const basic_span& s) noexcept = default;
 
@@ -423,6 +438,8 @@ public:
   // Member Variable Accessors
 
   constexpr index_type size() const noexcept { return m_storage.size(); }
+
+  constexpr index_type byte_size() const noexcept { return sizeof(T) * size(); }
 
   constexpr pointer data() const noexcept { return m_storage.get_pointer(); }
 
@@ -469,9 +486,7 @@ public:
   ///     } else {
   ///         // s is empty
   ///     }
-  constexpr explicit operator bool() const noexcept {
-    return size() > 0;
-  }
+  constexpr explicit operator bool() const noexcept { return size() > 0; }
 
 private:
   storage_type m_storage;
@@ -479,6 +494,21 @@ private:
 
 template <typename T, index Extent = dynamic_extent>
 using span = basic_span<T, Extent, accessor_native<T>>;
+
+template <typename T, index ExtentL, typename AccessorL, typename S,
+          index ExtentR, typename AccessorR>
+constexpr bool operator==(basic_span<T, ExtentL, AccessorL> lhs,
+                          basic_span<S, ExtentR, AccessorR> rhs) {
+  return lhs.get_accessor() == rhs.get_accessor() && lhs.data() == rhs.data() &&
+         lhs.size() == rhs.size();
+}
+
+template <typename T, index ExtentL, typename AccessorL, typename S,
+          index ExtentR, typename AccessorR>
+constexpr bool operator!=(basic_span<T, ExtentL, AccessorL> lhs,
+                          basic_span<S, ExtentR, AccessorR> rhs) {
+  return !(lhs == rhs);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // make_span
@@ -558,6 +588,94 @@ span_cast(basic_span<U, N, A> span) noexcept {
   T* pointer = reinterpret_cast<T*>(span.data());
   typename A::template rebind<T> accessor(span.get_accessor());
   return {pointer, span.size(), accessor};
+}
+
+template <typename Accessor> class basic_span_iterator : private Accessor {
+public:
+  using value_type = typename Accessor::value_type;
+  using difference_type = std::ptrdiff_t;
+  using pointer = typename Accessor::pointer;
+  using reference = typename Accessor::reference;
+  using iterator_category = std::random_access_iterator_tag;
+
+  basic_span_iterator() = default;
+  constexpr basic_span_iterator(pointer p, Accessor a = Accessor()) // NOLINT
+      : Accessor(a), m_pointer(p) {}
+
+  constexpr pointer get_pointer() const noexcept { return m_pointer; }
+  constexpr Accessor get_accessor() const noexcept { return *this; }
+
+  constexpr basic_span_iterator& operator+=(index n) noexcept {
+    m_pointer += n;
+    return *this;
+  }
+
+  constexpr basic_span_iterator& operator-=(index n) noexcept {
+    m_pointer -= n;
+    return *this;
+  }
+
+  constexpr basic_span_iterator& operator++() noexcept {
+    ++m_pointer;
+    return *this;
+  }
+
+  constexpr basic_span_iterator& operator--() noexcept {
+    --m_pointer;
+    return *this;
+  }
+
+  constexpr basic_span_iterator operator++(int) noexcept {
+    pointer old = m_pointer++;
+    return old;
+  }
+
+  constexpr basic_span_iterator operator--(int) noexcept {
+    pointer old = m_pointer--;
+    return old;
+  }
+
+  reference operator*() const noexcept {
+    return get_accessor().access(m_pointer, 1, 0);
+  }
+
+private:
+  pointer m_pointer{nullptr};
+};
+
+#define FUB_DEFINE_SPAN_ITERATOR_OPERATOR(op)                                  \
+  template <typename A>                                                        \
+  constexpr bool operator op(basic_span_iterator<A> lhs,                       \
+                             basic_span_iterator<A> rhs) noexcept {            \
+    return lhs.get_pointer() op rhs.get_pointer();                             \
+  }
+/**/
+
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(==);
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(!=);
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(<);
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(<=);
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(>);
+FUB_DEFINE_SPAN_ITERATOR_OPERATOR(>=);
+
+#undef FUB_DEFINE_SPAN_ITERATOR_OPERATOR
+
+template <typename A>
+basic_span_iterator<A> operator+(std::ptrdiff_t n,
+                                 basic_span_iterator<A> rhs) noexcept {
+  return n + rhs.get_pointer();
+}
+
+template <typename A>
+basic_span_iterator<A> operator+(basic_span_iterator<A> lhs,
+                                 std::ptrdiff_t n) noexcept {
+  return lhs.get_pointer() + n;
+}
+
+template <typename A>
+std::ptrdiff_t operator-(basic_span_iterator<A> lhs,
+                         basic_span_iterator<A> rhs) noexcept {
+  return lhs.get_pointer() - lhs.get_pointer();
 }
 
 } // namespace v1

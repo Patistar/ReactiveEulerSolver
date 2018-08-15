@@ -33,7 +33,7 @@ static constexpr auto density = fub::tag<Density>;
 struct Momentum : fub::vector_variable<2> {
   static std::array<char, 10> construct_name(int i) noexcept {
     fmt::basic_memory_buffer<char, 10> buffer{};
-    std::array<const char*, 3> names = {"X", "Y", "Z"}; 
+    std::array<const char*, 3> names = {"X", "Y", "Z"};
     fmt::format_to(buffer, "Momentum{}", names[i % 3]);
     std::array<char, 10> array{};
     std::copy_n(buffer.data(), buffer.size(), array.begin());
@@ -48,9 +48,9 @@ struct Momentum : fub::vector_variable<2> {
     return arrays;
   }
 
-  static const char* name(int i) noexcept { 
+  static const char* name(int i) noexcept {
     static const std::array<std::array<char, 10>, 2> name_ = construct_names(2);
-    return name_[i].data(); 
+    return name_[i].data();
   }
 };
 
@@ -59,8 +59,7 @@ using Variables = fub::variable_list<Density, Momentum>;
 int main() {
   Variables vars{};
   fub::dynamic_extents_t<2> extents(1024, 1024);
-  fub::variable_data<Variables, double, fub::dynamic_extents_t<2>> patch(
-      vars, extents);
+  fub::variable_data<Variables, double, 2> patch(vars, extents);
   fub::uniform_cartesian_coordinates<2> coordinates({0., 0.}, {1., 1.},
                                                     fub::as_array(extents));
   for_each_index(patch.get_mapping(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {

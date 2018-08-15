@@ -60,12 +60,12 @@ span<const int> ghost_layer<2>::quadrants_process_offsets() const noexcept {
   return {m_handle->proc_offsets, m_handle->mpisize + 1};
 }
 
-span<const int> ghost_layer<2>::mirrors_by_process() const noexcept {
-  return {m_handle->mirror_proc_mirrors, mirrors().size()};
-}
-
 span<const int> ghost_layer<2>::mirrors_by_process_offsets() const noexcept {
   return {m_handle->mirror_proc_offsets, m_handle->mpisize + 1};
+}
+
+span<const int> ghost_layer<2>::mirrors_by_process() const noexcept {
+  return {m_handle->mirror_proc_mirrors, mirrors_by_process_offsets()[m_handle->mpisize]};
 }
 
 void ghost_layer<2>::destroyer::operator()(p4est_ghost_t* p) const noexcept {

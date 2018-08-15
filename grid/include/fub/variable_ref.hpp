@@ -21,48 +21,139 @@
 #ifndef FUB_GRID_VARIABLE_REF_HPP
 #define FUB_GRID_VARIABLE_REF_HPP
 
+// #include "fub/accessor_simd.hpp"
 #include "fub/variable_list.hpp"
-#include <array>
 
 namespace fub {
 inline namespace v1 {
-template <typename VariableView> class variable_ref {
+template <typename VariableList, typename T,
+          typename Accessor = accessor_native<T>>
+class variable_ref : VariableList, Accessor {
 public:
-  static constexpr index rank = VariableView::extents_type::rank();
+  using accessor = Accessor;
+  using value_type = typename Accessor::value_type;
+  using pointer = typename Accessor::pointer;
+  using reference = typename Accessor::reference;
 
   variable_ref() = delete;
   variable_ref(const variable_ref&) = delete;
+  variable_ref(variable_ref&&) = default;
 
-  variable_ref(VariableView& view,
-               const std::array<index, rank>& indices) noexcept
-      : m_view{view}, m_indices{indices} {}
+  template <typename S, typename OtherAccessor,
+            typename = std::enable_if_t<!std::is_same<T, S>{}>,
+            typename = std::enable_if_t<std::is_convertible<
+                typename OtherAccessor::pointer, pointer>{}>>
+  variable_ref(variable_ref<VariableList, S, OtherAccessor>&& other)
+      : VariableList(other.get_variable_list()), m_pointer{other.get_pointer()},
+        m_stride{other.get_stride()} {}
+
+  variable_ref(VariableList list, pointer ptr, std::ptrdiff_t stride,
+               Accessor accessor = Accessor()) noexcept
+      : VariableList(list), Accessor(accessor), m_pointer(ptr),
+        m_stride(stride) {}
 
   template <typename Variables>
   variable_ref& operator=(const Variables& variables) {
     for_each(get_variable_list(), [&](auto variable) {
-      fub::apply(m_view[variable], m_indices) = variables[variable];
+      this->operator[](variable) = variables[variable];
     });
     return *this;
   }
 
   template <typename Tag>
-  constexpr decltype(auto) operator[](Tag tag) noexcept {
-    return fub::apply(m_view[tag], m_indices);
+  constexpr reference operator[](Tag tag) const noexcept {
+    std::ptrdiff_t size = get_variable_list().size() * m_stride;
+    std::ptrdiff_t index = *get_variable_list().index(tag) * m_stride;
+    return get_accessor().access(m_pointer, size, index);
   }
 
-  template <typename Tag>
-  constexpr decltype(auto) operator[](Tag tag) const noexcept {
-    return fub::apply(m_view[tag], m_indices);
+  constexpr VariableList get_variable_list() const noexcept { return *this; }
+  constexpr Accessor get_accessor() const noexcept { return *this; }
+  constexpr std::ptrdiff_t get_stride() const noexcept { return m_stride; }
+  constexpr pointer get_pointer() const noexcept { return m_pointer; }
+
+private:
+  pointer m_pointer;
+  std::ptrdiff_t m_stride;
+};
+
+template <typename VariableList, typename T,
+          typename Accessor = accessor_native<T>>
+class variable_iterator : VariableList, Accessor {
+public:
+  using pointer = typename Accessor::pointer;
+  using reference = variable_ref<VariableList, T, Accessor>;
+  using value_type = reference;
+  using difference_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  variable_iterator() = default;
+
+  variable_iterator(VariableList list, pointer ptr, std::ptrdiff_t stride,
+                    Accessor accessor = Accessor()) noexcept
+      : VariableList(list), Accessor(accessor), m_pointer(ptr),
+        m_stride(stride) {}
+
+  variable_ref<VariableList, T, Accessor> read() const noexcept {
+    return {get_variable_list(), m_pointer, m_stride, get_accessor()};
   }
 
-  constexpr decltype(auto) get_variable_list() const noexcept {
-    return m_view.get_variable_list();
+  constexpr VariableList get_variable_list() const noexcept { return *this; }
+  constexpr Accessor get_accessor() const noexcept { return *this; }
+  constexpr pointer get_pointer() const noexcept { return m_pointer; }
+  constexpr std::ptrdiff_t get_stride() const noexcept { return m_stride; }
+
+  variable_iterator& operator++() noexcept {
+    ++m_pointer;
+    return *this;
+  }
+
+  variable_iterator& operator--() noexcept {
+    --m_pointer;
+    return *this;
+  }
+
+  variable_iterator operator++(int) noexcept {
+    variable_iterator old{*this};
+    ++m_pointer;
+    return old;
+  }
+
+  variable_iterator& operator--(int) noexcept {
+    variable_iterator old{*this};
+    --m_pointer;
+    return old;
+  }
+
+  bool operator==(const variable_iterator& other) const noexcept {
+    return get_variable_list() == other.get_variable_list() &&
+           get_accessor() == other.get_accessor() &&
+           m_pointer == other.m_pointer;
+  }
+
+  bool operator!=(const variable_iterator& other) const noexcept {
+    return !(*this == other);
+  }
+
+  reference operator*() const noexcept {
+    return reference{get_variable_list(), m_pointer, m_stride, get_accessor()};
   }
 
 private:
-  VariableView& m_view;
-  std::array<index, rank> m_indices;
+  pointer m_pointer{nullptr};
+  std::ptrdiff_t m_stride{};
 };
+
+// template <typename VariableList, typename T, typename Accessor>
+// variable_iterator<
+//     VariableList, T,
+//     accessor_simd<T, simd_abi::native<T>, flags::vector_aligned_tag>>
+// simdify(variable_iterator<VariableList, T, Accessor> it) {
+//   accessor_simd<T, simd_abi::native<T>, flags::vector_aligned_tag> a{};
+//   return {it.get_variable_list(), it.get_pointer(),
+//           accessible_size(a, it.get_pointer(), it.get_stride())};
+// }
+
 } // namespace v1
 } // namespace fub
 

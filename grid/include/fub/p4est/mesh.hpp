@@ -32,130 +32,64 @@
 #include <boost/container/pmr/vector.hpp>
 #include <boost/container/static_vector.hpp>
 
+#include <vector>
+
 namespace fub {
 inline namespace v1 {
 namespace p4est {
 
+/// This class manages objects of type T for a forest and its ghost layer.
 template <int Rank> class mesh;
 
-template <int Rank> struct face_info_data {
+template <int Rank> struct mesh_quadrant {
   quadrant<Rank> quad;
   bool is_ghost;
 };
 
-template <int Rank> class face_info {
-public:
-  face_info(face_info_data<Rank> coarse,
-            std::array<face_info_data<Rank>, 2> fine, fub::face face) noexcept
-      : m_coarse{coarse}, m_fine{fine}, m_face{face} {}
-
-  void data(span<byte> new_data) noexcept { m_data = new_data; }
-  span<byte> data() noexcept { return m_data; }
-  span<const byte> data() const noexcept { return m_data; }
-
-  const face_info_data<Rank>& coarse() const noexcept { return m_coarse; }
-
-  const std::array<face_info_data<Rank>, 2>& fine() const noexcept {
-    return m_fine;
-  }
-
-  fub::face face() const noexcept { return m_face; }
-
-private:
-  face_info_data<Rank> m_coarse;
-  std::array<face_info_data<Rank>, 2> m_fine;
-  fub::face m_face;
-  span<byte> m_data;
+template <typename Q> struct face_and {
+  fub::face face;
+  Q quadrant;
 };
 
-struct mesh_data_size {
-  std::ptrdiff_t local;
-  std::ptrdiff_t ghost;
-  std::ptrdiff_t coarse_fine_interface;
+/// A face_info object holds a data object which is mapped to a specified
+/// coarse-fine interface.
+template <int Rank> struct coarse_fine_interface {
+  face_and<mesh_quadrant<Rank>> coarse;
+  face_and<std::array<mesh_quadrant<Rank>, 2>> fine;
 };
 
 template <> class mesh<2> {
 public:
-  using allocator_type = boost::container::pmr::polymorphic_allocator<byte>;
-
   using face_neighbors_t =
-      std::array<boost::container::static_vector<quadrant<2>, 4>, 4>;
+      std::array<boost::container::static_vector<mesh_quadrant<2>, 4>, 4>;
 
-  using projection_type =
-      function_ref<void(const quadrant<2>&, span<const byte>, span<byte>)>;
+  /// Constructs a mesh from a given forest and ghost layer.
+  ///
+  /// \note The forest and ghost layer should outlive the mesh.
+  mesh(forest<2>& forest, ghost_layer<2>& ghost_layer);
 
-  mesh(forest<2> forest, ghost_layer<2> ghost, mesh_data_size size,
-       allocator_type alloc = allocator_type());
+  static constexpr int rank() noexcept { return 2; }
 
-  mesh(const mesh&);
-  mesh& operator=(const mesh&);
+  /// Returns a either up to two quadrants which are face neighbors to `quad`
+  /// over face `f`.
+  span<const mesh_quadrant<2>> face_neighbors(std::ptrdiff_t index, face f) const
+      noexcept {
+    return m_quad_to_face_neighbors[index][f];
+  }
 
-  mesh(mesh&&) noexcept;
-  mesh& operator=(mesh&&) noexcept;
-
-  ~mesh() noexcept;
-
-  void allocate(mesh_data_size size, allocator_type alloc = allocator_type());
-
-  void deallocate() noexcept;
-
-  void reset(forest<2> forest, ghost_layer<2> ghost, mesh_data_size size,
-             allocator_type alloc = allocator_type());
-
-  int synchronize_ghost_layer(projection_type projection);
-
-  const forest<2>& forest() const noexcept;
-
-  const ghost_layer<2>& ghost_layer() const noexcept;
-
-  span<byte> local_data(quadrant<2> quad) noexcept;
-
-  span<const byte> local_data(quadrant<2> quad) const noexcept;
-
-  span<byte> local_data(std::ptrdiff_t idx) noexcept;
-
-  span<const byte> local_data(std::ptrdiff_t idx) const noexcept;
-
-  span<byte> ghost_data(quadrant<2> quad) noexcept;
-
-  span<const byte> ghost_data(quadrant<2> quad) const noexcept;
-
-  span<const quadrant<2>> face_neighbors(quadrant<2> quad, face f) const
-      noexcept;
-
-  span<const std::ptrdiff_t> quadrants_at_level(int level) const noexcept;
-
-  span<const face_info<2>> coarse_fine_interfaces() const noexcept;
+  /// Returns a list of all coarse fine interface information objects.
+  span<const coarse_fine_interface<2>> coarse_fine_interfaces() const
+      noexcept {
+    return m_coarse_fine_interfaces;
+  }
 
 private:
-  fub::p4est::forest<2> m_forest;
-
-  fub::p4est::ghost_layer<2> m_ghost;
-
-  allocator_type m_allocator;
-
-  /// For each local quadrant a data buffer.
-  span<span<byte>> m_local_to_data;
-
-  /// For each ghost quadrant a data buffer.
-  span<span<byte>> m_ghost_to_data;
-
-  /// For each mirror quadrant a data buffer.
-  span<span<byte>> m_mirror_to_data;
-
   /// For each local quadrant its face neighbor relationships.
-  span<face_neighbors_t> m_quad_to_face_neighbors;
+  std::vector<face_neighbors_t> m_quad_to_face_neighbors;
 
-  /// For each refinement level a list of local quadrant indices.
-  std::array<span<std::ptrdiff_t>, P4EST_QMAXLEVEL> m_level_to_local;
-
-  /// A list of "hanging" faces between quadrants at different refinement
-  /// levels.
-  span<face_info<2>> m_coarse_fine_interfaces;
+  /// A vector of coarse fine interfaces, sorted by local index.
+  std::vector<coarse_fine_interface<2>> m_coarse_fine_interfaces;
 };
-
-boost::container::static_vector<quadrant<2>, 4>
-find_children(const forest<2>& f, const quadrant<2>& q) noexcept;
 
 } // namespace p4est
 } // namespace v1

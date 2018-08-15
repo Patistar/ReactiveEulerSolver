@@ -24,10 +24,21 @@ namespace fub {
 inline namespace v1 {
 namespace p4est {
 
+namespace {
+void fill_local_nums(p4est_t* forest) {
+  p4est_iterate(forest, nullptr, nullptr,
+                [](p4est_iter_volume_info_t* info, void*) {
+                  info->quad->p.piggy3.which_tree = info->treeid;
+                  info->quad->p.piggy3.local_num = info->quadid;
+                },
+                nullptr, nullptr);
+}
+} // namespace
+
 // Constructors
 
 forest<2>::forest(const forest& other)
-    : m_handle{p4est_copy(const_cast<p4est_t*>(other.native()), 0)} {}
+    : m_handle{p4est_copy(const_cast<p4est_t*>(other.native()), 1)} {}
 
 forest<2>& forest<2>::operator=(const forest& other) {
   m_handle.reset(p4est_copy(const_cast<p4est_t*>(other.native()), 1));
@@ -40,13 +51,17 @@ forest<2>::forest(MPI_Comm communicator,
                   const ::fub::p4est::connectivity<2>& conn) noexcept
     : m_handle{p4est_new(communicator,
                          const_cast<p4est_connectivity_t*>(conn.native()), 0,
-                         nullptr, nullptr)} {}
+                         nullptr, nullptr)} {
+  fill_local_nums(m_handle.get());
+}
 
 forest<2>::forest(MPI_Comm communicator, ::fub::p4est::connectivity<2>& conn,
                   int min_quads, int min_level, int fill_uniform) noexcept
     : m_handle{p4est_new_ext(
           communicator, const_cast<p4est_connectivity_t*>(conn.native()),
-          min_quads, min_level, fill_uniform, 0, nullptr, nullptr)} {}
+          min_quads, min_level, fill_uniform, 0, nullptr, nullptr)} {
+  fill_local_nums(m_handle.get());
+}
 
 // Member Accessors
 
@@ -77,20 +92,23 @@ p4est_t* forest<2>::native() noexcept { return m_handle.get(); }
 
 const p4est_t* forest<2>::native() const noexcept { return m_handle.get(); }
 
-optional<std::ptrdiff_t> find(const forest<2>& forest,
+optional<std::ptrdiff_t> find(const forest<2>& forest, int treeidx,
                               const quadrant<2>& quad) noexcept {
-  int treeidx = quad.which_tree();
   const tree<2>& tree = forest.trees()[treeidx];
   span<const quadrant<2>> quads = tree.quadrants();
-  auto pos = std::lower_bound(quads.begin(), quads.end(), quad);
-  if (pos == quads.end() || quad != *pos) {
-    return nullopt;
+  std::ptrdiff_t index = 0;
+  for (quadrant<2> q : quads) {
+    if (q == quad) {
+      return tree.offset() + index;
+    }
+    ++index;
   }
-  return pos - quads.begin();
+  return nullopt;
 }
 
 void balance(forest<2>& forest) noexcept {
   p4est_balance(forest.native(), P4EST_CONNECT_FACE, nullptr);
+  fill_local_nums(forest.native());
 }
 
 } // namespace p4est

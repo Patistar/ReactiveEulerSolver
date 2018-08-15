@@ -524,7 +524,7 @@ void radau5::integrate(ode_system_t ode_system, std::array<double, 2> x,
   vector_type y(y_0.data(), y_0.size());
   allocate_subobjects(state, y.size());
   update_scaling(state, *this, y);
-  integrate_impl(state, *this, feedback, ode_system, y, x[1] - x[0]);
+  integrate_impl(state, *this, std::move(feedback), ode_system, y, x[1] - x[0]);
 }
 
 } // namespace ode_solver

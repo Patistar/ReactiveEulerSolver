@@ -11,7 +11,7 @@ constexpr auto density = fub::tag<Density>;
 constexpr auto temperature = fub::tag<Temperature>;
 
 TEST_CASE("Construct an interval of statically sized variable data") {
-  fub::variable_data<Variables, double, fub::extents<10>> data{};
+  fub::basic_variable_data<Variables, fub::mdspan<double, 10>> data{};
   SECTION("basic properties") {
     REQUIRE(data.size() == 20);
     REQUIRE(data.get_extents().extent(0) == 10);

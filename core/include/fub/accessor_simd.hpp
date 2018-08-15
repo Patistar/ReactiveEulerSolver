@@ -21,32 +21,48 @@
 #ifndef FUB_CORE_ACCESSOR_SIMD_HPP
 #define FUB_CORE_ACCESSOR_SIMD_HPP
 
-#include "fub/simd.hpp"
+#include "fub/aligned_address.hpp"
+#include "fub/fancy_pointer.hpp"
 
-#include <boost/align/is_aligned.hpp>
+#include <Vc/vector.h>
 
 #include <cassert>
 
 namespace fub {
 inline namespace v1 {
-template <typename T, typename Abi, typename Alignment> class simd_proxy {
+template <typename T, typename Abi, typename AlignmentFlag>
+struct simd_pointer_helper {
+  using type = T*;
+};
+
+template <typename T, typename Abi>
+struct simd_pointer_helper<T, Abi, Vc::AlignedTag> {
+  using simd_type = Vc::Vector<remove_cvref_t<T>, Abi>;
+  using type = fancy_pointer<T, aligned_address<simd_type::MemoryAlignment>>;
+};
+
+template <typename T, typename Abi, typename Alignment>
+using simd_pointer = typename simd_pointer_helper<T, Abi, Alignment>::type;
+
+template <typename T, typename Abi, typename Alignment> class simd_reference {
 public:
   using element_type = T;
-  using pointer = T*;
-  using simd_type = simd<T, Abi>;
+  using value_type = remove_cvref_t<T>;
+  using pointer = simd_pointer<T, Abi, Alignment>;
+  using simd_type = Vc::Vector<value_type, Abi>;
 
-  simd_proxy(pointer p) noexcept : m_pointer{p} {}
-  simd_proxy(const simd_proxy&) = delete;
-  simd_proxy& operator=(const simd_proxy&) = delete;
-  simd_proxy(simd_proxy&&) = default;
-  simd_proxy& operator=(simd_proxy&&) = default;
+  simd_reference(pointer p) noexcept : m_pointer{p} {}
+  simd_reference(const simd_reference&) = delete;
+  simd_reference& operator=(const simd_reference&) = delete;
+  simd_reference(simd_reference&&) = default;
+  simd_reference& operator=(simd_reference&&) = default;
 
   operator simd_type() const noexcept {
-    return simd_type{m_pointer, Alignment()};
+    return simd_type{static_cast<T*>(m_pointer), Alignment()};
   }
 
-  simd_proxy& operator=(const simd_type& v) noexcept {
-    v.copy_to(m_pointer, Alignment());
+  simd_reference& operator=(const simd_type& v) noexcept {
+    v.store(static_cast<T*>(m_pointer), Alignment());
     return *this;
   }
 
@@ -55,75 +71,62 @@ private:
 };
 
 template <typename T, typename Abi, typename Alignment>
-class simd_proxy<const T, Abi, Alignment> {
+class simd_reference<const T, Abi, Alignment> {
 public:
+  using value_type = T;
   using element_type = const T;
-  using pointer = const T*;
-  using simd_type = simd<remove_cvref_t<T>, Abi>;
+  using pointer = simd_pointer<const T, Abi, Alignment>;
+  using simd_type = Vc::Vector<remove_cvref_t<T>, Abi>;
 
-  simd_proxy(pointer p) noexcept : m_pointer{p} {}
-  simd_proxy(const simd_proxy&) = delete;
-  simd_proxy& operator=(const simd_proxy&) = delete;
-  simd_proxy(simd_proxy&&) = default;
-  simd_proxy& operator=(simd_proxy&&) = default;
+  simd_reference(pointer p) noexcept : m_pointer{p} {}
+  simd_reference(const simd_reference&) = delete;
+  simd_reference& operator=(const simd_reference&) = delete;
+  simd_reference(simd_reference&&) = default;
+  simd_reference& operator=(simd_reference&&) = default;
 
   operator simd_type() const noexcept {
-    return simd_type{m_pointer, Alignment()};
+    return simd_type{static_cast<const T*>(m_pointer), Alignment()};
   }
 
 private:
   pointer m_pointer;
 };
 
-namespace detail {
-template <typename T, typename Abi> struct accessor_simd_element_type;
-template <typename T, typename Abi>
-using accessor_simd_element_type_t =
-    typename accessor_simd_element_type<T, Abi>::type;
-} // namespace detail
+template <typename T, typename Abi = Vc::VectorAbi::Best<T>, typename Alignment = Vc::AlignedTag> struct accessor_simd {
+  using element_type = T;
+  using simd_type = Vc::Vector<remove_cvref_t<T>, Abi>;
+  using value_type = simd_type;
+  using pointer = simd_pointer<T, Abi, Alignment>;
+  using reference = simd_reference<T, Abi, Alignment>;
 
-template <typename T, typename Abi> struct accessor_simd_aligned {
-  using element_type = detail::accessor_simd_element_type_t<T, Abi>;
-  using value_type = remove_cvref_t<element_type>;
-  using pointer = T*;
-  using reference = simd_proxy<T, Abi, flags::vector_aligned_tag>;
-  static constexpr pointer to_pointer(element_type& element) {
-    return reinterpret_cast<pointer>(&element);
+  static constexpr int alignment() noexcept {
+    return simd_type::MemoryAlignment;
   }
+
+  static constexpr pointer to_pointer(element_type& element) {
+    return static_cast<void*>(&element);
+  }
+
   static constexpr reference access(pointer origin, std::ptrdiff_t /* size */,
                                     std::ptrdiff_t offset) noexcept {
     pointer ptr = origin + offset;
-    assert(boost::alignment::is_aligned(ptr, memory_alignment_v<value_type>));
-    return reference(ptr);
+    return reference{ptr};
   }
-  template <typename S> using rebind = accessor_simd_aligned<S, Abi>;
+
+  template <typename S> using rebind = accessor_simd<S, Abi, Vc::AlignedTag>;
 };
 
-template <typename T, typename Abi> struct accessor_simd_unaligned {
-  using element_type = detail::accessor_simd_element_type_t<T, Abi>;
-  using value_type = remove_cvref_t<element_type>;
-  using simd_type = simd<value_type, Abi>;
-  using pointer = T*;
-  using reference = simd_proxy<T, Abi, flags::element_aligned_tag>;
-  static constexpr pointer to_pointer(element_type& element) {
-    return reinterpret_cast<pointer>(&element);
-  }
-  static constexpr reference access(pointer origin, std::ptrdiff_t /* size */,
-                                    std::ptrdiff_t offset) noexcept {
-    return reference(origin + offset);
-  }
-  template <typename S> using rebind = accessor_simd_unaligned<S, Abi>;
-};
+template <typename T, typename Abi, typename Alignment>
+constexpr bool operator==(accessor_simd<T, Abi, Alignment>,
+                          accessor_simd<T, Abi, Alignment>) noexcept {
+  return true;
+}
 
-namespace detail {
-template <typename T, typename Abi> struct accessor_simd_element_type {
-  using type = simd<T, Abi>;
-};
-template <typename T, typename Abi>
-struct accessor_simd_element_type<const T, Abi> {
-  using type = const simd<T, Abi>;
-};
-} // namespace detail
+template <typename T, typename Abi, typename Alignment>
+constexpr bool operator!=(accessor_simd<T, Abi, Alignment>,
+                          accessor_simd<T, Abi, Alignment>) noexcept {
+  return false;
+}
 
 } // namespace v1
 } // namespace fub

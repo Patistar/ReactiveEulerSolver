@@ -58,7 +58,7 @@ target_include_directories(ReactiveEulerSolver_core
 
 # Always Add dependencies to boost range-v3 and fmtlib
 target_link_libraries(ReactiveEulerSolver_core
-  INTERFACE Boost::boost range-v3 fmt)
+  INTERFACE Boost::boost range-v3 fmt Vc)
 
 # If std::optional is not available we add a dependency to nonstd::optional
 if (NOT FUB_WITH_STD_OPTIONAL)

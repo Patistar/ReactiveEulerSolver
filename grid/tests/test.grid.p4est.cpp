@@ -1,6 +1,7 @@
 #include "fub/output/cgns.hpp"
 #include "fub/output/gnuplot.hpp"
 #include "fub/p4est/grid.hpp"
+#include "fub/linearily_interpolate.hpp"
 #include <chrono>
 
 using namespace fub;
@@ -38,6 +39,7 @@ struct Momentum : vector_variable<2> {
     return name_[i].data();
   }
 };
+template <int Dim> static constexpr auto momentum = tag<Momentum, Dim>;
 
 using Variables = variable_list<Density, Momentum, Pressure>;
 
@@ -45,10 +47,11 @@ using Grid = fub::p4est::basic_grid<Variables, 2, double>;
 
 void print_face_neighbors(const Grid& grid, fub::p4est::quadrant<2> quad,
                           fub::face f) {
-  fub::span<const fub::p4est::quadrant<2>> nbs = grid.face_neighbors(quad, f);
-  for (fub::p4est::quadrant<2> neighbor : nbs) {
-    std::array<int, 2> x = neighbor.coordinates();
-    optional<int> rank = grid.find_owner_mpi_rank(neighbor);
+  fub::span<const fub::p4est::mesh_quadrant<2>> nbs =
+      grid.face_neighbors(quad, f);
+  for (fub::p4est::mesh_quadrant<2> neighbor : nbs) {
+    std::array<int, 2> x = neighbor.quad.coordinates();
+    optional<int> rank = grid.find_owner_mpi_rank(neighbor.quad);
     int owner = rank ? *rank : grid.forest().mpi_rank();
     fmt::print("{:>12}: ({}, {}) <-> face {} (owner: {})\n", "neighbor", x[0],
                x[1], as_int(f), owner);
@@ -109,14 +112,44 @@ double L2_derivatives(int axis, Grid::const_patch_view left,
   return sum / volume;
 }
 
+Grid::const_patch_view interpolate_neighbor_data(
+    const Grid& grid, fub::p4est::quadrant<2> quad,
+    fub::span<const fub::p4est::mesh_quadrant<2>> neighbors, fub::face face,
+    fub::span<double> buffer) noexcept {
+  // We hit a domain boundary
+  if (neighbors.size() == 0) {
+    return {};
+  }
+  Grid::const_patch_view interpolated(Variables(), buffer,
+                                      grid.patch_extents());
+  int offset = static_cast<int>(face.side == direction::left);
+  // neighbors have a finer level than quad.
+  if (neighbors.size() > 1) {
+    assert(neighbors.size() == 2);
+    assert(neighbors[0].quad.level() == quad.level() + 1);
+    assert(neighbors[1].quad.level() == quad.level() + 1);
+    linearily_coarsen(grid.patch_data(neighbors[0].quad), interpolated,
+                      find_neighbor_child_id(quad, neighbors[0].quad));
+    linearily_coarsen(grid.patch_data(neighbors[1].quad), interpolated,
+                      find_neighbor_child_id(quad, neighbors[1].quad));
+    return interpolated;
+  }
+
+  // neighbor has a coarser level than quad
+  assert(neighbors.size() == 1);
+  assert(neighbors[0].quad.level() + 1 == quad.level());
+  linearily_refine(grid.patch_data(neighbors[0].quad), interpolated,
+                   find_neighbor_child_id(neighbors[0].quad, quad));
+  return interpolated;
+}
+
 void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   using namespace fub::v1::p4est;
 
-  dynamic_extents_t<2> patch_extents(2, 2);
+  dynamic_extents_t<2> patch_extents(4, 4);
   uniform_cartesian_coordinates<2> coordinates({0.0, 0.0}, {1.0, 1.0},
                                                as_array(patch_extents));
-  Grid::patch_data_info meta_data{Variables(), patch_extents, patch_extents,
-                                  coordinates};
+  Grid::patch_data_info meta_data{Variables(), patch_extents, coordinates};
   fub::p4est::connectivity<2> conn = unit_square;
   fub::p4est::forest<2> forest(communicator, conn, 0, init_depth, 1);
   fub::p4est::ghost_layer<2> ghost_layer(forest);
@@ -128,33 +161,35 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
     auto coords = grid.coordinates(quad);
     my_initialize(data, coords);
   }
+  fub::variable_data<Variables, double, 2> left_buffer(Variables(),
+                                                       patch_extents);
+  fub::variable_data<Variables, double, 2> right_buffer(Variables(),
+                                                        patch_extents);
 
   for (int i = 0; i < final_depth - init_depth; ++i) {
-    grid.synchronize_ghost_data();
+    grid.exchange_quadrant_data();
 
     fub::p4est::forest<2> forest = grid.forest();
     refine_if(forest, [&](int which_tree, quadrant<2> quad) {
       auto L2_derivatives_ = [&](fub::axis axis) {
         const face fl{axis, direction::left};
         const face fr{axis, direction::right};
-        const auto dx = grid.coordinates(quad).dx();
-        auto middle = grid.patch_data(quad);
-        auto left_quads = grid.face_neighbors(quad, fl);
-        auto right_quads = grid.face_neighbors(quad, fr);
-        Grid::const_patch_view left{}, right{};
-        if (left_quads) {
-          left = grid.patch_data(left_quads[0]);
-        }
-        if (right_quads) {
-          right = grid.patch_data(right_quads[0]);
-        }
+        const std::array<double, 2> dx = grid.coordinates(quad).dx();
+        Grid::const_patch_view middle = grid.patch_data(quad);
+        span<const mesh_quadrant<2>> left_quads = grid.face_neighbors(quad, fl);
+        span<const mesh_quadrant<2>> right_quads =
+            grid.face_neighbors(quad, fr);
+        Grid::const_patch_view left = interpolate_neighbor_data(
+            grid, quad, left_quads, fl, left_buffer.span());
+        Grid::const_patch_view right = interpolate_neighbor_data(
+            grid, quad, right_quads, fr, right_buffer.span());
         const double volume = fub::accumulate(dx, 1.0, std::multiplies<>{});
         return L2_derivatives(as_int(axis), left, middle, right) > volume / 64;
       };
       return L2_derivatives_(axis::x) || L2_derivatives_(axis::y);
     });
 
-    grid.transfer_data_to(forest, [&](auto out, auto in) {
+    grid.transfer_data_to(forest, [&](auto /* out */, auto in) {
       int size = in.quadrants.size();
       for (int i = 0; i < size; ++i) {
         my_initialize(in.datas[i], grid.coordinates(in.quadrants[i]));

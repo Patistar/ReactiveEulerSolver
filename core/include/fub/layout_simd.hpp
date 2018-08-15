@@ -24,8 +24,9 @@
 #include "fub/algorithm.hpp"
 #include "fub/extents.hpp"
 #include "fub/simd.hpp"
-#include "fub/span.hpp"
 #include "fub/type_traits.hpp"
+
+#include <Vc/vector.h>
 
 #include <array>
 
@@ -40,7 +41,7 @@ template <typename T, typename Abi> struct layout_simd_padded {
 
     using index_type = typename Extents::index_type;
     using value_type = remove_cvref_t<T>;
-    using simd_type = simd<value_type, Abi>;
+    using simd_type = Vc::Vector<value_type, Abi>;
 
     // CONSTRUCTORS
 
@@ -61,12 +62,12 @@ template <typename T, typename Abi> struct layout_simd_padded {
 
     constexpr const Extents& get_extents() const noexcept { return *this; }
 
-    /// Returns the required span size after adding padding in each dimensino
+    /// Returns the required span size after adding padding in each dimension
     /// according to the specified simd alignment.
     ///
     /// Throws: Nothing.
     constexpr index_type required_span_size() const noexcept {
-      constexpr index_type width = memory_alignment_v<simd_type>;
+      constexpr index_type width = simd_type::MemoryAlignment;
       index_type factor = 1;
       for (std::size_t dim = 0; dim < Extents::rank(); ++dim) {
         factor *= width;

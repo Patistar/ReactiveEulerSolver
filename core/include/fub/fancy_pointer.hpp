@@ -4,6 +4,7 @@
 #include "fub/type_traits.hpp"
 #include "fub/utility.hpp"
 
+#include <cassert>
 #include <iterator>
 
 namespace fub {
@@ -35,26 +36,28 @@ public:
     return *this;
   }
 
-  template <typename... Args>
-  constexpr explicit fancy_pointer(Args&&... args) noexcept
+  constexpr fancy_pointer(T* native) : m_address(native) {}
+
+  template <typename... Args, typename std::enable_if_t<std::is_constructible<
+                                  AddressModel, Args...>::value>>
+  constexpr fancy_pointer(Args&&... args)
       : m_address(std::forward<Args>(args)...) {}
 
   template <typename S,
             typename = std::enable_if_t<std::is_convertible<S*, T*>::value>>
-  constexpr explicit fancy_pointer(
-      const fancy_pointer<S, AddressModel>& p) noexcept
+  constexpr fancy_pointer(const fancy_pointer<S, AddressModel>& p)
       : m_address{p.m_address} {}
 
   // Contextually Convertible to bool
 
   explicit constexpr operator bool() const noexcept {
-    return static_cast<const void*>(m_address) == nullptr;
+    return static_cast<const void*>(m_address) != nullptr;
   }
 
   // Access Operators
 
   constexpr pointer operator->() const noexcept {
-    assert(!m_address.is_null());
+    assert(static_cast<const void*>(m_address) != nullptr);
     return static_cast<T*>(static_cast<void*>(m_address));
   }
 
@@ -81,8 +84,16 @@ public:
 
   friend constexpr difference_type operator-(fancy_pointer a,
                                              fancy_pointer b) noexcept {
-    return a.m_address.template distance_as<T>(b.m_address);
+    return b.m_address.template distance_as<T>(a.m_address);
   }
+
+  constexpr explicit operator T* () const noexcept {
+    return static_cast<T*>(static_cast<void*>(m_address));
+  }
+
+  // constexpr operator void* () const noexcept {
+  //   return static_cast<void*>(m_address);
+  // }
 
 private:
   AddressModel m_address{};
@@ -110,7 +121,8 @@ public:
     return *this;
   }
 
-  template <typename... Args>
+  template <typename... Args, typename std::enable_if_t<std::is_constructible<
+                                  AddressModel, Args...>::value>>
   constexpr explicit fancy_pointer(Args&&... args) noexcept
       : m_address{std::forward<Args>(args)...} {}
 
@@ -148,6 +160,10 @@ public:
   friend constexpr difference_type operator-(fancy_pointer a,
                                              fancy_pointer b) noexcept {
     return a.m_address.distance(b.m_address);
+  }
+
+  constexpr operator void*() const noexcept {
+    return static_cast<void*>(m_address);
   }
 
 private:
@@ -201,6 +217,12 @@ template <typename T, typename AM>
 constexpr bool operator==(fancy_pointer<T, AM> a,
                           nodeduce_t<fancy_pointer<T, AM>> b) noexcept {
   return typename fancy_pointer<T, AM>::difference_type{0} == (b - a);
+}
+
+template <typename T, typename AM>
+constexpr bool operator!=(fancy_pointer<T, AM> a,
+                          nodeduce_t<fancy_pointer<T, AM>> b) noexcept {
+  return !(a == b);
 }
 
 template <typename T, typename AM>

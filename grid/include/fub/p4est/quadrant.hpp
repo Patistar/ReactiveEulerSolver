@@ -89,6 +89,9 @@ optional<face> find_adjacent_face(const quadrant<2>& left,
 
 std::array<quadrant<2>, 4> children(const quadrant<2>& quad) noexcept;
 
+optional<int> find_neighbor_child_id(const quadrant<2>& coarse,
+                                     const quadrant<2>& fine) noexcept;
+
 template <int Rank>
 span<const quadrant<Rank>> as_quadrant_span(sc_array_t& array) {
   static_assert(std::is_standard_layout<quadrant<Rank>>::value,

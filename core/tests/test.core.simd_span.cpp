@@ -25,29 +25,51 @@
 #include <catch2/catch.hpp>
 
 TEST_CASE("Create a simd span mutable") {
-  using simd_type = fub::simd<double>;
-  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{
+  using simd_type = Vc::Vector<double>;
+  alignas(simd_type::MemoryAlignment) std::array<double, 8> array{
       {1, 2, 3, 4, 5, 6, 7, 8}};
   fub::simd_span<double> span(array.data(), 4);
-  REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
+  REQUIRE(span.size() == array.size() / simd_type::size());
   REQUIRE(array[0] == 1);
   span[0] = simd_type(42);
-  for (int i = 0; i < fub::simd_size_v<double>; ++i) {
+  for (int i = 0; i < simd_type::size(); ++i) {
     REQUIRE(array[i] == 42);
   }
   REQUIRE(std::is_assignable<simd_type, decltype(span[0])>::value);
 }
 
 TEST_CASE("Create a simd span to const") {
-  using simd_type = fub::simd<double>;
-  alignas(fub::memory_alignment_v<simd_type>) std::array<double, 8> array{
+  using simd_type = Vc::Vector<double>;
+  alignas(simd_type::MemoryAlignment) std::array<double, 8> array{
       {1, 2, 3, 4, 5, 6, 7, 8}};
+  fub::span<const double> native_span(array);
   fub::simd_span<const double> span(array.data(), 4);
-  REQUIRE(span.size() == array.size() / fub::simd_size_v<double>);
+  fub::simd_span<const double> span2(array);
+  fub::simd_span<const double> span3(native_span);
+  REQUIRE(span.size() == span2.size());
+  REQUIRE(span.size() == span3.size());
+  REQUIRE(span.size() == array.size() / simd_type::size());
   REQUIRE(array[0] == 1);
   REQUIRE(!std::is_assignable<decltype(span[0]), simd_type>::value);
-  const fub::simd<double> s = span[0];
+  const simd_type s = span[0];
   for (int i = 0; i < s.size(); ++i) {
     REQUIRE(s[i] == array[i]);
+  }
+}
+
+TEST_CASE("Iterator through simd span") {
+  using simd_type = Vc::Vector<double>;
+  alignas(simd_type::MemoryAlignment) std::array<double, 8> array{
+      {1, 2, 3, 4, 5, 6, 7, 8}};
+
+  fub::simd_span<double> span(array);
+  int counter = 0;
+  for (auto&& x : span) {
+    x = counter++;
+  }
+  REQUIRE(counter == 4);
+  for (int i = 0; i < counter; ++i) {
+    REQUIRE(array[2 * i] == i);
+    REQUIRE(array[2 * i + 1] == i);
   }
 }

@@ -18,54 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_SIMD_HPP
-#define FUB_CORE_SIMD_HPP
+/// @file This file introduces `extents<E0, ..., En>`, a compact
+/// multi-dimensional size type. Each integral extent `Ei` stands an upper bound
+/// in dimension `i` and can either be a compile-time constant signed integral
+/// value or `dynamic_extent`. Each compile-time sized extent does not take any
+/// extra byte.
 
-#include <Vc/vector.h>
+#ifndef FUB_CORE_INDEX_RANGE_HPP
+#define FUB_CORE_INDEX_RANGE_HPP
 
-#include "fub/tuple.hpp"
-#include "fub/utility.hpp"
+#include "fub/extents.hpp"
+#include "fub/layout_left.hpp"
+#include "fub/type_traits.hpp"
 
 #include <array>
 #include <cassert>
-#include <limits>
-#include <ostream>
 
 namespace fub {
 inline namespace v1 {
 
-template <typename T>
-Vc::Vector<T> clamp(const Vc::Vector<T>& v, const nodeduce_t<Vc::Vector<T>>& lo,
-                   const nodeduce_t<Vc::Vector<T>>& hi) {
-  assert(all_of(lo < hi));
-  Vc::Vector<T> x{v};
-  where(x < lo, x) = lo;
-  where(hi < x, x) = hi;
-  return x;
-}
-
-inline bool all_of(bool mask) noexcept { return mask; }
-inline bool any_of(bool mask) noexcept { return mask; }
-
-template <typename T>
-struct where_expression {
-  where_expression() = delete;
-  where_expression(const where_expression&) = delete;
-  where_expression(where_expression&&) = default;
-
-  void operator=(const T& other) const {
-    if (m_mask) {
-      *m_data = other;
-    }
-  }
-
-  bool m_mask;
-  T* m_data;
+template <int Rank> struct index_range {
+  std::array<index, Rank> origin;
+  std::array<index, Rank> extents;
 };
 
-template <typename T, typename = std::enable_if_t<std::is_arithmetic<T>{}>>
-where_expression<T> where(bool mask, T& data) {
-  return where_expression<T>{mask, &data};
+template <int Rank, typename F>
+void for_each_index(index_range<Rank> range, F feedback) {
+  dynamic_extents_t<Rank> extents(range.extents);
+  using mapping_t =
+      typename layout_left::template mapping<dynamic_extents_t<Rank>>;
+  for_each_index(mapping_t(extents), [=](std::array<index, Rank> indices) {
+    std::transform(indices.begin(), indices.end(), range.origin.begin(),
+                   indices.begin(), [=](index i, index o) { return i - o; });
+    fub::invoke(feedback, indices);
+  });
 }
 
 } // namespace v1

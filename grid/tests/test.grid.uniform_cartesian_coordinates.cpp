@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "fub/uniform_cartesian_coordinates.hpp"
+#include "fub/p4est/quadrant.hpp"
 
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
@@ -47,38 +48,6 @@ TEST_CASE("2D ") {
     REQUIRE(coordinates(4, 8) == upper);
     REQUIRE_THROWS(coordinates(-1, 0));
     REQUIRE_THROWS(coordinates(5, 0));
-  }
-
-  SECTION("Refinement 2 with upper right") {
-    fub::octant<2> octant(1, {1, 1});
-    auto adapted = adapt(coordinates, octant);
-    REQUIRE(adapted.upper() == coordinates.upper());
-    REQUIRE(adapted.lower() == coordinates(2, 4));
-    REQUIRE(adapted.extents() == coordinates.extents());
-  }
-
-  SECTION("Refinement 2 with lower left") {
-    fub::octant<2> octant(1, {0, 0});
-    auto adapted = adapt(coordinates, octant);
-    REQUIRE(adapted.upper() == coordinates(2, 4));
-    REQUIRE(adapted.lower() == coordinates.lower());
-    REQUIRE(adapted.extents() == coordinates.extents());
-  }
-
-  SECTION("Refinement 2 with lower right") {
-    fub::octant<2> octant(1, {1, 0});
-    auto adapted = adapt(coordinates, octant);
-    REQUIRE(adapted.upper() == coordinates(4, 4));
-    REQUIRE(adapted.lower() == coordinates(2, 0));
-    REQUIRE(adapted.extents() == coordinates.extents());
-  }
-
-  SECTION("Refinement 2 with upper left") {
-    fub::octant<2> octant(1, {0, 1});
-    auto adapted = adapt(coordinates, octant);
-    REQUIRE(adapted.upper() == coordinates(2, 8));
-    REQUIRE(adapted.lower() == coordinates(0, 4));
-    REQUIRE(adapted.extents() == coordinates.extents());
   }
 }
 

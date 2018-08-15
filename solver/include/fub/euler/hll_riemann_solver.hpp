@@ -23,144 +23,71 @@
 
 #include "fub/equation.hpp"
 #include "fub/euler/variables.hpp"
-#include "fub/patch_view.hpp"
-
-#include <cassert>
-#include <chrono>
-#include <functional>
 
 namespace fub {
 namespace euler {
 
-class hll_riemann_solver {
-  static double apply_formula(double uL, double uR, double fL, double fR,
-                              double sL, double sR) noexcept;
-
-  static scalar<double>
-  apply_formula(simd_abi::scalar, const scalar<double>& uL,
-                const scalar<double>& uR, const scalar<double>& fL,
-                const scalar<double>& fR, const scalar<double>& sL,
-                const scalar<double>& sR) noexcept;
-
-#if defined(FUB_SIMD_HAS_SSE)
-  static sse<double> apply_formula(simd_abi::sse, const sse<double>& uL,
-                                   const sse<double>& uR, const sse<double>& fL,
-                                   const sse<double>& fR, const sse<double>& sL,
-                                   const sse<double>& sR) noexcept;
-#endif
-
-#if defined(FUB_SIMD_HAS_AVX)
-  static avx<double> apply_formula(simd_abi::avx, const avx<double>& uL,
-                                   const avx<double>& uR, const avx<double>& fL,
-                                   const avx<double>& fR, const avx<double>& sL,
-                                   const avx<double>& sR) noexcept;
-#endif
-
-  /// @brief Returns the HLL flux for all variables of the specified `Flux`
-  /// type.
-  ///
-  /// @note This function assumes, that equation fluxes for left and right
-  /// states are already given.
-  template <typename Signal, typename Equation>
-  static flux_type_t<Equation> do_compute_numeric_flux(
-      Signal signal_fn, const complete_state_t<Equation>& qL,
-      const flux_type_t<Equation>& fL, const complete_state_t<Equation>& qR,
-      const flux_type_t<Equation>& fR, const Equation& equation) noexcept {
-    const auto signals = invoke(signal_fn, qL, qR, equation);
-    const auto compute = [&](auto quantity) {
-      return apply_formula(qL[quantity], qR[quantity], fL[flux(quantity)],
-                           fR[flux(quantity)], std::get<0>(signals),
-                           std::get<1>(signals));
-    };
-    return fub::apply(
-        [&](auto... vars) { return flux_type_t<Equation>{compute(vars)...}; },
-        get_variables(conservative_state_t<Equation>()));
+struct hll_riemann_solver {
+  template <typename SignalFunction, typename Equation, typename StateRefL,
+            typename StateRefR, typename FluxRef>
+  static void do_compute_numeric_flux(SignalFunction signal_fn,
+                                      Equation equation, const StateRefL& qL,
+                                      const StateRefR& qR, const FluxRef& fL, 
+                                      const FluxRef& fR,
+                                      const FluxRef& flux) {
+    using float_v = typename FluxRef::value_type;
+    auto signals = signal_fn(equation, qL, qR);
+    float_v sL = signals.left;
+    float_v sR = signals.right;
+    equation.flux(qL, fL);
+    equation.flux(qR, fR);
+    for_each(flux.get_variable_list(), [&](auto var) {
+      float_v f =
+          (sR * fL[var] - sL * fR[var] + sL * sR * (qR[var] - qL[var])) /
+          (sR - sL);
+      where(sL >= 0, f) = fL[var];
+      where(sR <= 0, f) = fR[var];
+      flux[var] = f;
+    });
   }
 
-  template <typename Equation, typename Abi>
-  using simd_state_t = add_simd_t<complete_state_t<Equation>, Abi>;
-
-  template <typename Equation, typename Abi>
-  using simd_flux_t =
-      add_flux_t<add_simd_t<conservative_state_t<Equation>, Abi>>;
-
-  template <typename F, typename Q>
-  static decltype(auto) invoke_for_each_impl(std::true_type, F&& function,
-                                             Q&& quantity) {
-    auto flattened = flatten_variables(quantity);
-    typename variable_traits<std::decay_t<Q>>::value_type value;
-    index i = 0;
-    for_each_tuple_element([&](auto q) { value[i++] = function(q); },
-                           flattened);
-    return value;
+  template <typename SignalFunction, typename Equation, typename StateRefL,
+            typename StateRefR, typename FluxRef>
+  static void do_compute_numeric_flux(SignalFunction signal_fn,
+                                      Equation equation, const StateRefL& qL,
+                                      const StateRefR& qR,
+                                      const FluxRef& flux) {
+    flux_state_t<Equation> fL(flux.get_variable_list());
+    flux_state_t<Equation> fR(flux.get_variable_list());
+    do_compute_numeric_flux(signal_fn, equation, qL, qR, fL(0), fR(0), flux);
   }
 
-  template <typename F, typename Q>
-  static decltype(auto) invoke_for_each_impl(std::false_type, F&& function,
-                                             Q&& quantity) {
-    return fub::invoke(function, quantity);
-  }
-
-  template <typename F, typename Q>
-  static decltype(auto) invoke_for_each(F&& function, Q&& quantity) {
-
-    return invoke_for_each_impl(is_vector_variable<std::decay_t<Q>>{},
-                                std::forward<F>(function),
-                                std::forward<Q>(quantity));
-  }
-
-  /// @brief Returns the HLL flux for all variables of the specified `Flux`
-  /// type.
-  ///
-  /// @note This function assumes, that equation fluxes for left and right
-  /// states are already given.
-  template <typename Abi, typename Signal, typename Equation>
-  static simd_flux_t<Equation, Abi> do_compute_numeric_flux_simd(
-      const Abi& abi, Signal signal_fn, const simd_state_t<Equation, Abi>& qL,
-      const simd_flux_t<Equation, Abi>& fL,
-      const simd_state_t<Equation, Abi>& qR,
-      const simd_flux_t<Equation, Abi>& fR, const Equation& equation) noexcept {
-    const auto signals = invoke(signal_fn, abi, qL, qR, equation);
-    const auto compute_variable = [&](auto quantity) {
-      return apply_formula(abi, qL[quantity], qR[quantity], fL[flux(quantity)],
-                           fR[flux(quantity)], std::get<0>(signals),
-                           std::get<1>(signals));
-    };
-    const auto compute = [&](auto quantity) {
-      return invoke_for_each(compute_variable, quantity);
-    };
-    return fub::apply(
-        [&](auto... vars) {
-          return simd_flux_t<Equation, Abi>{compute(vars)...};
-        },
-        get_variables(add_simd_t<conservative_state_t<Equation>, Abi>()));
-  }
-
-public:
-  /// @brief Returns the HLL flux between to states `left` and `right`.
-  ///
-  /// @detail This function uses the specified equation to compute state fluxes
-  template <typename Signal, typename Equation>
-  static flux_type_t<Equation>
-  compute_numeric_flux(const complete_state_t<Equation>& left,
-                       const complete_state_t<Equation>& right,
-                       Signal signal_fn, const Equation& equation) noexcept {
-    const flux_type_t<Equation> flux_left = equation.get_flux(left);
-    const flux_type_t<Equation> flux_right = equation.get_flux(right);
-    return hll_riemann_solver::do_compute_numeric_flux(
-        signal_fn, left, flux_left, right, flux_right, equation);
-  }
-
-  template <typename Abi, typename Signal, typename Equation>
-  static simd_flux_t<Equation, Abi>
-  compute_numeric_flux(const Abi& abi,
-                       const add_simd_t<complete_state_t<Equation>, Abi>& left,
-                       const add_simd_t<complete_state_t<Equation>, Abi>& right,
-                       Signal signal_fn, const Equation& equation) noexcept {
-    const simd_flux_t<Equation, Abi> flux_left = equation.get_flux(abi, left);
-    const simd_flux_t<Equation, Abi> flux_right = equation.get_flux(abi, right);
-    return hll_riemann_solver::do_compute_numeric_flux_simd(
-        abi, signal_fn, left, flux_left, right, flux_right, equation);
+  template <typename SignalFunction, typename Equation>
+  static void compute_numeric_fluxes(SignalFunction signal_fn,
+                                     Equation equation,
+                                     const_patch_t<Equation> left,
+                                     const_patch_t<Equation> mid,
+                                     const_patch_t<Equation> right,
+                                     fluxes_t<Equation> fluxes) {
+    for_each_index(mid.get_mapping(), [&](auto... is) {
+      constexpr int Rank = Equation::rank();
+      std::array<std::ptrdiff_t, Rank> iL{{is...}};
+      std::array<std::ptrdiff_t, Rank> iR = shift(iL, 0, 1);
+      if (iL[0] == 0) {
+        const int last_extent_left = left.get_extents().extent(0) - 1;
+        std::array<std::ptrdiff_t, Rank> iLL = replace(iL, 0, last_extent_left);
+        do_compute_numeric_flux(signal_fn, equation, left(iLL), mid(iL),
+                                fluxes(iL));
+      }
+      if (iR[0] < mid.get_extents().extent(0)) {
+        do_compute_numeric_flux(signal_fn, equation, mid(iL), mid(iR),
+                                fluxes(iR));
+      } else {
+        std::array<std::ptrdiff_t, Rank> iR_ = replace(iR, 0, 0);
+        do_compute_numeric_flux(signal_fn, equation, mid(iL), right(iR_),
+                                fluxes(iR));
+      }
+    });
   }
 };
 

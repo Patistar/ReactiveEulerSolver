@@ -29,7 +29,9 @@
 
 #include "fub/dynamic_extent.hpp"
 #include "fub/type_traits.hpp"
+
 #include <array>
+#include <cassert>
 
 namespace fub {
 inline namespace v1 {
@@ -492,6 +494,23 @@ template <int Rank> struct dynamic_extents {
 } // namespace detail
 template <int Rank>
 using dynamic_extents_t = typename detail::dynamic_extents<Rank>::type;
+
+template <std::ptrdiff_t... StaticExtents>
+constexpr std::ptrdiff_t rows(extents<StaticExtents...> es) noexcept {
+  std::array<std::ptrdiff_t, sizeof...(StaticExtents)> array = as_array(es);
+  std::ptrdiff_t count = 1;
+  for (std::size_t i = 1; i < array.size(); ++i) {
+    count *= array[i];
+  }
+  return count;
+}
+
+template <std::ptrdiff_t E0, std::ptrdiff_t... En>
+constexpr extents<E0> row(extents<E0, En...> es) noexcept {
+  return extents<E0>{es.extent(0)};
+}
+
+template <typename E> using row_t = decltype(row(std::declval<E>()));
 
 } // namespace v1
 } // namespace fub

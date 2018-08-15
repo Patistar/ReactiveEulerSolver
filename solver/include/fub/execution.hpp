@@ -18,56 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef FUB_CORE_SIMD_HPP
-#define FUB_CORE_SIMD_HPP
-
-#include <Vc/vector.h>
-
-#include "fub/tuple.hpp"
-#include "fub/utility.hpp"
-
-#include <array>
-#include <cassert>
-#include <limits>
-#include <ostream>
+#ifndef FUB_SOLVER_EXECUTION_HPP
+#define FUB_SOLVER_EXECUTION_HPP
 
 namespace fub {
 inline namespace v1 {
-
-template <typename T>
-Vc::Vector<T> clamp(const Vc::Vector<T>& v, const nodeduce_t<Vc::Vector<T>>& lo,
-                   const nodeduce_t<Vc::Vector<T>>& hi) {
-  assert(all_of(lo < hi));
-  Vc::Vector<T> x{v};
-  where(x < lo, x) = lo;
-  where(hi < x, x) = hi;
-  return x;
-}
-
-inline bool all_of(bool mask) noexcept { return mask; }
-inline bool any_of(bool mask) noexcept { return mask; }
-
-template <typename T>
-struct where_expression {
-  where_expression() = delete;
-  where_expression(const where_expression&) = delete;
-  where_expression(where_expression&&) = default;
-
-  void operator=(const T& other) const {
-    if (m_mask) {
-      *m_data = other;
-    }
-  }
-
-  bool m_mask;
-  T* m_data;
-};
-
-template <typename T, typename = std::enable_if_t<std::is_arithmetic<T>{}>>
-where_expression<T> where(bool mask, T& data) {
-  return where_expression<T>{mask, &data};
-}
-
+namespace execution {
+class sequenced_policy {};
+class parallel_unsequenced_policy {};
+class vectorized_policy {};
+static constexpr sequenced_policy seq{};
+static constexpr vectorized_policy vec{};
+static constexpr parallel_unsequenced_policy par_unseq{};
+} // namespace execution
 } // namespace v1
 } // namespace fub
 

@@ -57,6 +57,10 @@ constexpr int as_int(face f) noexcept {
 }
 constexpr int sign(direction side) noexcept { return static_cast<int>(side); }
 
+constexpr direction invert(direction side) noexcept {
+  return side == direction::left ? direction::right : direction::left;
+}
+
 } // namespace v1
 } // namespace fub
 

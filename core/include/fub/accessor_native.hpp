@@ -25,6 +25,7 @@
 
 namespace fub {
 inline namespace v1 {
+
 template <typename T = void> struct accessor_native {
   using value_type = remove_cvref_t<T>;
   using element_type = T;
@@ -32,8 +33,7 @@ template <typename T = void> struct accessor_native {
   using reference = T&;
   accessor_native() = default;
   accessor_native(const accessor_native&) = default;
-  template <typename U>
-  accessor_native(const accessor_native<U>& other) {}
+  template <typename U> accessor_native(const accessor_native<U>& other) {}
 
   static constexpr pointer to_pointer(element_type& element) {
     return reinterpret_cast<pointer>(&element);
@@ -45,10 +45,23 @@ template <typename T = void> struct accessor_native {
   template <typename S> using rebind = accessor_native<S>;
 };
 
+template <typename T, typename S>
+constexpr bool operator==(accessor_native<T>, accessor_native<S>) noexcept {
+  return true;
+}
+
+template <typename T, typename S>
+constexpr bool operator!=(accessor_native<T>, accessor_native<S>) noexcept {
+  return false;
+}
+
 template <> struct accessor_native<void> {
   using pointer = void*;
   template <typename S> using rebind = accessor_native<S>;
 };
+
+template <typename A, typename T>
+using rebind_t = typename A::template rebind<T>;
 } // namespace v1
 } // namespace fub
 

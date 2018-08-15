@@ -174,7 +174,7 @@ void refine_if(forest<2>& forest, Predicate predicate) {
 
 void balance(forest<2>& forest) noexcept;
 
-optional<std::ptrdiff_t> find(const forest<2>& forest,
+optional<std::ptrdiff_t> find(const forest<2>& forest, int treeidx,
                               const quadrant<2>& quad) noexcept;
 
 } // namespace p4est

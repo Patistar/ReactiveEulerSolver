@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -18,22 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "Vc/vector.h"
+#include "fub/euler/hlle_signal_velocity.hpp"
+#include "fub/euler/perfect_gas.hpp"
 
-#include "fmt/format.h"
-#include "fmt/ostream.h"
+constexpr int Rank = 3;
 
-int main()
-{
-  using scalar_t = Vc::Vector<double, Vc::VectorAbi::Scalar>;
-  using sse_t = Vc::Vector<double, Vc::VectorAbi::Sse>;
-  scalar_t x = 1.;
-  x(x < 0) = 0.;
-  x(x >= 0) = -x;
+using Equation = fub::euler::perfect_gas<Rank>;
+using EquationF = fub::euler::perfect_gas<Rank, float>;
+using EquationLD = fub::euler::perfect_gas<Rank, long double>;
+using Complete = Equation::complete;
+using Conservative = Equation::conservative;
+using Extents = fub::dynamic_extents_t<Rank>;
 
-  sse_t y;
-  y[0] = -1;
-  y[1] = +1;
-  y(y < 0) = 0;
-  fmt::print("x: ({}, {}), y: ({}, {})\n", x[0], x[1], y[0], y[1]);
+auto signal_double(Equation equation, fub::const_state_ref_t<Equation> qL,
+                   fub::const_state_ref_t<Equation> qR) {
+  return fub::euler::hlle_signal_velocity{}(equation, qL, qR);
+}
+
+auto signal_float(EquationF equation, fub::const_state_ref_t<EquationF> qL,
+                  fub::const_state_ref_t<EquationF> qR) {
+  return fub::euler::hlle_signal_velocity{}(equation, qL, qR);
 }

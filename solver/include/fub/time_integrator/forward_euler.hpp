@@ -21,133 +21,42 @@
 #ifndef FUB_FORWARD_EULER_HPP
 #define FUB_FORWARD_EULER_HPP
 
-#include "fub/algorithm.hpp"
 #include "fub/equation.hpp"
-#include "fub/face.hpp"
-#include "fub/patch.hpp"
-#include "fub/patch_view.hpp"
-#include "fub/simd.hpp"
-#include "fub/utility.hpp"
 
 #include <chrono>
 
 namespace fub {
+inline namespace v1 {
 namespace time_integrator {
 
 struct forward_euler {
-private:
-  static double do_integrate_impl(double lambda, double u, double fL,
-                                  double fR) noexcept;
+  template <typename T> using duration_t = std::chrono::duration<T>;
 
-  static scalar<double> do_integrate_impl(simd_abi::scalar,
-                                          scalar<double> lambda,
-                                          scalar<double> u, scalar<double> fL,
-                                          scalar<double> fR) noexcept;
-
-#if defined(FUB_SIMD_HAS_SSE)
-  static simd<double> do_integrate_impl(simd_abi::native<double>,
-                                        simd<double> lambda, simd<double> u,
-                                        simd<double> fL,
-                                        simd<double> fR) noexcept;
-#endif
-
-  template <typename StatesIn, typename Flux, typename StatesOut,
-            typename Equation>
-  static void do_integrate(double lambda, StatesIn u, Flux f, StatesOut next,
-                           const Equation& equation) noexcept {
-    fub::for_each_row(
-        [&](auto u, auto f, auto next) {
-          auto fL = rdrop<1>(f);
-          auto fR = drop<1>(f);
-          fub::for_each_simd(
-              [&](auto abi, auto&& next_, auto u_, const auto& fL,
-                  const auto& fR) {
-                auto flattened = fub::apply(
-                    [](auto... vars) {
-                      return unflux(flatten_variables(vars...));
-                    },
-                    get_variables(fL));
-                fub::for_each_tuple_element(
-                    [&](auto q) {
-                      const auto flux_q = flux(q);
-                      u_[q] = do_integrate_impl(abi, lambda, u_[q], fL[flux_q],
-                                               fR[flux_q]);
-                    },
-                    flattened);
-                next_ = equation.get_complete_state(abi, u_);
-              },
-              next, u, fL, fR);
-        },
-        u, f, next);
+  template <typename Equation, typename T, typename FluxMethod>
+  static void integrate(const Equation& equation, const FluxMethod& method,
+                        duration_t<T> dt, T dx, const_patch_t<Equation> left,
+                        const_patch_t<Equation> mid,
+                        const_patch_t<Equation> right, 
+                        patch_t<Equation> next,
+                        fluxes_t<Equation> fluxes) {
+    static constexpr int Rank = Equation::rank();
+    method.compute_numeric_fluxes(equation, dt, dx, left, mid, right, fluxes);
+    const double lambda = dt.count() / dx;
+    for_each_index(next.get_mapping(), [&](auto... indices) {
+      std::array<index, Rank> left{{indices...}};
+      std::array<index, Rank> right = shift(left, 0, 1);
+      for_each(fluxes.get_variable_list(), [&](auto var) {
+        next[var](indices...) =
+            mid[var](indices...) +
+            lambda * (fluxes[var](left) - fluxes[var](right));
+      });
+      equation.reconstruct(next(indices...), next(indices...));
+    });
   }
-
-  template <typename Out, typename L, typename M, typename R,
-            typename Coordinates, typename FluxMethod, typename Equation>
-  static void integrate_impl(const Out& out, const L& left, const M& middle,
-                             const R& right, std::chrono::duration<double> dt,
-                             const Coordinates& coordinates,
-                             const FluxMethod& flux_method,
-                             const Equation& equation,
-                             std::integral_constant<axis, axis::x>) {
-
-    auto fluxes =
-        forward_euler::make_flux_patch<axis::x, Equation>(middle.extents());
-    flux_method.compute_numeric_fluxes(make_view(fluxes), left, middle, right,
-                                       dt, coordinates, equation);
-    double lambda = dt.count() / coordinates.dx()[0];
-    do_integrate(lambda, middle, make_view(fub::as_const(fluxes)), out,
-                 equation);
-  }
-
-  template <axis Axis, typename Out, typename L, typename M, typename R,
-            typename Coordinates, typename FluxMethod, typename Equation>
-  static void
-  integrate_impl(const Out& out, const L& left, const M& middle, const R& right,
-                 std::chrono::duration<double> dt,
-                 const Coordinates& coordinates, const FluxMethod& flux_method,
-                 const Equation& equation, std::integral_constant<axis, Axis>) {
-    static constexpr int Dim = as_int(Axis);
-    const auto sliced_left = slice_left<Dim, 2>(left);
-    const auto permutated_left = permutate<Dim, 0>(make_view(sliced_left));
-    const auto sliced_right = slice_right<Dim, 2>(right);
-    const auto permutated_right = permutate<Dim, 0>(make_view(sliced_right));
-    auto permutated_mid = permutate<Dim, 0>(middle);
-    auto fluxes = forward_euler::make_flux_patch<axis::x, Equation>(
-        permutated_mid.extents());
-    flux_method.compute_numeric_fluxes(
-        make_view(fluxes), make_view(permutated_left),
-        make_view(fub::as_const(permutated_mid)), make_view(permutated_right),
-        dt, coordinates, equation);
-    double lambda = dt.count() / coordinates.dx()[as_int(Axis)];
-    do_integrate(lambda, make_view(fub::as_const(permutated_mid)),
-                 make_view(fub::as_const(fluxes)), make_view(permutated_mid),
-                 equation);
-    permutate<as_int(Axis), 0>(out, make_view(fub::as_const(permutated_mid)));
-  }
-
-public:
-  template <axis Axis, typename Out, typename L, typename M, typename R,
-            typename Coordinates, typename FluxMethod, typename Equation>
-  static void
-  integrate(const Out& out, const L& left, const M& middle, const R& right,
-            std::chrono::duration<double> dt, const Coordinates& coordinates,
-            const FluxMethod& flux_method, const Equation& equation) {
-    integrate_impl(out, left, middle, right, dt, coordinates, flux_method,
-                   equation, std::integral_constant<axis, Axis>());
-  }
-
-  template <axis Axis, typename Equation, typename Extents>
-  static auto make_flux_patch(const Extents& extents) {
-    static constexpr int Dim = as_int(Axis);
-    auto grown = grow(extents, int_c<Dim>);
-    return make_patch(as_tuple_t<flux_type_t<Equation>>(), grown);
-  }
-
-  template <typename Archive>
-  void serialize(Archive&, unsigned) {}
 };
 
 } // namespace time_integrator
+} // namespace v1
 } // namespace fub
 
 #endif

@@ -70,10 +70,10 @@ void throw_if_cg_error(int return_value) {
 }
 } // namespace cgns_details
 
-cgns_context cgns::open(const char* file_name, int dim) {
+cgns_context cgns::open(const char* file_name, int dim, int mode) {
   int file;
   using cgns_details::throw_if_cg_error;
-  throw_if_cg_error(cg_open(file_name, CG_MODE_WRITE, &file));
+  throw_if_cg_error(cg_open(file_name, mode, &file));
   int base;
   throw_if_cg_error(cg_base_write(file, base_name, dim, dim, &base));
   return cgns_context(file, base);

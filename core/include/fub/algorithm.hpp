@@ -22,6 +22,7 @@
 #define FUB_CORE_ALGORITHM_HPP
 
 #include "fub/functional.hpp"
+#include "fub/tuple.hpp"
 #include "fub/type_traits.hpp"
 #include "fub/utility.hpp"
 
@@ -149,6 +150,44 @@ constexpr bool almost_equal(const A& x, const nodeduce_t<A>& y,
   const A sum = std::abs(x + y);
   return diff <= eps * sum * ulp || diff < min;
 }
+
+template <typename F, typename Rng0, typename... Rngs>
+          // typename = std::enable_if_t<is_invocable<
+          //     F, ranges::reference_t<Rng0>, ranges::reference_t<Rngs>...>{}>,
+          // typename = std::enable_if_t<conjunction<
+              // ranges::InputRange<Rng0>, ranges::InputRange<Rngs>...>{}>>
+F for_each(F fun, Rng0&& rng0, Rngs&&... rngs) {
+  auto last = std::end(rng0);
+  auto iters = std::make_tuple(std::begin(rng0), std::begin(rngs)...);
+  while (std::get<0>(iters) != last) {
+    fub::apply([&](auto... its) { fun(*its...); }, iters);
+    iters = fub::apply(
+        [](auto... iter) { return std::make_tuple(std::next(iter)...); },
+        iters);
+  }
+  return fun;
+}
+
+template <typename Iterator>
+Iterator next(Iterator it, std::ptrdiff_t n) {
+  while (n-- > 0) {
+    ++it;
+  }
+  return it;
+}
+
+template <typename I, std::size_t N, typename J>
+std::array<I, N> shift(std::array<I, N> array, int dim, J n) {
+  array[dim] += n;
+  return array;
+}
+
+template <typename I, std::size_t N, typename J>
+std::array<I, N> replace(std::array<I, N> array, int dim, J value) {
+  array[dim] = value;
+  return array;
+}
+
 
 } // namespace v1
 } // namespace fub

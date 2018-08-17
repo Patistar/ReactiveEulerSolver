@@ -33,16 +33,16 @@ void add_neighbors(span<mesh<2>::face_neighbors_t> quad_to_face_neighbors,
                    const p4est_t& forest, bool lhs_is_ghost,
                    const quadrant<2>& lhs, int lhs_face, bool rhs_is_ghost,
                    const quadrant<2>& rhs, int rhs_face) {
-  assert(!rhs_is_ghost || !lhs_is_ghost);
-  if (!lhs_is_ghost) {
-    std::ptrdiff_t lhs_idx =
-        local_index(forest, lhs.which_tree(), lhs.local_num());
-    quad_to_face_neighbors[lhs_idx][lhs_face].push_back({rhs, rhs_is_ghost});
-  }
-  if (!rhs_is_ghost) {
-    std::ptrdiff_t rhs_idx =
-        local_index(forest, rhs.which_tree(), rhs.local_num());
-    quad_to_face_neighbors[rhs_idx][rhs_face].push_back({lhs, lhs_is_ghost});
+  if (!rhs_is_ghost || !lhs_is_ghost) {
+    if (rhs_is_ghost) {
+      std::ptrdiff_t lhs_idx =
+          local_index(forest, lhs.which_tree(), lhs.local_num());
+      quad_to_face_neighbors[lhs_idx][lhs_face].push_back({rhs, rhs_is_ghost});
+    } else {
+      std::ptrdiff_t rhs_idx =
+          local_index(forest, rhs.which_tree(), rhs.local_num());
+      quad_to_face_neighbors[rhs_idx][rhs_face].push_back({lhs, lhs_is_ghost});
+    }
   }
 }
 
@@ -80,16 +80,17 @@ make_face_neighbors(fub::v1::p4est::forest<2>& forest,
                     fub::v1::p4est::ghost_layer<2>& ghost_layer) {
   std::vector<mesh<2>::face_neighbors_t> quad_to_face_neighbors(
       forest.local_num_quadrants());
-  p4est_iterate(
-      forest.native(), ghost_layer.native(), &quad_to_face_neighbors, nullptr,
-      [](p4est_iter_face_info_t* info, void* ctx_ptr) {
-        auto quad_to_face_neighbors =
-            static_cast<std::vector<mesh<2>::face_neighbors_t>*>(ctx_ptr);
-        if (!info->tree_boundary) {
-          add_neighbors(*quad_to_face_neighbors, *info);
-        }
-      },
-      nullptr);
+  p4est_iterate(forest.native_handle(), ghost_layer.native_handle(),
+                &quad_to_face_neighbors, nullptr,
+                [](p4est_iter_face_info_t* info, void* ctx_ptr) {
+                  auto quad_to_face_neighbors =
+                      static_cast<std::vector<mesh<2>::face_neighbors_t>*>(
+                          ctx_ptr);
+                  if (!info->tree_boundary) {
+                    add_neighbors(*quad_to_face_neighbors, *info);
+                  }
+                },
+                nullptr);
   return quad_to_face_neighbors;
 }
 
@@ -98,7 +99,8 @@ make_coarse_fine_interfaces(fub::v1::p4est::forest<2>& forest,
                             fub::v1::p4est::ghost_layer<2>& ghost_layer) {
   std::vector<coarse_fine_interface<2>> coarse_fine_interfaces;
   p4est_iterate(
-      forest.native(), ghost_layer.native(), &coarse_fine_interfaces, nullptr,
+      forest.native_handle(), ghost_layer.native_handle(),
+      &coarse_fine_interfaces, nullptr,
       [](p4est_iter_face_info_t* info, void* ctx_ptr) {
         auto coarse_fine_interfaces =
             static_cast<std::vector<coarse_fine_interface<2>>*>(ctx_ptr);

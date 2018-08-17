@@ -23,12 +23,17 @@
 namespace fub {
 inline namespace v1 {
 namespace p4est {
+struct _ghost_layer_destroyer {
+  void operator()(p4est_ghost_t* p) const noexcept { p4est_ghost_destroy(p); }
+};
 
-ghost_layer<2>::ghost_layer(p4est_ghost_t* pointer) : m_handle{pointer} {}
+ghost_layer<2>::ghost_layer(p4est_ghost_t* pointer)
+    : m_handle{pointer, _ghost_layer_destroyer()} {}
 
 ghost_layer<2>::ghost_layer(const forest<2>& forest)
-    : m_handle{p4est_ghost_new(const_cast<p4est_t*>(forest.native()),
-                               P4EST_CONNECT_FACE)} {}
+    : m_handle{p4est_ghost_new(const_cast<p4est_t*>(forest.native_handle()),
+                               P4EST_CONNECT_FACE),
+               _ghost_layer_destroyer()} {}
 
 int ghost_layer<2>::num_trees() const noexcept { return m_handle->num_trees; }
 
@@ -65,11 +70,15 @@ span<const int> ghost_layer<2>::mirrors_by_process_offsets() const noexcept {
 }
 
 span<const int> ghost_layer<2>::mirrors_by_process() const noexcept {
-  return {m_handle->mirror_proc_mirrors, mirrors_by_process_offsets()[m_handle->mpisize]};
+  return {m_handle->mirror_proc_mirrors,
+          mirrors_by_process_offsets()[m_handle->mpisize]};
 }
 
-void ghost_layer<2>::destroyer::operator()(p4est_ghost_t* p) const noexcept {
-  p4est_ghost_destroy(p);
+std::ptrdiff_t find_index(const ghost_layer<2>& ghost,
+                          const quadrant<2>& quad) noexcept {
+  p4est_ghost_t* native_handle = const_cast<p4est_ghost_t*>(ghost.native_handle());
+  const p4est_quadrant_t* q = &quad.native();
+  return p4est_ghost_bsearch(native_handle, -1, -1, q);
 }
 
 } // namespace p4est

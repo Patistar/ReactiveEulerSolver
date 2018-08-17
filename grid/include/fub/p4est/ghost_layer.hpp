@@ -41,6 +41,8 @@ template <int Rank> struct ghost_layer;
 /// This class is a wrapper for `p4est_ghost_t`.
 template <> struct ghost_layer<2> {
 public:
+  ghost_layer() = default;
+
   /// Constructs a ghost_layer by claiming ownership of `pointer`.
   explicit ghost_layer(p4est_ghost_t* pointer);
 
@@ -73,15 +75,14 @@ public:
   /// Returns a parititon for `mirrors_by_process()` with owner equivalence.
   span<const int> mirrors_by_process_offsets() const noexcept;
 
-  p4est_ghost_t* native() noexcept { return m_handle.get(); }
-  const p4est_ghost_t* native() const noexcept { return m_handle.get(); }
+  p4est_ghost_t* native_handle() noexcept { return m_handle.get(); }
+  const p4est_ghost_t* native_handle() const noexcept { return m_handle.get(); }
 
 private:
-  struct destroyer {
-    void operator()(p4est_ghost_t* p) const noexcept;
-  };
-  std::unique_ptr<p4est_ghost_t, destroyer> m_handle{nullptr};
+  std::shared_ptr<p4est_ghost_t> m_handle{nullptr};
 };
+
+std::ptrdiff_t find_index(const ghost_layer<2>& ghost, const quadrant<2>& quad) noexcept;
 
 } // namespace p4est
 } // namespace v1

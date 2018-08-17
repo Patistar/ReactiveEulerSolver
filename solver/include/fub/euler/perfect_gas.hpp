@@ -23,6 +23,7 @@
 
 #include "fub/euler/variables.hpp"
 #include "fub/execution.hpp"
+#include "fub/permutate_dimensions.hpp"
 #include "fub/variable_list.hpp"
 #include "fub/variable_view.hpp"
 
@@ -116,9 +117,27 @@ public:
   void reconstruct(const state_ref<AccessorLhs>& cons,
                    const state_ref<AccessorRhs>& state) const;
 
+  template <typename AccessorLhs, typename AccessorRhs>
+  void reconstruct_prim(const state_ref<AccessorLhs>& prim,
+                        const state_ref<AccessorRhs>& state) const;
+
   template <typename AccessorCons, typename AccessorState>
   void flux(const state_cref<AccessorCons>& state,
             const cons_ref<AccessorState>& flux) const;
+
+  void permutate_dimensions(const_view<complete> from,
+                            const std::array<int, 2>& permutation,
+                            view<complete> to) {
+    fub::permutate_dimensions(from, permutation, to);
+    auto dyn_mom0 = dynamic_momentum<Rank>(permutation[0]);
+    auto dyn_mom1 = dynamic_momentum<Rank>(permutation[1]);
+    visit(
+        [&](auto mom0, auto mom1) {
+          std::swap_ranges(to[mom0].span().begin(), to[mom0].span().end(),
+                           to[mom1].span().begin());
+        },
+        dyn_mom0, dyn_mom1);
+  }
 
 private:
   floating_point m_gamma;
@@ -177,6 +196,7 @@ void perfect_gas<Rank, A>::reconstruct(
   }();
   const float_t e_int = rho_e - e_kin;
   state[pressure] = gamma_minus_1 * e_int;
+  state[speed_of_sound] = std::sqrt(m_gamma * state[pressure] / state[density]);
 }
 
 template <int Rank, typename A>
@@ -205,6 +225,36 @@ void perfect_gas<Rank, A>::reconstruct(
   }();
   const float_t e_int = rho_e - e_kin;
   state[pressure] = gamma_minus_1 * e_int;
+  state[speed_of_sound] = std::sqrt(m_gamma * state[pressure] / state[density]);
+}
+
+template <int Rank, typename A>
+template <typename AccessorLhs, typename AccessorRhs>
+void perfect_gas<Rank, A>::reconstruct_prim(
+    const state_ref<AccessorLhs>& prim,
+    const state_ref<AccessorRhs>& state) const {
+  static_assert(std::is_same<typename AccessorLhs::value_type,
+                             typename AccessorRhs::value_type>{},
+                "Inconsistency: Accessor have different value type. This is "
+                "probably an error.");
+  using float_t = typename AccessorLhs::value_type;
+  const float_t gamma_minus_1 = m_gamma - 1.f;
+  for_each(prim.get_variable_list(),
+           [&](auto variable) { state[variable] = prim[variable]; });
+  const float_t rho = prim[density];
+  const float_t p = prim[pressure];
+  const float_t e_kin = [&] {
+    float_t e_kin = A{0};
+    for_each(Momentum<Rank>(), [&](auto mom) {
+      const float_t rho_u = state[mom];
+      e_kin += rho_u * rho_u;
+    });
+    e_kin *= float_t(0.5) / rho;
+    return rho * e_kin;
+  }();
+  const float_t e_int = p / gamma_minus_1;
+  state[energy] = e_kin + e_int;
+  state[speed_of_sound] = std::sqrt(m_gamma * p / rho);
 }
 
 template <int Rank, typename A>

@@ -10,7 +10,7 @@ uint32_t reverse(uint32_t x, int bits) noexcept {
   x = ((x & 0x0F0F0F0F) << 4) | ((x & 0xF0F0F0F0) >> 4);
   x = ((x & 0x00FF00FF) << 8) | ((x & 0xFF00FF00) >> 8);
   x = ((x & 0x0000FFFF) << 16) | ((x & 0xFFFF0000) >> 16);
-  return x >> (32 - bits);
+  return bits ? x >> (32 - bits) : x;
 }
 } // namespace
 

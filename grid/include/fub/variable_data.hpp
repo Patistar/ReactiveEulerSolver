@@ -147,8 +147,14 @@ public:
   basic_variable_data(basic_variable_data&&) = default;
   basic_variable_data& operator=(basic_variable_data&&) = default;
 
-  explicit basic_variable_data(VariableList list, extents_type extents = extents_type(),
-                      allocator_type alloc = allocator_type())
+  explicit basic_variable_data(VariableList list,
+                               extents_type extents = extents_type(),
+                               allocator_type alloc = allocator_type())
+      : m_storage(list, extents, alloc) {}
+
+  explicit basic_variable_data(extents_type extents,
+                               VariableList list = VariableList(),
+                               allocator_type alloc = allocator_type())
       : m_storage(list, extents, alloc) {}
 
   /// \name Observers

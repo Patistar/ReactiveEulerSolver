@@ -72,3 +72,7 @@ TEST_CASE("Construct from std::array") {
     REQUIRE(span[2] == 3);
   }
 }
+
+TEST_CASE("Spans are convertible to each other") {
+  REQUIRE(std::is_convertible<fub::span<double, 10>, fub::span<const double>>{});
+}

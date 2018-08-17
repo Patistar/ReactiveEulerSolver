@@ -32,7 +32,7 @@ constexpr int Rank = 2;
 
 using equation_t = fub::euler::perfect_gas<Rank>;
 
-using grid_t = fub::p4est::basic_grid<equation_t::complete_state, Rank, float>;
+using grid_t = fub::p4est::basic_grid<equation_t::complete_state, Rank>;
 
 using simulation_state_t = fub::simulation_state<grid_t, equation_t>;
 
@@ -79,11 +79,11 @@ po::variables_map Euler_parse_args(int argc, char** argv) {
   desc.add_options()("help", "produce help message")(
       "initial_level", po::value<int>(), "initial refinement level")(
       "max_level", po::value<int>(), "maximal refinement level")(
-      "gamma", po::value<float>(), "heat capacity ratio of the equation")(
+      "gamma", po::value<double>(), "heat capacity ratio of the equation")(
       "patch_extents", po::value<int>(),
       "amount of cells in each direction per patch")(
-      "upper_x", po::value<float>(), "upper bound for x coordinates")(
-      "upper_y", po::value<float>(), "upper bound for y coordinates");
+      "upper_x", po::value<double>(), "upper bound for x coordinates")(
+      "upper_y", po::value<double>(), "upper bound for y coordinates");
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
@@ -93,24 +93,24 @@ po::variables_map Euler_parse_args(int argc, char** argv) {
 void Euler_main(po::variables_map options) {
   // Build our solver
   auto solver = fub::make_hyperbolic_system_solver(
-      fub::godunov_metod(fub::euler::hlle_rieman_solver()),
+      fub::godunov_method(fub::euler::hlle_riemann_solver()),
       fub::time_integrator::forward_euler());
 
   // Initialise the simulation state
   simulation_state_t state = Euler_initialise(options);
 
   // Get some simulation options
-  float output_interval = options["output_interval"].as<float>();
-  float max_time = options["max_time"].as<float>();
-  float max_wall_time = options["max_wall_time"].as<float>();
-  float max_cycle = options["max_cycles"].as<float>();
+  double output_interval = options["output_interval"].as<double>();
+  double max_time = options["max_time"].as<double>();
+  double max_wall_time = options["max_wall_time"].as<double>();
+  double max_cycle = options["max_cycles"].as<double>();
   fub::print_statistics_line cycle_feedback(stdout, max_time, max_cycle,
                                             max_wall_time);
   try {
     // Loop in time until we achieved our goal.
     while (state.time < max_time && state.cycle < max_cycle) {
-      constexpr float eps = std::numeric_limits<float>::eps();
-      const float dt = std::min(output_interval, max_time - state.time + eps);
+      constexpr double eps = std::numeric_limits<double>::eps();
+      const double dt = std::min(output_interval, max_time - state.time + eps);
       fub::regrid(state);
       fub::advance_time(state, solver, duration_t(dt), cycle_feedback);
       Euler_write_output(state);

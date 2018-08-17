@@ -86,10 +86,10 @@ public:
       : m_handle{p4est_connectivity_new_periodic()} {}
 
   /// Returns a pointer to `const p4est_connectivity_t`.
-  const p4est_connectivity_t* native() const noexcept;
+  const p4est_connectivity_t* native_handle() const noexcept;
 
   /// Returns a pointer to `p4est_connectivity_t`.
-  p4est_connectivity_t* native() noexcept;
+  p4est_connectivity_t* native_handle() noexcept;
 
   /// Returns the number of trees.
   int num_trees() const noexcept;

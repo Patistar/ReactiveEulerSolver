@@ -53,6 +53,7 @@ public:
   const std::array<double, Rank>& upper() const noexcept { return m_upper; }
   const std::array<index, Rank>& extents() const noexcept { return m_extents; }
   const std::array<double, Rank>& dx() const noexcept { return m_dx; }
+  double dx(int dim) const noexcept { return m_dx[dim]; }
 
   template <typename... Is>
   constexpr std::enable_if_t<sizeof...(Is) == Rank, std::array<double, Rank>>

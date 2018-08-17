@@ -58,7 +58,7 @@ add_library(ReactiveEulerSolver.grid
   source/fub/p4est/forest.cpp)
 target_include_directories(ReactiveEulerSolver.grid PUBLIC include)
 target_link_libraries(ReactiveEulerSolver.grid PUBLIC 
-  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES})
+  ReactiveEulerSolver_core ${FUB_GRID_DEPENDENCIES} mpi)
 
 add_subdirectory(tests)
 # add_subdirectory(example)

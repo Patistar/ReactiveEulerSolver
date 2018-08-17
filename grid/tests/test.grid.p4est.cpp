@@ -153,14 +153,15 @@ interpolate_neighbor_data(const Grid& grid, fub::p4est::quadrant<2> quad,
 void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
   using namespace fub::v1::p4est;
 
-  dynamic_extents_t<2> patch_extents(4, 4);
+  dynamic_extents_t<2> patch_extents(8, 8);
   uniform_cartesian_coordinates<2> coordinates({0.0, 0.0}, {1.0, 1.0},
                                                as_array(patch_extents));
-  Grid::patch_data_info meta_data{Variables(), patch_extents, coordinates};
+
+  Grid::patch_data_info pdinfo{Variables(), patch_extents, coordinates};
   fub::p4est::connectivity<2> conn = unit_square;
   fub::p4est::forest<2> forest(communicator, conn, 0, init_depth, 1);
   fub::p4est::ghost_layer<2> ghost_layer(forest);
-  Grid grid(std::move(forest), std::move(ghost_layer), meta_data);
+  Grid grid(std::move(forest), std::move(ghost_layer), pdinfo);
 
   span<const quadrant<2>> quadrants = grid.get_forest().trees()[0].quadrants();
   for (quadrant<2> quad : quadrants) {
@@ -174,7 +175,7 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
                                                         patch_extents);
 
   for (int i = 0; i < final_depth - init_depth; ++i) {
-    grid.exchange_quadrant_data();
+    grid.exchange_ghost_data();
 
     fub::p4est::forest<2> forest = grid.get_forest();
     refine_if(forest, [&](int which_tree, quadrant<2> quad) {
@@ -193,7 +194,7 @@ void my_main(MPI_Comm communicator, int rank, int init_depth, int final_depth) {
       return L2_derivatives_(axis::x) || L2_derivatives_(axis::y);
     });
 
-    grid.transfer_data_to(forest, [&](auto /* out */, auto in) {
+    grid.interpolate_data_to(forest, [&](auto /* out */, auto in) {
       int size = in.quadrants.size();
       for (int i = 0; i < size; ++i) {
         my_initialize(in.datas[i], grid.coordinates(in.quadrants[i]));

@@ -23,11 +23,11 @@
 namespace fub {
 inline namespace v1 {
 namespace p4est {
-const p4est_connectivity_t* connectivity<2>::native() const noexcept {
+const p4est_connectivity_t* connectivity<2>::native_handle() const noexcept {
   return m_handle.get();
 }
 
-p4est_connectivity_t* connectivity<2>::native() noexcept {
+p4est_connectivity_t* connectivity<2>::native_handle() noexcept {
   return m_handle.get();
 }
 

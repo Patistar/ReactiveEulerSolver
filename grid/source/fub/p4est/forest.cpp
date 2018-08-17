@@ -38,10 +38,10 @@ void fill_local_nums(p4est_t* forest) {
 // Constructors
 
 forest<2>::forest(const forest& other)
-    : m_handle{p4est_copy(const_cast<p4est_t*>(other.native()), 1)} {}
+    : m_handle{p4est_copy(const_cast<p4est_t*>(other.native_handle()), 1)} {}
 
 forest<2>& forest<2>::operator=(const forest& other) {
-  m_handle.reset(p4est_copy(const_cast<p4est_t*>(other.native()), 1));
+  m_handle.reset(p4est_copy(const_cast<p4est_t*>(other.native_handle()), 1));
   return *this;
 }
 
@@ -50,15 +50,15 @@ forest<2>::forest(p4est_t* pointer) noexcept : m_handle{pointer} {}
 forest<2>::forest(MPI_Comm communicator,
                   const ::fub::p4est::connectivity<2>& conn) noexcept
     : m_handle{p4est_new(communicator,
-                         const_cast<p4est_connectivity_t*>(conn.native()), 0,
+                         const_cast<p4est_connectivity_t*>(conn.native_handle()), 0,
                          nullptr, nullptr)} {
   fill_local_nums(m_handle.get());
 }
 
-forest<2>::forest(MPI_Comm communicator, ::fub::p4est::connectivity<2>& conn,
+forest<2>::forest(MPI_Comm communicator, const ::fub::p4est::connectivity<2>& conn,
                   int min_quads, int min_level, int fill_uniform) noexcept
     : m_handle{p4est_new_ext(
-          communicator, const_cast<p4est_connectivity_t*>(conn.native()),
+          communicator, const_cast<p4est_connectivity_t*>(conn.native_handle()),
           min_quads, min_level, fill_uniform, 0, nullptr, nullptr)} {
   fill_local_nums(m_handle.get());
 }
@@ -77,8 +77,12 @@ int forest<2>::local_num_quadrants() const noexcept {
   return m_handle->local_num_quadrants;
 }
 
-std::ptrdiff_t forest<2>::global_num_quadrants() const noexcept {
+p4est_gloidx_t forest<2>::global_num_quadrants() const noexcept {
   return m_handle->global_num_quadrants;
+}
+
+span<const p4est_gloidx_t> forest<2>::global_first_position() const noexcept {
+  return {m_handle->global_first_quadrant, mpi_size() + 1};
 }
 
 span<const tree<2>> forest<2>::trees() const noexcept {
@@ -88,9 +92,7 @@ span<const tree<2>> forest<2>::trees() const noexcept {
   return {pointer, size};
 }
 
-p4est_t* forest<2>::native() noexcept { return m_handle.get(); }
-
-const p4est_t* forest<2>::native() const noexcept { return m_handle.get(); }
+p4est_t* forest<2>::native_handle() const noexcept { return m_handle.get(); }
 
 optional<std::ptrdiff_t> find(const forest<2>& forest, int treeidx,
                               const quadrant<2>& quad) noexcept {
@@ -107,8 +109,13 @@ optional<std::ptrdiff_t> find(const forest<2>& forest, int treeidx,
 }
 
 void balance(forest<2>& forest) noexcept {
-  p4est_balance(forest.native(), P4EST_CONNECT_FACE, nullptr);
-  fill_local_nums(forest.native());
+  p4est_balance(forest.native_handle(), P4EST_CONNECT_FACE, nullptr);
+  fill_local_nums(forest.native_handle());
+}
+
+void partition(forest<2>& forest) noexcept {
+  p4est_partition(forest.native_handle(), 0, nullptr);
+  fill_local_nums(forest.native_handle());
 }
 
 } // namespace p4est

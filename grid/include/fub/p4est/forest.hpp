@@ -45,6 +45,8 @@ template <int Rank> class forest;
 /// This is a wrapper for the 2-dimensional forest type `p4est_t`.
 template <> class forest<2> {
 public:
+  using native_handle_type = p4est_t*;
+
   /// \name Constructors & Assignment
 
   /// Constructs an invalid forest.
@@ -120,8 +122,8 @@ public:
   ///
   /// \note The connectivity structure must not be destroyed during the lifetime
   /// of this forest.
-  forest(MPI_Comm communicator, ::fub::p4est::connectivity<2>& conn,
-         int min_quads, int min_level, int fill_uniform) noexcept;
+  forest(MPI_Comm communicator, const connectivity<2>& conn, int min_quads,
+         int min_level, int fill_uniform) noexcept;
 
   /// \name Member Accessors
 
@@ -138,17 +140,19 @@ public:
   int local_num_quadrants() const noexcept;
 
   /// Returns the number of quadrants on all trees on all processors
-  std::ptrdiff_t global_num_quadrants() const noexcept;
+  p4est_gloidx_t global_num_quadrants() const noexcept;
+
+  /// Returns a global quadrant partition.
+  span<const p4est_gloidx_t> global_first_position() const noexcept;
 
   /// Returns a view of all trees.
   span<const tree<2>> trees() const noexcept;
 
-  p4est_t* native() noexcept;
-  const p4est_t* native() const noexcept;
+  native_handle_type native_handle() const noexcept;
 
 private:
   struct destroyer {
-    void operator()(p4est_t* p) const noexcept {
+    void operator()(native_handle_type p) const noexcept {
       if (p) {
         p4est_destroy(p);
       }
@@ -159,9 +163,9 @@ private:
 
 template <typename Predicate>
 void refine_if(forest<2>& forest, Predicate predicate) {
-  forest.native()->user_pointer = &predicate;
+  forest.native_handle()->user_pointer = &predicate;
   p4est_refine(
-      forest.native(), 0,
+      forest.native_handle(), 0,
       [](p4est_t* forest, int which_tree, p4est_quadrant_t* quad) -> int {
         Predicate* pred = reinterpret_cast<Predicate*>(forest->user_pointer);
         quadrant<2> q(*quad);
@@ -170,7 +174,46 @@ void refine_if(forest<2>& forest, Predicate predicate) {
       nullptr);
 }
 
+template <typename Predicate>
+void coarsen_if(forest<2>& forest, Predicate predicate) {
+  forest.native_handle()->user_pointer = &predicate;
+  p4est_coarsen(
+      forest.native_handle(), 0,
+      [](p4est_t* forest, int which_tree, p4est_quadrant_t* q[]) -> int {
+        Predicate* pred = reinterpret_cast<Predicate*>(forest->user_pointer);
+        std::array<quadrant<2>, 4> quads{*q[0], *q[1], *q[2], *q[3]};
+        return (*pred)(which_tree, quads);
+      },
+      nullptr);
+}
+
+struct max_level_t {
+  constexpr explicit max_level_t(int val) noexcept : value(val) {}
+
+  constexpr int operator()() const noexcept { return value; }
+  constexpr operator int() const noexcept { return value; }
+
+  int value;
+};
+
+constexpr max_level_t max_level(int lvl) noexcept { return max_level_t(lvl); }
+
+template <typename Predicate>
+void refine_if(forest<2>& forest, max_level_t level, Predicate predicate) {
+  forest.native_handle()->user_pointer = &predicate;
+  p4est_refine_ext(
+      forest.native_handle(), 0, level,
+      [](p4est_t* forest, int which_tree, p4est_quadrant_t* quad) -> int {
+        Predicate* pred = reinterpret_cast<Predicate*>(forest->user_pointer);
+        quadrant<2> q(*quad);
+        return fub::invoke(*pred, which_tree, q);
+      },
+      nullptr, nullptr);
+}
+
 void balance(forest<2>& forest) noexcept;
+
+void partition(forest<2>& forest) noexcept;
 
 optional<std::ptrdiff_t> find(const forest<2>& forest, int treeidx,
                               const quadrant<2>& quad) noexcept;

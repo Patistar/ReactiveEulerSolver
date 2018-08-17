@@ -50,9 +50,18 @@ struct hlle_riemann_solver {
                                      const_patch_t<Equation> left,
                                      const_patch_t<Equation> middle,
                                      const_patch_t<Equation> right,
-                                     fluxes_t<Equation> flux) noexcept {
+                                     fluxes_t<Equation> flux) {
     return hll_riemann_solver::compute_numeric_fluxes(
         hlle_signal_velocity{}, equation, left, middle, right, flux);
+  }
+
+  template <typename Equation>
+  static std::array<floating_point_t<Equation>, 2>
+  compute_signals(Equation equation, const const_state_ref_t<Equation>& left,
+                  const const_state_ref_t<Equation>& right) noexcept {
+    hlle_signal_velocities<floating_point_t<Equation>> result =
+        hlle_signal_velocity{}(equation, left, right);
+    return {result.left, result.right};
   }
 };
 

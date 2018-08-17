@@ -23,8 +23,8 @@
 
 #include "fub/index_range.hpp"
 #include "fub/p4est/quadrant.hpp"
-#include "fub/variable_view.hpp"
 #include "fub/variable_list.hpp"
+#include "fub/variable_view.hpp"
 
 namespace fub {
 inline namespace v1 {
@@ -36,23 +36,28 @@ constexpr std::array<int, 3> relative_coordinates(int child, int_constant<3>) {
   return {child % 2, child / 2, child / 4};
 }
 
-inline std::array<std::array<std::ptrdiff_t, 2>, 4> refine(std::array<std::ptrdiff_t, 2> index) noexcept {
-  std::array<std::array<std::ptrdiff_t, 2>, 4> refined{{{}, {1, 0}, {0, 1}, {1, 1}}};
+inline std::array<std::array<std::ptrdiff_t, 2>, 4>
+refine(std::array<std::ptrdiff_t, 2> index) noexcept {
+  std::array<std::array<std::ptrdiff_t, 2>, 4> refined{
+      {{}, {1, 0}, {0, 1}, {1, 1}}};
   for (int i = 0; i < 4; ++i) {
-    refined[i][0] += 2*index[0];
-    refined[i][1] += 2*index[1];
+    refined[i][0] += 2 * index[0];
+    refined[i][1] += 2 * index[1];
   }
-  return refined; 
+  return refined;
 }
 
 template <std::size_t Rank>
-index_range<Rank> sub_index_range(std::array<std::ptrdiff_t, Rank> extents, int child) {
+index_range<Rank> sub_index_range(std::array<std::ptrdiff_t, Rank> extents,
+                                  int child) {
   std::transform(extents.begin(), extents.end(), extents.begin(),
                  [](index i) { return i / 2; });
   std::array<int, Rank> coords = relative_coordinates(child, int_c<Rank>);
   std::array<std::ptrdiff_t, Rank> origin;
   std::transform(extents.begin(), extents.end(), coords.begin(), origin.begin(),
-                 [](std::ptrdiff_t extent, std::ptrdiff_t coord) { return extent * coord; });
+                 [](std::ptrdiff_t extent, std::ptrdiff_t coord) {
+                   return extent * coord;
+                 });
   return {origin, extents};
 }
 
@@ -64,12 +69,14 @@ void linearily_refine(variable_view<VL, const T, E, A> coarse,
   const index_range<Rank> box =
       sub_index_range(as_array(coarse.get_extents()), child);
   for_each_index(box, [=](std::array<std::ptrdiff_t, Rank> index) {
-    std::transform(index.begin(), index.end(), box.origin.begin(), index.begin(),
+    std::transform(index.begin(), index.end(), box.origin.begin(),
+                   index.begin(),
                    [](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
     const auto refined = refine(index);
     const auto data = coarse(index);
-    std::for_each(refined.begin(), refined.end(),
-                  [&](std::array<std::ptrdiff_t, Rank> r) { fine(r) = data; });
+    for (std::array<std::ptrdiff_t, Rank> ref : refined) {
+      fine(ref) = data;
+    }
   });
 }
 
@@ -82,16 +89,17 @@ void linearily_coarsen(
   const index_range<Rank> box =
       sub_index_range(as_array(coarse.get_extents()), child);
   for_each_index(box, [&](std::array<std::ptrdiff_t, Rank> index) {
-    std::transform(index.begin(), index.end(), box.origin.begin(), index.begin(),
+    std::array<std::ptrdiff_t, Rank> scratch;
+    std::transform(index.begin(), index.end(), box.origin.begin(),
+                   scratch.begin(),
                    [](std::ptrdiff_t i, std::ptrdiff_t o) { return i - o; });
-    const auto refined = refine(index);
+    const auto refined = refine(scratch);
     coarse(index) = fine(refined[0]);
-    std::for_each(std::next(refined.begin()), refined.end(),
-                  [&](std::array<std::ptrdiff_t, Rank> r) {
-                    fub::for_each(coarse.get_variable_list(), [=](auto var) {
-                      coarse[var](index) += fine[var](r);
-                    });
-                  });
+    for (int i = 1; i < refined.size(); ++i) {
+      fub::for_each(coarse.get_variable_list(), [&](auto var) {
+        coarse[var](index) += fine[var](refined[i]);
+      });
+    }
     fub::for_each(coarse.get_variable_list(),
                   [&](auto var) { coarse[var](index) /= 4; });
   });

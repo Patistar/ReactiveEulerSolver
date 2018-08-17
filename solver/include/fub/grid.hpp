@@ -18,41 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "fub/output/gnuplot.hpp"
+#ifndef FUB_SOLVER_GRID_HPP
+#define FUB_SOLVER_GRID_HPP
 
-#include "fub/uniform_cartesian_coordinates.hpp"
+#include "fub/type_traits.hpp"
 #include "fub/variable_data.hpp"
 
-#include <cstdio>
-#include <cassert>
+namespace fub {
+inline namespace v1 {
 
-struct Density : fub::scalar_variable {
-  static const char* name(int) noexcept { return "Density"; }
-};
-static constexpr auto density = fub::tag<Density>;
+template <typename Grid> using quadrant_t = typename remove_cvref_t<Grid>::quadrant_type;
 
-struct Momentum : fub::vector_variable<2> {
-  static const char* name(int dim) noexcept {
-    static const char* names[2]{"MomentumX", "MomentumY"};
-    assert(0 <= dim && dim < 2);
-    return names[dim];
-  }
-};
+template <typename Grid>
+using patch_data_t =
+    decltype(std::declval<Grid>().patch_data(quadrant_t<Grid>{}));
 
-using Variables = fub::variable_list<Density, Momentum>;
+template <typename Grid>
+using coordinates_t = decltype(std::declval<Grid>().coordinates());
 
-int main() {
-  Variables vars{};
-  fub::dynamic_extents_t<2> extents(10, 10);
-  fub::variable_data<Variables, float, 2> patch(extents);
-  fub::uniform_cartesian_coordinates<2> coordinates({0., 0.}, {1., 1.},
-                                                    fub::as_array(extents));
-  for_each_index(patch.get_mapping(), [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-    auto x = coordinates.cell(i, j);
-    if (x[0] + x[1] < 1.0) {
-      patch[density](i, j) = 1.0;
-    }
-  });
-  fub::output::gnuplot output_module;
-  output_module.write(stdout, patch, coordinates);
-}
+template <typename Grid>
+using variable_list_t = decltype(std::declval<Grid>().variable_list());
+
+template <typename Grid, typename VariableList = variable_list_t<Grid>>
+using patch_buffer_t = variable_data<VariableList, typename Grid::value_type, Grid::rank()>; 
+
+} // namespace v1
+} // namespace fub
+
+#endif

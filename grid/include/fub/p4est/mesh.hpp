@@ -26,6 +26,7 @@
 
 #include "fub/p4est/forest.hpp"
 #include "fub/p4est/ghost_layer.hpp"
+#include "fub/face.hpp"
 
 #include "fub/span.hpp"
 
@@ -62,6 +63,8 @@ template <> class mesh<2> {
 public:
   using face_neighbors_t =
       std::array<boost::container::static_vector<mesh_quadrant<2>, 4>, 4>;
+
+  mesh() = default;
 
   /// Constructs a mesh from a given forest and ghost layer.
   ///

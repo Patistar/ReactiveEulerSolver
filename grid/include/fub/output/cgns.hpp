@@ -173,6 +173,7 @@ void cgns::write(const cgns_context& ctx, const Grid& grid, const Box& box) {
 
 template <typename State>
 void cgns::write(const cgns_context& ctx, const State& state) {
+  iteration_data_write(ctx, state.time, state.cycle);
   auto trees = state.grid.get_forest().trees();
   for (auto&& tree : trees) {
     auto quads = tree.quadrants();

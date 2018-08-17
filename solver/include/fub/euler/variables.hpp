@@ -47,27 +47,27 @@ template <int Rank> struct Momentum : vector_variable<Rank> {
 };
 
 struct Pressure : scalar_variable {
-  static const char* name() noexcept { return "Pressure"; }
+  static const char* name(int) noexcept { return "Pressure"; }
 };
 
 struct Energy : scalar_variable {
-  static const char* name() noexcept { return "EnergyStagnationDensity"; }
+  static const char* name(int) noexcept { return "EnergyStagnationDensity"; }
 };
 
 struct Temperature : scalar_variable {
-  static const char* name() noexcept { return "Temperature"; }
+  static const char* name(int) noexcept { return "Temperature"; }
 };
 
 struct SpeedOfSound : scalar_variable {
-  static const char* name() noexcept { return "VelocitySound"; }
+  static const char* name(int) noexcept { return "VelocitySound"; }
 };
 
 struct HeatCapacityAtConstantP : scalar_variable {
-  static const char* name() noexcept { return "SpecificHeatPressure"; }
+  static const char* name(int) noexcept { return "SpecificHeatPressure"; }
 };
 
 struct Enthalpy : scalar_variable {
-  static const char* name() noexcept { return "Enthalpy"; }
+  static const char* name(int) noexcept { return "Enthalpy"; }
 };
 
 struct Species : vector_variable<dynamic_extent> {
@@ -76,6 +76,31 @@ struct Species : vector_variable<dynamic_extent> {
 
 template <int Rank, int Dim = 0>
 static constexpr const tag_t<Momentum<Rank>, Dim> momentum{};
+
+template <int Rank> constexpr auto dynamic_momentum(int dim);
+
+template <> constexpr auto dynamic_momentum<1>(int dim) {
+  return variant<tag_t<Momentum<1>, 0>>{};
+}
+
+template <> constexpr auto dynamic_momentum<2>(int dim) {
+  variant<tag_t<Momentum<2>, 0>, tag_t<Momentum<2>, 1>> v{};
+  if (dim == 1) {
+    v = momentum<2, 1>;
+  }
+  return v;
+}
+
+template <> constexpr auto dynamic_momentum<3>(int dim) {
+  variant<tag_t<Momentum<3>, 0>, tag_t<Momentum<3>, 1>, tag_t<Momentum<3>, 2>> v{};
+  if (dim == 1) {
+    v = momentum<3, 1>;
+  }
+  if (dim == 2) {
+    v = momentum<3, 2>;
+  }
+  return v;
+}
 
 template <int Rank, int Dim = 0>
 static constexpr const tag_t<Velocity<Rank>, Dim> velocity{};

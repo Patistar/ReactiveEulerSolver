@@ -24,6 +24,8 @@
 #include "fub/p4est/quadrant.hpp"
 #include "fub/span.hpp"
 
+#include <p4est_communication.h>
+
 #include <Vc/vector.h>
 
 namespace fub {
@@ -43,85 +45,55 @@ public:
 
   using allocator = boost::container::pmr::polymorphic_allocator<T>;
 
-  template <typename S>
-  using rebind_alloc =
-      typename std::allocator_traits<allocator>::template rebind_alloc<S>;
-
   /// Constructs an empty quadrant data object.
   unique_quadrant_data() = default;
 
   /// Constructs data arrays of size `size` for each quadrant in `quadrants`.
   unique_quadrant_data(std::ptrdiff_t num_quadrants, std::ptrdiff_t size,
                        allocator alloc = allocator())
-      : m_allocator(alloc), m_quadrant_to_data{} {
-    if (num_quadrants > 0) {
-      m_quadrant_to_data = span<span<T>>(
-          rebind_alloc<span<T>>(m_allocator).allocate(num_quadrants),
-          num_quadrants);
-    }
-    for (fub::span<T>& span : m_quadrant_to_data) {
-      new (&span) fub::span<T>{m_allocator.allocate(size), size};
-    }
+      : m_stride{size}, m_data(num_quadrants * size,
+                               std::numeric_limits<T>::signaling_NaN(), alloc) {
   }
 
-  unique_quadrant_data(const unique_quadrant_data&) = delete;
-  unique_quadrant_data& operator=(const unique_quadrant_data&) = delete;
+  std::ptrdiff_t data_size() const noexcept { return m_stride; }
 
-  /// Move ownership of the data from other to this.
-  unique_quadrant_data(unique_quadrant_data&& other) noexcept
-      : m_allocator{other.get_allocator()}, m_quadrant_to_data{
-                                                other.release()} {}
+  std::ptrdiff_t size() const noexcept { return m_data.size() / m_stride; }
 
-  /// Move ownership of the data from other to this.
-  unique_quadrant_data& operator=(unique_quadrant_data&& other) noexcept {
-    reset(other.release(), other.get_allocator());
-    return *this;
-  }
-
-  ~unique_quadrant_data() noexcept {
-    if (m_quadrant_to_data) {
-      for (fub::span<T> span : m_quadrant_to_data) {
-        m_allocator.deallocate(span.data(), span.size());
-      }
-      rebind_alloc<span<T>>(m_allocator)
-          .deallocate(m_quadrant_to_data.data(), m_quadrant_to_data.size());
-    }
-  }
-
-  std::ptrdiff_t size() const noexcept { return m_quadrant_to_data.size(); }
-
-  span<const T> operator[](std::ptrdiff_t idx) const noexcept {
+  fub::span<const T> operator[](std::ptrdiff_t idx) const noexcept {
     assert(0 <= idx && idx < size());
-    return m_quadrant_to_data[idx];
+    return {&m_data[idx * m_stride], m_stride};
   }
 
-  span<T> operator[](std::ptrdiff_t idx) noexcept {
+  fub::span<T> operator[](std::ptrdiff_t idx) noexcept {
     assert(0 <= idx && idx < size());
-    return m_quadrant_to_data[idx];
+    return {&m_data[idx * m_stride], m_stride};
   }
 
-  allocator get_allocator() const noexcept { return m_allocator; }
+  allocator get_allocator() const noexcept { return m_data.get_allocator(); }
 
-  span<span<T>> release() noexcept {
-    return std::exchange(m_quadrant_to_data, span<span<T>>());
-  }
+  fub::span<T> span() noexcept { return m_data; }
 
-  void reset(span<span<T>> quad_to_data, allocator alloc) noexcept {
-    this->~unique_quadrant_data();
-    m_allocator = alloc;
-    m_quadrant_to_data = quad_to_data;
-  }
-
-  span<const span<T>> data() noexcept { return m_quadrant_to_data; }
-
-  span<const span<const T>> data() const noexcept {
-    return span_cast<const span<const T>>(m_quadrant_to_data);
-  }
+  fub::span<const T> span() const noexcept { return m_data; }
 
 private:
-  allocator m_allocator{};
-  span<span<T>> m_quadrant_to_data{};
+  std::ptrdiff_t m_stride{};
+  std::vector<T, allocator> m_data{};
 };
+
+template <typename T>
+unique_quadrant_data<T[]>
+transfer_data(const forest<2>& new_forest, const forest<2>& old_forest,
+              const unique_quadrant_data<T[]>& old_data) {
+  span<const p4est_gloidx_t> dest_gfp = new_forest.global_first_position();
+  span<const p4est_gloidx_t> src_gfp = old_forest.global_first_position();
+  MPI_Comm comm = new_forest.mpi_communicator();
+  std::ptrdiff_t data_size = old_data.data_size();
+  unique_quadrant_data<T[]> new_data(new_forest.local_num_quadrants(),
+                                     data_size);
+  p4est_transfer_fixed(dest_gfp.data(), src_gfp.data(), comm, 0, new_data.span().data(),
+                       old_data.span().data(), sizeof(T) * data_size);
+  return new_data;
+}
 
 } // namespace p4est
 } // namespace v1

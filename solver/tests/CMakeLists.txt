@@ -20,8 +20,8 @@ target_link_libraries(benchmark.euler.hlle_riemann_solver ReactiveEulerSolver.so
 add_executable(benchmark.time_integrator.forward_euler benchmark.time_integrator.forward_euler.cpp)
 target_link_libraries(benchmark.time_integrator.forward_euler ReactiveEulerSolver.solver assembly.time_integrator.forward_euler benchmark)
 
-# add_executable(benchmark.euler.perfect_gas benchmark.euler.perfect_gas.cpp)
-# target_link_libraries(benchmark.euler.perfect_gas ReactiveEulerSolver.solver assembly.euler.perfect_gas benchmark)
-
 add_executable(benchmark.euler.hlle_signal_velocity benchmark.euler.hlle_signal_velocity.cpp)
 target_link_libraries(benchmark.euler.hlle_signal_velocity ReactiveEulerSolver.solver assembly.euler.hlle_signal_velocity benchmark)
+
+add_executable(test.solver.hyperbolic_system_solver test.solver.hyperbolic_system_solver.cpp)
+target_link_libraries(test.solver.hyperbolic_system_solver ReactiveEulerSolver.solver)

@@ -26,31 +26,38 @@
 
 namespace fub {
 inline namespace v1 {
-namespace detail {
 template <typename M> struct mdspan_add_const;
 
 template <typename T, typename E, typename L, typename A>
 struct mdspan_add_const<basic_mdspan<T, E, L, A>> {
-  using type = basic_mdspan < std::add_const_t<T>, E, L,
-        typename A::template rebind<std::add_const_t<T>>>;
+  using type = basic_mdspan<std::add_const_t<T>, E, L,
+                            typename A::template rebind<std::add_const_t<T>>>;
 };
 
 template <typename M>
 using mdspan_add_const_t = typename mdspan_add_const<M>::type;
-} // namespace detail
+
+template <typename M> struct mdspan_remove_const;
+template <typename T, typename E, typename L, typename A>
+struct mdspan_remove_const<basic_mdspan<T, E, L, A>> {
+  using type =
+      basic_mdspan<std::remove_const_t<T>, E, L,
+                   typename A::template rebind<std::remove_const_t<T>>>;
+};
+template <typename M>
+using mdspan_remove_const_t = typename mdspan_remove_const<M>::type;
 
 /// This is a utility class which helps to map multidimensional variable data
 /// in some congtiguous range of memory.
 template <typename VariableList, typename MdSpan> struct variable_mapping {
   using mdspan_type = MdSpan;
-  using const_mdspan_type = detail::mdspan_add_const_t<MdSpan>;
+  using const_mdspan_type = mdspan_add_const_t<MdSpan>;
   using value_type = typename mdspan_type::value_type;
   using const_value_type = std::add_const_t<value_type>;
   using mapping_type = typename mdspan_type::mapping;
   using extents_type = typename mdspan_type::extents_type;
   using accessor_type = rebind_t<typename mdspan_type::accessor, value_type>;
-  using const_accessor_type =
-      typename accessor_type::template rebind<const_value_type>;
+  using const_accessor_type = rebind_t<accessor_type, const_value_type>;
   using layout = typename mdspan_type::layout;
 
   static constexpr std::ptrdiff_t static_size() noexcept {
@@ -64,12 +71,12 @@ template <typename VariableList, typename MdSpan> struct variable_mapping {
   }
 
   using span_type = basic_span<value_type, static_size(), accessor_type>;
-  using const_span_type =
-      basic_span<const_value_type, static_size(), const_accessor_type>;
+  using const_span_type = typename const_mdspan_type::span_type;
 
   template <typename Tag>
-  static constexpr mdspan_type make_mdspan(span_type s, extents_type e,
-                                           VariableList vars, Tag tag) {
+  static constexpr mdspan_type make_mdspan_(std::true_type, span_type s,
+                                            extents_type e, VariableList vars,
+                                            Tag tag) {
     optional<std::ptrdiff_t> index = vars.index(tag);
     assert(index);
     const mapping_type mapping(e);
@@ -80,13 +87,23 @@ template <typename VariableList, typename MdSpan> struct variable_mapping {
 
   template <typename Tag>
   static constexpr const_mdspan_type
-  make_mdspan(const_span_type s, extents_type e, VariableList vars, Tag tag) {
+  make_mdspan_(std::false_type, const_span_type s, extents_type e,
+               VariableList vars, Tag tag) {
     optional<std::ptrdiff_t> index = vars.index(tag);
     assert(index);
     const mapping_type mapping(e);
     const std::ptrdiff_t size = mapping.required_span_size();
     const std::ptrdiff_t lower = (*index) * size;
     return const_mdspan_type(subspan(s, lower, size), mapping);
+  }
+
+  template <typename SpanLike, typename Tag,
+            typename = std::enable_if_t<
+                std::is_convertible<SpanLike, const_span_type>{}>>
+  static constexpr auto make_mdspan(SpanLike s, extents_type e,
+                                    VariableList vars, Tag tag) {
+    return make_mdspan_(std::is_convertible<SpanLike, span_type>{}, s, e, vars,
+                        tag);
   }
 };
 

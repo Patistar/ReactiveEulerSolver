@@ -197,9 +197,11 @@ private:
   span_type m_span;
 };
 
-template <typename VariableList, typename T, typename Extents, typename Accessor = accessor_native<T>>
+template <typename VariableList, typename T, typename Extents,
+          typename Accessor = accessor_native<T>>
 using variable_view =
-    basic_variable_view<VariableList, basic_mdspan<T, Extents, layout_left, Accessor>>;
+    basic_variable_view<VariableList,
+                        basic_mdspan<T, Extents, layout_left, Accessor>>;
 
 template <typename VariableList, typename MdSpan>
 constexpr auto rows(basic_variable_view<VariableList, MdSpan> view) noexcept {
@@ -213,19 +215,25 @@ constexpr auto rows(basic_variable_view<VariableList, MdSpan> view) noexcept {
 
 template <typename L, typename M, typename R, typename FaceFeedback>
 FaceFeedback for_each_face(L left, M mid, R right, FaceFeedback feedback) {
+  return for_each_face(0, left, mid, right, feedback);
+}
+
+template <typename L, typename M, typename R, typename FaceFeedback>
+FaceFeedback for_each_face(int dim, L left, M mid, R right,
+                           FaceFeedback feedback) {
   for_each_index(mid.get_mapping(), [&](auto... is) {
     constexpr int Rank = mid.rank();
     std::array<std::ptrdiff_t, Rank> iL{{is...}};
-    std::array<std::ptrdiff_t, Rank> iR = shift(iL, 0, 1);
-    if (iL[0] == 0) {
+    std::array<std::ptrdiff_t, Rank> iR = shift(iL, dim, 1);
+    if (iL[dim] == 0) {
       const int last_extent_left = left.get_extents().extent(0) - 1;
       std::array<std::ptrdiff_t, Rank> iLL = replace(iL, 0, last_extent_left);
       feedback(left(iLL), mid(iL));
     }
-    if (iR[0] < mid.get_extents().extent(0)) {
+    if (iR[dim] < mid.get_extents().extent(dim)) {
       feedback(mid(iL), mid(iR));
     } else {
-      std::array<std::ptrdiff_t, Rank> iR_ = replace(iR, 0, 0);
+      std::array<std::ptrdiff_t, Rank> iR_ = replace(iR, dim, 0);
       feedback(mid(iL), right(iR_));
     }
   });

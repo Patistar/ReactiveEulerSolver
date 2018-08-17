@@ -45,18 +45,20 @@ template <typename RiemannSolver> struct godunov_method {
   }
 
   template <typename Equation, typename T>
-  duration_t<T> estimate_time_step_size(Equation equation, T dx,
-                                        const_patch_t<Equation> left,
-                                        const_patch_t<Equation> mid,
-                                        const_patch_t<Equation> right) const {
+  duration_t<T> estimate_stable_time_step_size(
+      Equation equation, T dx, const_patch_t<Equation> left,
+      const_patch_t<Equation> mid, const_patch_t<Equation> right) const {
     T max_wave_speed = 0;
     for_each_face(left, mid, right, [&](auto qL, auto qR) {
       auto signals = m_riemann_solver.compute_signals(equation, qL, qR);
-      max_wave_speed = std::max({max_wave_speed, -signals.left, signals.right});
+      std::transform(signals.begin(), signals.end(), signals.begin(),
+                     [](T wave_speed) { return std::abs(wave_speed); });
+      max_wave_speed = std::max(
+          *std::max_element(signals.begin(), signals.end()), max_wave_speed);
     });
     assert(max_wave_speed > 0.);
     assert(dx > 0.);
-    return dx / max_wave_speed;
+    return duration_t<T>(0.5 * dx / max_wave_speed);
   }
 };
 

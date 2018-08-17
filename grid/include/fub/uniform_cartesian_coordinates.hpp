@@ -56,12 +56,12 @@ public:
   double dx(int dim) const noexcept { return m_dx[dim]; }
 
   template <typename... Is>
-  constexpr std::enable_if_t<sizeof...(Is) == Rank, std::array<double, Rank>>
+  std::enable_if_t<sizeof...(Is) == Rank, std::array<double, Rank>>
   operator()(Is... indices) const {
-    std::array<double, Rank> coordinates{};
+    std::array<double, Rank> coordinates;
     std::array<index, Rank> is{{static_cast<index>(indices)...}};
     check_index_range(is);
-    std::array<double, Rank> lambda{};
+    std::array<double, Rank> lambda;
     std::transform(m_extents.begin(), m_extents.end(), is.begin(),
                    lambda.begin(), [](index e, index i) {
                      assert(0 <= i && i <= e);
@@ -76,7 +76,7 @@ public:
   }
 
   template <typename... IndexTypes>
-  constexpr std::array<double, Rank> cell(IndexTypes... is) const {
+  std::array<double, Rank> cell(IndexTypes... is) const {
     std::array<std::ptrdiff_t, Rank> indices{is...};
     std::array<std::ptrdiff_t, Rank> next;
     std::transform(indices.begin(), indices.end(), next.begin(),

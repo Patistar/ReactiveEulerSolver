@@ -25,6 +25,7 @@
 #include "fub/euler/variables.hpp"
 
 namespace fub {
+inline namespace v1 {
 namespace euler {
 
 struct hll_riemann_solver {
@@ -92,6 +93,7 @@ struct hll_riemann_solver {
 };
 
 } // namespace euler
+}
 } // namespace fub
 
 #endif
